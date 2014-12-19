@@ -490,7 +490,7 @@ void RobotInteraction::addInteractiveMarkers(
       if (handler && handler->getControlsVisible())
       {
         if (active_eef_[i].interaction & EEF_POSITION_ARROWS)
-          addPositionControl(im, active_eef_[i].interaction & EEF_FIXED);
+	      addPositionControl(im, active_eef_[i].interaction); // & EEF_FIXED);
         if (active_eef_[i].interaction & EEF_ORIENTATION_CIRCLES)
           addOrientationControl(im, active_eef_[i].interaction & EEF_FIXED);
         if (active_eef_[i].interaction & (EEF_POSITION_SPHERE|EEF_ORIENTATION_SPHERE))
