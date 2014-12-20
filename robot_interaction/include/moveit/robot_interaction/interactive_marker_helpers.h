@@ -40,6 +40,7 @@
 #include <visualization_msgs/InteractiveMarker.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/ColorRGBA.h>
+#include <Eigen/Dense>
 
 namespace robot_interaction
 {
@@ -69,6 +70,8 @@ void addPlanarXYControl(visualization_msgs::InteractiveMarker& int_marker, bool 
 void addOrientationControl(visualization_msgs::InteractiveMarker& int_marker, bool orientation_fixed = false);
 
 void addPositionControl(visualization_msgs::InteractiveMarker& int_marker, bool orientation_fixed = false);
+
+void addRevoluteControl(visualization_msgs::InteractiveMarker& int_marker, Eigen::Vector3d axis, bool orientation_fixed = false);
 
 void addViewPlaneControl(visualization_msgs::InteractiveMarker& int_marker, double radius, const std_msgs::ColorRGBA& color, bool position = true, bool orientation = true);
 

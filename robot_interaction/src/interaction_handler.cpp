@@ -407,6 +407,17 @@ void InteractionHandler::updateStateJoint(
       vals[vj->joint_name + "/rot_z"] = q.z();
       vals[vj->joint_name + "/rot_w"] = q.w();
     }
+  else
+    if (vj->dof == 1)
+    {
+	    // std::cout << rel_pose << std::endl;
+
+	    Eigen::Vector3d xyz = q.matrix().eulerAngles(0, 1, 2);
+
+	    // std::cout << xyz << std::endl;
+
+	    vals[vj->joint_name] = xyz[0];
+    }
   state->setVariablePositions(vals);
   state->update();
 

@@ -210,10 +210,12 @@ void RobotInteraction::decideActiveJoints(const std::string &group)
   }
 
   const std::vector<const robot_model::JointModel*> &joints = jmg->getJointModels();
+
   for (std::size_t i = 0 ; i < joints.size() ; ++i)
   {
-    if ((joints[i]->getType() == robot_model::JointModel::PLANAR ||
-     joints[i]->getType() == robot_model::JointModel::FLOATING) &&
+    if ((joints[i]->getType() == robot_model::JointModel::PLANAR   ||
+         joints[i]->getType() == robot_model::JointModel::REVOLUTE ||
+         joints[i]->getType() == robot_model::JointModel::FLOATING) &&
         used.find(joints[i]->getName()) == used.end())
     {
       JointInteraction v;
@@ -221,12 +223,25 @@ void RobotInteraction::decideActiveJoints(const std::string &group)
       if (joints[i]->getParentLinkModel())
         v.parent_frame = joints[i]->getParentLinkModel()->getName();
       v.joint_name = joints[i]->getName();
-      if (joints[i]->getType() == robot_model::JointModel::PLANAR)
-        v.dof = 3;
-      else
-        v.dof = 6;
       // take the max of the X, Y, Z extent
       v.size = computeGroupMarkerSize(group);
+      if (joints[i]->getType() == robot_model::JointModel::PLANAR)
+        v.dof = 3;
+      else if (joints[i]->getType() == robot_model::JointModel::FLOATING)
+        v.dof = 6;
+      else if (joints[i]->getType() == robot_model::JointModel::REVOLUTE)
+      {
+	      using namespace Eigen;
+	      
+	      // Get bounding boxes of child link.
+	      Vector3d post_aabb = robot_model_->getLinkModel(v.connecting_link)->getShapeExtentsAtOrigin();
+
+        // Set size based on minimum link size perpendicular to the axis.
+	      v.size = 1.80 * post_aabb.minCoeff();
+
+	      // Set number of degrees of freedom of the interaction.
+	      v.dof = 1;
+      }
       active_vj_.push_back(v);
     }
   }
@@ -490,7 +505,7 @@ void RobotInteraction::addInteractiveMarkers(
       if (handler && handler->getControlsVisible())
       {
         if (active_eef_[i].interaction & EEF_POSITION_ARROWS)
-	      addPositionControl(im, active_eef_[i].interaction); // & EEF_FIXED);
+	      addPositionControl(im, active_eef_[i].interaction & EEF_FIXED);
         if (active_eef_[i].interaction & EEF_ORIENTATION_CIRCLES)
           addOrientationControl(im, active_eef_[i].interaction & EEF_FIXED);
         if (active_eef_[i].interaction & (EEF_POSITION_SPHERE|EEF_ORIENTATION_SPHERE))
@@ -542,8 +557,46 @@ void RobotInteraction::addInteractiveMarkers(
       {
         if (active_vj_[i].dof == 3) // planar joint
           addPlanarXYControl(im, false);
-        else
+        else if (active_vj_[i].dof == 6) // floating joint
           add6DOFControl(im, false);
+        else if (active_vj_[i].dof == 1) // revolute joint
+        {
+	        // Get the joint interaction.
+	        const JointInteraction & ji = active_vj_[i];
+
+	        // Use namespace to reduce text.
+	        using moveit::core::RevoluteJointModel;
+	        using namespace Eigen;
+
+	        // Get the joint model and cast to revolute joints.
+	        const RevoluteJointModel *jm = dynamic_cast<const RevoluteJointModel *>(s->getJointModel(ji.joint_name));
+
+	        // HACK I apply inverse transformations to the marker pose
+	        // and marker control angle. This allows me to set the color
+	        // of the marker.
+	        Matrix3d cyan(AngleAxisd(0.25 * M_PI, Vector3d::UnitX()));
+
+	        // Get the transform to the link.
+	        Affine3d tf_link = s->getGlobalLinkTransform(ji.connecting_link);
+
+	        // HACK Apply hack inverse.
+	        tf_link.linear() = tf_link.linear() * cyan.inverse();
+
+	        // HACK Apply the inverse hack to the pose of the marker.
+	        tf::poseEigenToMsg(tf_link, im.pose);
+
+	        // Rotate joint axis by 90 in x.
+	        Vector3d axis = AngleAxisd(0.5 * M_PI, Vector3d::UnitX()) * jm->getAxis();
+
+	        // HACK Apply hack transformation for cyan color.
+	        axis = cyan * axis;
+
+	        // If the joint model is revolute, add a revolute control based on the joint axis.
+	        if (jm)
+		        addRevoluteControl(im, axis, false);
+	        else
+		        addRevoluteControl(im, Eigen::Vector3d::UnitX(), false);
+        }
       }
       ims.push_back(im);
       registerMoveInteractiveMarkerTopic(marker_name,  handler->getName() + "_" + active_vj_[i].connecting_link);
@@ -607,7 +660,7 @@ void RobotInteraction::toggleMoveInteractiveMarkerTopic(bool enable)
     int_marker_move_subscribers_.clear();
   }
 }
-  
+
 void RobotInteraction::computeMarkerPose(
       const ::robot_interaction::InteractionHandlerPtr &handler,
       const EndEffectorInteraction &eef,
@@ -642,6 +695,8 @@ void RobotInteraction::computeMarkerPose(
 
 void RobotInteraction::updateInteractiveMarkers(const ::robot_interaction::InteractionHandlerPtr &handler)
 {
+	ROS_INFO_STREAM("updateInteractiveMarkers");
+
   handler->setRobotInteraction(this);
   std::map<std::string, geometry_msgs::Pose> pose_updates;
   {
@@ -658,7 +713,27 @@ void RobotInteraction::updateInteractiveMarkers(const ::robot_interaction::Inter
     for (std::size_t i = 0 ; i < active_vj_.size() ; ++i)
     {
       std::string marker_name = getMarkerName(handler, active_vj_[i]);
-      tf::poseEigenToMsg(s->getGlobalLinkTransform(active_vj_[i].connecting_link), pose_updates[marker_name]);
+      const JointInteraction & ji = active_vj_[i];
+      if (ji.dof == 1)
+      {
+	      using namespace Eigen;
+
+	      // HACK I apply inverse transformations to the marker pose
+	      // and marker control angle. This allows me to set the color
+	      // of the marker.
+	      Matrix3d cyan(AngleAxisd(0.25 * M_PI, Vector3d::UnitX()));
+
+	      // Get the transform to the link.
+	      Affine3d tf_link = s->getGlobalLinkTransform(ji.connecting_link);
+
+	      // HACK Apply hack inverse.
+	      tf_link.linear() = tf_link.linear() * cyan.inverse();
+
+	      // Convert link transform to marker pose.
+	      tf::poseEigenToMsg(tf_link, pose_updates[marker_name]);
+      }
+      else
+	    tf::poseEigenToMsg(s->getGlobalLinkTransform(active_vj_[i].connecting_link), pose_updates[marker_name]);
     }
 
     for (std::size_t i = 0 ; i < active_generic_.size() ; ++i)
@@ -678,6 +753,7 @@ void RobotInteraction::updateInteractiveMarkers(const ::robot_interaction::Inter
 
 void RobotInteraction::publishInteractiveMarkers()
 {
+	ROS_INFO_STREAM("publishInteractiveMarkers");
   // the server locks internally, so we need not worry about locking
   int_marker_server_->applyChanges();
 }
@@ -723,6 +799,7 @@ void RobotInteraction::moveInteractiveMarker(const std::string name, const geome
   std::map<std::string, std::size_t>::const_iterator it = shown_markers_.find(name);
   if (it != shown_markers_.end())
   {
+	  ROS_INFO_STREAM("moveInteractiveMarkers");
     visualization_msgs::InteractiveMarkerFeedback::Ptr feedback (new visualization_msgs::InteractiveMarkerFeedback);
     feedback->header = msg->header;
     feedback->marker_name = name;
@@ -802,6 +879,8 @@ void RobotInteraction::processingThread()
         continue;
       }
 
+      ROS_INFO_STREAM("processingThread");
+
       // we put this in a try-catch because user specified callbacks may be triggered
       try
       {
@@ -823,6 +902,7 @@ void RobotInteraction::processingThread()
           {
             ROS_ERROR("Exception caught while handling end-effector update");
           }
+          this->updateInteractiveMarkers(ih);
           marker_access_lock_.lock();
         }
         else
@@ -830,7 +910,8 @@ void RobotInteraction::processingThread()
           {
             // make a copy of the data, so we do not lose it while we are unlocked
             JointInteraction vj = active_vj_[it->second];
-            ::robot_interaction::InteractionHandlerPtr ih = jt->second;
+            ::robot_interaction::
+            InteractionHandlerPtr ih = jt->second;
             marker_access_lock_.unlock();
             try
             {
@@ -844,6 +925,7 @@ void RobotInteraction::processingThread()
             {
               ROS_ERROR("Exception caught while handling joint update");
             }
+            this->updateInteractiveMarkers(ih);
             marker_access_lock_.lock();
           }
           else
@@ -879,6 +961,9 @@ void RobotInteraction::processingThread()
       {
         ROS_ERROR("Exception caught while processing event");
       }
+
+      // Make sure all markers are realigned
+      // this->updateInteractiveMarkers(
     }
   }
 }

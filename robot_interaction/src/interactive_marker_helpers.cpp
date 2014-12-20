@@ -227,6 +227,21 @@ void addPositionControl(visualization_msgs::InteractiveMarker& int_marker, bool 
   int_marker.controls.push_back(control);
 }
 
+void addRevoluteControl(visualization_msgs::InteractiveMarker& int_marker, Eigen::Vector3d axis, bool orientation_fixed)
+{
+  visualization_msgs::InteractiveMarkerControl control;
+
+  if (orientation_fixed)
+    control.orientation_mode = visualization_msgs::InteractiveMarkerControl::FIXED;
+
+  control.orientation.w = 1;
+  control.orientation.x = axis[0];
+  control.orientation.y = axis[1];
+  control.orientation.z = axis[2];
+  control.interaction_mode = visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS;
+  int_marker.controls.push_back(control);
+}
+
 void addViewPlaneControl(visualization_msgs::InteractiveMarker& int_marker, double radius, const std_msgs::ColorRGBA& color, bool position, bool orientation)
 {
   visualization_msgs::InteractiveMarkerControl control;
