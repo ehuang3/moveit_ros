@@ -410,13 +410,87 @@ void InteractionHandler::updateStateJoint(
   else
     if (vj->dof == 1)
     {
-	    // std::cout << rel_pose << std::endl;
+      // Use a namespace
+      using moveit::core::JointModel;
+      using moveit::core::RevoluteJointModel;
+      using namespace Eigen;
 
-	    Eigen::Vector3d xyz = q.matrix().eulerAngles(0, 1, 2);
+      // Get the joint model and cast to revolute joints.
+      const RevoluteJointModel *joint_model =
+        dynamic_cast<const RevoluteJointModel *>(state->getJointModel(vj->joint_name));
 
-	    // std::cout << xyz << std::endl;
+      // Transform of rotated child link.
+      Affine3d tf_child = state->getGlobalLinkTransform(vj->connecting_link);
 
-	    vals[vj->joint_name] = xyz[0];
+      // Current joint angle.
+      const double* angle_joint = state->getJointPositions(vj->joint_name);
+
+      // Transform induced by joint angle.
+      Affine3d tf_joint;
+      joint_model->computeTransform(angle_joint, tf_joint);
+
+      // Compute the transform of the unrotated child link.
+      Affine3d tf_link;
+      tf_link = tf_child * tf_joint.inverse();
+
+      // Transform of feedback in global frame.
+      Affine3d tf_feedback;
+      tf::poseMsgToEigen(*feedback_pose, tf_feedback);
+
+      // HACK This allowed me to set the color of the marker.
+      Matrix3d tf_cyan(AngleAxisd(0.25 * M_PI, Vector3d::UnitX()));
+
+      // Compute local feedback transform (subtracting color transform).
+      tf_feedback = tf_cyan * tf_link.inverse() * tf_feedback;
+
+      // Convert feedback orientation to angle axis.
+      AngleAxisd aa_feedback(tf_feedback.rotation());
+
+      // Get the joint axis.
+      Vector3d joint_axis = joint_model->getAxis();
+
+      // Get the raw feedback angle.
+      double angle_feedback = aa_feedback.angle();
+
+      // Compute the signed angle.
+      if (aa_feedback.axis().dot(joint_axis) < 0)
+        angle_feedback *= -1;
+
+      // Offset by the current joint angle for continuity of interaction.
+      angle_feedback = angle_feedback + vj->offset;
+
+      // Wrap around PI.
+      if (angle_feedback > M_PI)
+        angle_feedback -= 2 * M_PI;
+
+      // Clamp to joint limits.
+      // if (angle_feedback > joint_model->getVariableBounds()[0].max_position_) //FIXME
+      //   angle_feedback = angle_joint[0];
+      // if (angle_feedback < joint_model->getVariableBounds()[0].min_position_)
+      //   angle_feedback = angle_joint[0];
+      angle_feedback = std::min(angle_feedback, joint_model->getVariableBounds()[0].max_position_);
+      angle_feedback = std::max(angle_feedback, joint_model->getVariableBounds()[0].min_position_);
+
+      // Set joint angle to buffer.
+      vals[vj->joint_name] = angle_feedback;
+
+      // Handle mimic joints.
+      const JointModel *joint_mimic = joint_model->getMimic();
+
+      // Mimic the motion.
+      if (joint_mimic)
+        vals[joint_mimic->getName()] = angle_feedback;
+
+      // std::cout << "offset: " << vj->offset << std::endl;
+      // std::cout << "joint: " << vj->joint_name << std::endl;
+      // std::cout << "tf child:\n" << tf_child.matrix() << std::endl;
+      // std::cout << "tf joint:\n" << tf_joint.matrix() << std::endl;
+      // std::cout << "tf link:\n"  << tf_link.matrix()  << std::endl;
+      // std::cout << "tf fback:\n"  << tf_feedback.matrix()  << std::endl;
+      // std::cout << "aa fback: " << aa_feedback.angle() << ", " << aa_feedback.axis().transpose() << std::endl;
+      // std::cout << "angle raw: " << raw_angle_feedback << std::endl;
+      // std::cout << "angle fback: " << angle_feedback << std::endl;
+      // std::cout << "joint axis: " << joint_axis.transpose() << std::endl;
     }
   state->setVariablePositions(vals);
   state->update();

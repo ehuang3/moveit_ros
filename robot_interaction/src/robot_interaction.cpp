@@ -561,39 +561,49 @@ void RobotInteraction::addInteractiveMarkers(
           add6DOFControl(im, false);
         else if (active_vj_[i].dof == 1) // revolute joint
         {
+            // Use namespace to reduce text.
+            using moveit::core::RevoluteJointModel;
+            using namespace Eigen;
+
 	        // Get the joint interaction.
-	        const JointInteraction & ji = active_vj_[i];
+            const JointInteraction & joint_int = active_vj_[i];
 
-	        // Use namespace to reduce text.
-	        using moveit::core::RevoluteJointModel;
-	        using namespace Eigen;
+            // Get the joint model and cast to a revolute joint.
+            const RevoluteJointModel *joint_model =
+              dynamic_cast<const RevoluteJointModel *>(s->getJointModel(joint_int.joint_name));
 
-	        // Get the joint model and cast to revolute joints.
-	        const RevoluteJointModel *jm = dynamic_cast<const RevoluteJointModel *>(s->getJointModel(ji.joint_name));
+            // Transform of rotated child link.
+            Affine3d tf_child = s->getGlobalLinkTransform(joint_int.connecting_link);
 
-	        // HACK I apply inverse transformations to the marker pose
-	        // and marker control angle. This allows me to set the color
-	        // of the marker.
-	        Matrix3d cyan(AngleAxisd(0.25 * M_PI, Vector3d::UnitX()));
+            // Current joint angle.
+            const double* angle_joint = s->getJointPositions(joint_int.joint_name);
 
-	        // Get the transform to the link.
-	        Affine3d tf_link = s->getGlobalLinkTransform(ji.connecting_link);
+            // Transform induced by joint angle.
+            Affine3d tf_joint;
+            joint_model->computeTransform(angle_joint, tf_joint);
 
-	        // HACK Apply hack inverse.
-	        tf_link.linear() = tf_link.linear() * cyan.inverse();
+            // Compute the transform of the unrotated child link.
+            Affine3d tf_link;
+            tf_link = tf_child * tf_joint.inverse();
 
-	        // HACK Apply the inverse hack to the pose of the marker.
-	        tf::poseEigenToMsg(tf_link, im.pose);
+            // HACK This allows me to set the color of the marker.
+            Matrix3d tf_cyan(AngleAxisd(0.25 * M_PI, Vector3d::UnitX()));
 
-	        // Rotate joint axis by 90 in x.
-	        Vector3d axis = AngleAxisd(0.5 * M_PI, Vector3d::UnitX()) * jm->getAxis();
+            // HACK Apply the inverse hack to the pose of the marker.
+            tf_link.linear() = tf_link.linear() * tf_cyan.inverse();
 
-	        // HACK Apply hack transformation for cyan color.
-	        axis = cyan * axis;
+            // Marker should be perpendicular to the joint axis.
+            Vector3d marker_axis = AngleAxisd(0.5 * M_PI, Vector3d::UnitX()) * joint_model->getAxis();
+
+            // HACK Apply color hack to marker axis.
+            marker_axis = tf_cyan * marker_axis;
+
+            // Place the marker at the unrotated child link.
+            tf::poseEigenToMsg(tf_link, im.pose);
 
 	        // If the joint model is revolute, add a revolute control based on the joint axis.
-	        if (jm)
-		        addRevoluteControl(im, axis, false);
+            if (joint_model)
+                addRevoluteControl(im, marker_axis, false);
 	        else
 		        addRevoluteControl(im, Eigen::Vector3d::UnitX(), false);
         }
@@ -695,8 +705,6 @@ void RobotInteraction::computeMarkerPose(
 
 void RobotInteraction::updateInteractiveMarkers(const ::robot_interaction::InteractionHandlerPtr &handler)
 {
-	ROS_INFO_STREAM("updateInteractiveMarkers");
-
   handler->setRobotInteraction(this);
   std::map<std::string, geometry_msgs::Pose> pose_updates;
   {
@@ -716,21 +724,39 @@ void RobotInteraction::updateInteractiveMarkers(const ::robot_interaction::Inter
       const JointInteraction & ji = active_vj_[i];
       if (ji.dof == 1)
       {
-	      using namespace Eigen;
+        // Use namespace to reduce text.
+        using moveit::core::RevoluteJointModel;
+        using namespace Eigen;
 
-	      // HACK I apply inverse transformations to the marker pose
-	      // and marker control angle. This allows me to set the color
-	      // of the marker.
-	      Matrix3d cyan(AngleAxisd(0.25 * M_PI, Vector3d::UnitX()));
+        // Get the joint interaction.
+        const JointInteraction & joint_int = active_vj_[i];
 
-	      // Get the transform to the link.
-	      Affine3d tf_link = s->getGlobalLinkTransform(ji.connecting_link);
+        // Get the joint model and cast to a revolute joint.
+        const RevoluteJointModel *joint_model =
+          dynamic_cast<const RevoluteJointModel *>(s->getJointModel(joint_int.joint_name));
 
-	      // HACK Apply hack inverse.
-	      tf_link.linear() = tf_link.linear() * cyan.inverse();
+        // Transform of rotated child link.
+        Affine3d tf_child = s->getGlobalLinkTransform(joint_int.connecting_link);
 
-	      // Convert link transform to marker pose.
-	      tf::poseEigenToMsg(tf_link, pose_updates[marker_name]);
+        // Current joint angle.
+        const double* angle_joint = s->getJointPositions(joint_int.joint_name);
+
+        // Transform induced by joint angle.
+        Affine3d tf_joint;
+        joint_model->computeTransform(angle_joint, tf_joint);
+
+        // Compute the transform of the unrotated child link.
+        Affine3d tf_link;
+        tf_link = tf_child * tf_joint.inverse();
+
+        // HACK This allows me to set the color of the marker.
+        Matrix3d tf_cyan(AngleAxisd(0.25 * M_PI, Vector3d::UnitX()));
+
+        // HACK Apply the inverse hack to the pose of the marker.
+        tf_link.linear() = tf_link.linear() * tf_cyan.inverse();
+
+        // Convert link transform to marker pose.
+        tf::poseEigenToMsg(tf_link, pose_updates[marker_name]);
       }
       else
 	    tf::poseEigenToMsg(s->getGlobalLinkTransform(active_vj_[i].connecting_link), pose_updates[marker_name]);
@@ -753,7 +779,6 @@ void RobotInteraction::updateInteractiveMarkers(const ::robot_interaction::Inter
 
 void RobotInteraction::publishInteractiveMarkers()
 {
-	ROS_INFO_STREAM("publishInteractiveMarkers");
   // the server locks internally, so we need not worry about locking
   int_marker_server_->applyChanges();
 }
@@ -799,7 +824,6 @@ void RobotInteraction::moveInteractiveMarker(const std::string name, const geome
   std::map<std::string, std::size_t>::const_iterator it = shown_markers_.find(name);
   if (it != shown_markers_.end())
   {
-	  ROS_INFO_STREAM("moveInteractiveMarkers");
     visualization_msgs::InteractiveMarkerFeedback::Ptr feedback (new visualization_msgs::InteractiveMarkerFeedback);
     feedback->header = msg->header;
     feedback->marker_name = name;
@@ -879,8 +903,6 @@ void RobotInteraction::processingThread()
         continue;
       }
 
-      ROS_INFO_STREAM("processingThread");
-
       // we put this in a try-catch because user specified callbacks may be triggered
       try
       {
@@ -908,6 +930,17 @@ void RobotInteraction::processingThread()
         else
           if (marker_class == "JJ")
           {
+            // HACK On mouse down copy current joint angle into joint interaction
+            // so that we can offset interaction by that angle.
+            if (feedback->event_type == feedback->MOUSE_DOWN)
+            {
+              InteractionHandlerConstPtr ih = jt->second;
+              JointInteraction& ji = active_vj_[it->second];
+              ji.offset = ih->getState()->getJointPositions(ji.joint_name)[0];
+              // std::cout << "joint name: " << ji.joint_name << std::endl;
+              // std::cout << "joint offset: " << ji.offset << std::endl;
+            }
+
             // make a copy of the data, so we do not lose it while we are unlocked
             JointInteraction vj = active_vj_[it->second];
             ::robot_interaction::

@@ -191,6 +191,9 @@ struct JointInteraction
 
   /// The size of the connecting link  (diameter of enclosing sphere)
   double size;
+
+  // HACK The joint angle offset at which to begin the interaction.
+  double offset;
 };
 
 }
