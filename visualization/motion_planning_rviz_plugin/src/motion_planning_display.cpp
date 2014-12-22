@@ -886,8 +886,6 @@ void MotionPlanningDisplay::resetInteractiveMarkers()
 
 void MotionPlanningDisplay::publishInteractiveMarkers(bool pose_update)
 {
-	ROS_INFO_STREAM("MotionPlanningDisplay::publishInteractiveMarkers");
-
   if (robot_interaction_)
   {
     if (pose_update &&

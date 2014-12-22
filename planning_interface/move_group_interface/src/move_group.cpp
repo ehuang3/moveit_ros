@@ -580,6 +580,8 @@ public:
     goal.planning_options.planning_scene_diff.is_diff = true;
     goal.planning_options.planning_scene_diff.robot_state.is_diff = true;
 
+    std::cout << goal << std::endl;
+
     move_action_client_->sendGoal(goal);
     if (!move_action_client_->waitForResult())
     {
@@ -1015,7 +1017,7 @@ private:
   // joint state goal
   robot_state::RobotStatePtr joint_state_target_;
   const robot_model::JointModelGroup *joint_model_group_;
-  
+
   // pose goal;
   // for each link we have a set of possible goal locations;
   std::map<std::string, std::vector<geometry_msgs::PoseStamped> > pose_targets_;
