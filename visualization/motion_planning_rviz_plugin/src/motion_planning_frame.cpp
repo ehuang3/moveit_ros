@@ -114,7 +114,16 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->remove_state_button, SIGNAL( clicked() ), this, SLOT( removeStateButtonClicked() ));
   connect( ui_->clear_states_button, SIGNAL( clicked() ), this, SLOT( clearStatesButtonClicked() ));
   connect( ui_->approximate_ik, SIGNAL( stateChanged(int) ), this, SLOT( approximateIKChanged(int) ));
-
+  // Stored plans tab
+  connect( ui_->push_button, SIGNAL( clicked() ), this, SLOT( pushButtonClicked() ));
+  connect( ui_->pop_button, SIGNAL( clicked() ), this, SLOT( popButtonClicked() ));
+  connect( ui_->plan_button_2, SIGNAL( clicked() ), this, SLOT( planButtonClicked() ));
+  connect( ui_->execute_button_2, SIGNAL( clicked() ), this, SLOT( executeButtonClicked() ));
+  connect( ui_->preview_button, SIGNAL( clicked() ), this, SLOT( previewButtonClicked() ));
+  connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
+  connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
+  connect( ui_->active_to_stored_button, SIGNAL( clicked() ), this, SLOT( activeToStoredPlansButtonClicked() ));
+  connect( ui_->stored_to_active_button, SIGNAL( clicked() ), this, SLOT( storedToActiveGoalsButtonClicked() ));
 
   connect( ui_->detect_objects_button, SIGNAL( clicked() ), this, SLOT( detectObjectsButtonClicked() ));
   connect( ui_->pick_button, SIGNAL( clicked() ), this, SLOT( pickObjectButtonClicked() ));

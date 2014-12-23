@@ -148,6 +148,15 @@ private Q_SLOTS:
   void useGoalStateButtonClicked();
   void onClearOctomapClicked();
 
+  //Stored plans tab
+  void pushButtonClicked();
+  void popButtonClicked();
+  void previewButtonClicked();
+  void savePlansButtonClicked();
+  void loadPlansButtonClicked();
+  void activeToStoredPlansButtonClicked();
+  void storedToActiveGoalsButtonClicked();
+
   //Scene Objects tab
   void importFileButtonClicked();
   void importUrlButtonClicked();
@@ -213,6 +222,10 @@ private:
   void configureWorkspace();
   void updateQueryStateHelper(robot_state::RobotState &state, const std::string &v);
   void fillStateSelectionOptions();
+
+  //Stored plans tab
+  void serializeGoalMsg(const moveit_msgs::RobotState& goal, QByteArray& string);
+  void deserializeGoalMsg(const QByteArray& string, moveit_msgs::RobotState& goal);
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,
