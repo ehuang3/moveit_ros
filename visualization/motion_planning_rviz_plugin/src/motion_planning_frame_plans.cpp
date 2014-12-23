@@ -99,6 +99,10 @@ void MotionPlanningFrame::pushButtonClicked()
 {
     QListWidget* active_goals_list = ui_->active_goals_list;
 
+
+    // Get the current robot state associated with the active interaction.
+    planning_display_->getQueryGoalState();
+
     // Test serialization.
     moveit_msgs::RobotState goal;
     goal.joint_state.position.resize(1);
@@ -111,6 +115,8 @@ void MotionPlanningFrame::pushButtonClicked()
     deserializeGoalMsg(string, goal);
 
     std::cout << goal << std::endl;
+
+
 }
 
 void MotionPlanningFrame::popButtonClicked()
