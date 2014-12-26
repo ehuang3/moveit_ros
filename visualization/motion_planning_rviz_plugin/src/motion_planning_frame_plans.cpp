@@ -99,24 +99,30 @@ void MotionPlanningFrame::pushButtonClicked()
 {
     QListWidget* active_goals_list = ui_->active_goals_list;
 
-
     // Get the current robot state associated with the active interaction.
-    planning_display_->getQueryGoalState();
+    const robot_state::RobotStateConstPtr& state = planning_display_->getQueryGoalState();
 
-    // Test serialization.
+    // Convert to robot state message.
     moveit_msgs::RobotState goal;
-    goal.joint_state.position.resize(1);
-    goal.joint_state.position[0] = 10;
+    moveit::core::robotStateToRobotStateMsg(*state, goal);
+
+    // Serialize robot state message.
+    QByteArray state_string;
+    serializeGoalMsg(goal, state_string);
+
+    // Get active item in the list. We will push a new item after it.
+    int row = active_goals_list->currentRow();
+
+    // Get the active planning group.
+    std::string group = planning_display_->getCurrentPlanningGroup();
+
+    // Insert new item.
+    QListWidgetItem* item = new QListWidgetItem(QString(group.c_str()), active_goals_list);
+    item->setData(0, state_string);
+    item->setText(QString(group.c_str()));
+    // active_goals_list->insertItem(row, item);
 
     std::cout << goal << std::endl;
-
-    QByteArray string;
-    serializeGoalMsg(goal, string);
-    deserializeGoalMsg(string, goal);
-
-    std::cout << goal << std::endl;
-
-
 }
 
 void MotionPlanningFrame::popButtonClicked()
