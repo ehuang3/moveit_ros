@@ -51,6 +51,7 @@
 #include <interactive_markers/interactive_marker_server.h>
 #include <rviz/default_plugin/interactive_markers/interactive_marker.h>
 #include <moveit_msgs/MotionPlanRequest.h>
+#include <moveit_msgs/MoveGroupAction.h>
 #include <actionlib/client/simple_action_client.h>
 #include <object_recognition_msgs/ObjectRecognitionAction.h>
 #endif
@@ -151,6 +152,7 @@ private Q_SLOTS:
   //Stored plans tab
   void pushButtonClicked();
   void popButtonClicked();
+  void activeGoalChanged(QListWidgetItem* current, QListWidgetItem* previous);
   void previewButtonClicked();
   void savePlansButtonClicked();
   void loadPlansButtonClicked();
@@ -224,8 +226,10 @@ private:
   void fillStateSelectionOptions();
 
   //Stored plans tab
-  void serializeGoalMsg(const moveit_msgs::RobotState& goal, QByteArray& string);
-  void deserializeGoalMsg(const QByteArray& string, moveit_msgs::RobotState& goal);
+  void serializeGoalMsg(const moveit_msgs::MoveGroupGoal& goal, QByteArray& string);
+  void deserializeGoalMsg(const QByteArray& string, moveit_msgs::MoveGroupGoal& goal);
+  void saveGoalAsItem(QListWidgetItem* item);
+  void loadGoalFromItem(QListWidgetItem* item);
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

@@ -49,7 +49,23 @@
 namespace moveit_rviz_plugin
 {
 
-void MotionPlanningFrame::serializeGoalMsg(const moveit_msgs::RobotState& goal, QByteArray& string)
+QString toDebug(const QByteArray & line) {
+
+    QString s;
+    uchar c;
+
+    for ( int i=0 ; i < line.size() ; i++ ){
+        c = line[i];
+        if ( c >= 0x20 and c <= 126 ) {
+            s.append(c);
+        } else {
+            s.append(QString("<%1>").arg(c, 2, 16, QChar('0')));
+        }
+    }
+    return s;
+}
+
+void MotionPlanningFrame::serializeGoalMsg(const moveit_msgs::MoveGroupGoal& goal, QByteArray& string)
 {
     // Get the length of serialization.
     uint32_t serial_size = ros::serialization::serializationLength(goal);
@@ -74,7 +90,7 @@ void MotionPlanningFrame::serializeGoalMsg(const moveit_msgs::RobotState& goal, 
     }
 }
 
-void MotionPlanningFrame::deserializeGoalMsg(const QByteArray& string, moveit_msgs::RobotState& goal)
+void MotionPlanningFrame::deserializeGoalMsg(const QByteArray& string, moveit_msgs::MoveGroupGoal& goal)
 {
     // Get the length of serialization.
     uint32_t serial_size = (uint32_t) (string.size() / sizeof(char));
@@ -92,47 +108,153 @@ void MotionPlanningFrame::deserializeGoalMsg(const QByteArray& string, moveit_ms
     ros::serialization::IStream stream(buffer.get(), serial_size);
 
     // Deserialize.
-    ros::serialization::Serializer<moveit_msgs::RobotState>::read(stream, goal);
+    ros::serialization::Serializer<moveit_msgs::MoveGroupGoal>::read(stream, goal);
+}
+
+void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
+{
+    if (!item)
+        return;
+
+    // TODO Save the end-effector relative poses and the joint angles.
+
+    // Get current planning group (set of active joints).
+    std::string group = planning_display_->getCurrentPlanningGroup();
+
+    // Get the current query goal state.
+    robot_state::RobotState state = *planning_display_->getQueryGoalState();
+
+    // Get the active joint models in that group.
+    const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(group);
+
+    // Get the goal joint tolerance.
+    double goal_joint_tolerance = move_group_->getGoalJointTolerance();
+
+    // Create a move group goal message.
+    moveit_msgs::MoveGroupGoal goal;
+
+    // Set the goal group name.
+    goal.request.group_name = group;
+
+    // Construct goal constraints only for the joint model group.
+    goal.request.goal_constraints.resize(1);
+    goal.request.goal_constraints[0] = kinematic_constraints::constructGoalConstraints(state,
+                                                                                       joint_model_group,
+                                                                                       goal_joint_tolerance);
+
+    // Serialize the goal message.
+    QByteArray byte_array;
+    serializeGoalMsg(goal, byte_array);
+
+    // Save the serialized message into the item.
+    item->setData(Qt::UserRole, byte_array);
+
+    // TODO Build a descriptive name.
+    static int count = 0;
+    QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
+
+    // Set the display name of the item.
+    item->setText(display_name);
+}
+
+void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
+{
+    if (!item)
+        return;
+
+    // Get the saved binary data.
+    QVariant data = item->data(Qt::UserRole);
+
+    // Check if the data can be convertered.
+    if (!data.canConvert(QVariant::ByteArray))
+    {
+        ROS_ERROR("Failed to convert stored goal to query goal state.");
+        return;
+    }
+
+    // Convert the variant to a byte array.
+    QByteArray byte_array = data.toByteArray();
+
+    // Deserialize byte array into move group goal.
+    moveit_msgs::MoveGroupGoal goal;
+    deserializeGoalMsg(byte_array, goal);
+
+    // Get the new planning group.
+    std::string group = goal.request.group_name;
+
+    // Update the planning group.
+    planning_display_->changePlanningGroup(group);
+
+    // Get the current goal state.
+    robot_state::RobotState current_state = *planning_display_->getQueryGoalState();
+
+    // Get the saved joint constraints.
+    const std::vector<moveit_msgs::JointConstraint>& joint_constraints =
+        goal.request.goal_constraints[0].joint_constraints;
+
+    // Copy the joints in the goal to the current state.
+    for (int i = 0; i < joint_constraints.size(); i++)
+    {
+        current_state.setJointPositions(joint_constraints[i].joint_name,
+                                        &joint_constraints[i].position);
+    }
+
+    // Set the joints related to the current group.
+    planning_display_->setQueryGoalState(current_state);
 }
 
 void MotionPlanningFrame::pushButtonClicked()
 {
+    // Get the list of active goals (waypoints).
     QListWidget* active_goals_list = ui_->active_goals_list;
 
-    // Get the current robot state associated with the active interaction.
-    const robot_state::RobotStateConstPtr& state = planning_display_->getQueryGoalState();
+    // Save the current goal to a new item.
+    QListWidgetItem* item = new QListWidgetItem;
+    saveGoalAsItem(item);
 
-    // Convert to robot state message.
-    moveit_msgs::RobotState goal;
-    moveit::core::robotStateToRobotStateMsg(*state, goal);
-
-    // Serialize robot state message.
-    QByteArray state_string;
-    serializeGoalMsg(goal, state_string);
-
-    // Get active item in the list. We will push a new item after it.
+    // Get the currently selected row.
     int row = active_goals_list->currentRow();
 
-    // Get the active planning group.
-    std::string group = planning_display_->getCurrentPlanningGroup();
+    // Insert the item into the list.
+    active_goals_list->insertItem(row + 1, item);
 
-    // Insert new item.
-    QListWidgetItem* item = new QListWidgetItem(QString(group.c_str()), active_goals_list);
-    item->setData(0, state_string);
-    item->setText(QString(group.c_str()));
-    // active_goals_list->insertItem(row, item);
+    // Set item as active.
+    active_goals_list->setCurrentItem(item);
+}
 
-    std::cout << goal << std::endl;
+void MotionPlanningFrame::activeGoalChanged(QListWidgetItem* current, QListWidgetItem* previous)
+{
+    if (current == previous)
+        return;
+
+    // Save the active goal query state into the previously selected item.
+    saveGoalAsItem(previous);
+
+    // Load the currently selected item into the goal query state.
+    loadGoalFromItem(current);
 }
 
 void MotionPlanningFrame::popButtonClicked()
 {
+    // Get the list of active goals (waypoints).
+    QListWidget* active_goals_list = ui_->active_goals_list;
 
+    if (active_goals_list->count() == 0)
+        return;
+
+    int row = active_goals_list->currentRow();
+
+    QListWidgetItem* item = active_goals_list->takeItem(row);
+
+    if (item)
+        delete item;
+
+    active_goals_list->setCurrentRow(std::max(row - 1, 0));
 }
 
 void MotionPlanningFrame::previewButtonClicked()
 {
-
+    planning_display_->previewTrail();
 }
 
 void MotionPlanningFrame::savePlansButtonClicked()
