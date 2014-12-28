@@ -485,6 +485,17 @@ void MotionPlanningDisplay::displayTable(const std::map<std::string, double> &va
   text_to_display_->setVisible(true);
 }
 
+void MotionPlanningDisplay::previewTrail()
+{
+  if (!animating_path_ && !trajectory_message_to_display_ && !loop_display_property_->getBool() && displaying_trajectory_message_)
+  {
+    animating_path_ = true;
+    current_state_ = -1;
+    current_state_time_ = std::numeric_limits<float>::infinity();
+    display_path_robot_->setVisible(isEnabled());
+  }
+}
+
 void MotionPlanningDisplay::clearTrajectoryTrail()
 {
   for (std::size_t i = 0 ; i < trajectory_trail_.size() ; ++i)

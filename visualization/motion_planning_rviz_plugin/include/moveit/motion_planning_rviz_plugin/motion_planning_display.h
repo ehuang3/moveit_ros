@@ -142,7 +142,10 @@ class MotionPlanningDisplay : public PlanningSceneDisplay
   void resetStatusTextColor();
 
   void toggleSelectPlanningGroupSubscription(bool enable);
-  
+
+  void previewTrail();
+
+
 Q_SIGNALS:
   void timeToShowNewTrail();
 
