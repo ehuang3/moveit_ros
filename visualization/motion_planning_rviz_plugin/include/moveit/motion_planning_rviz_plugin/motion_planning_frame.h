@@ -228,8 +228,16 @@ private:
   //Stored plans tab
   void serializeGoalMsg(const moveit_msgs::MoveGroupGoal& goal, QByteArray& string);
   void deserializeGoalMsg(const QByteArray& string, moveit_msgs::MoveGroupGoal& goal);
+  bool getGoalMsgFromUserData(const QVariant& data, moveit_msgs::MoveGroupGoal& goal);
+  void setGoalMsgToUserData(const moveit_msgs::MoveGroupGoal& goal, QVariant& data);
+  bool getWaypointIDFromUserData(const QVariant& data, int* id);
+  void setWaypointIDToUserData(int id, QVariant& data);
   void saveGoalAsItem(QListWidgetItem* item);
   void loadGoalFromItem(QListWidgetItem* item);
+  void updateDisplayedWaypoints(QListWidget* list);
+  void updateDisplayedWaypoints(QTreeWidget* tree);
+  void updateDisplayedWaypoints(std::vector<QVariant>& data);
+  void mergeGoalMsgToRobotState(const moveit_msgs::MoveGroupGoal& goal, robot_state::RobotStatePtr& state);
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

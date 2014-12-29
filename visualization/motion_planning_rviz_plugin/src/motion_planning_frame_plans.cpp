@@ -111,6 +111,121 @@ void MotionPlanningFrame::deserializeGoalMsg(const QByteArray& string, moveit_ms
     ros::serialization::Serializer<moveit_msgs::MoveGroupGoal>::read(stream, goal);
 }
 
+bool MotionPlanningFrame::getGoalMsgFromUserData(const QVariant& data, moveit_msgs::MoveGroupGoal& goal)
+{
+    // Check if the data can be convertered.
+    if (!data.canConvert(QVariant::Map))
+    {
+        ROS_ERROR("Failed to convert stored data to QVariantMap.");
+        return false;
+    }
+
+    QVariantMap map = data.toMap();
+
+    QString key = "GOAL_MESSAGE";
+
+    if (!map.contains(key))
+    {
+        ROS_ERROR("Stored data does not contain %s.", key.toStdString().c_str());
+        return false;
+    }
+
+    QVariant msg = map[key];
+
+    // Check if the data can be convertered.
+    if (!msg.canConvert(QVariant::ByteArray))
+    {
+        ROS_ERROR("Failed to convert stored data to QByteArray.");
+        return false;
+    }
+
+    // Convert the variant to a byte array.
+    QByteArray byte_array = msg.toByteArray();
+
+    // Deserialize message.
+    deserializeGoalMsg(byte_array, goal);
+
+    return true;
+}
+
+void MotionPlanningFrame::setGoalMsgToUserData(const moveit_msgs::MoveGroupGoal& goal, QVariant& data)
+{
+    // Ensure the data is a QVariantMap.
+    if (!data.canConvert(QVariant::Map))
+        data = QVariantMap();
+
+    // Get the underlying map.
+    QVariantMap map = data.toMap();
+
+    // Create a byte array.
+    QByteArray byte_array;
+
+    // Serialize the goal message into a byte array.
+    serializeGoalMsg(goal, byte_array);
+
+    // Unique key for identifying the message.
+    QString key = "GOAL_MESSAGE";
+
+    // Set the goal message into the map.
+    map[key] = byte_array;
+
+    // Set the map back into the data.
+    data = map;
+}
+
+bool MotionPlanningFrame::getWaypointIDFromUserData(const QVariant& data, int* id)
+{
+    // Check if the data can be convertered.
+    if (!data.canConvert(QVariant::Map))
+    {
+        ROS_ERROR("Failed to convert stored data to QVariantMap.");
+        return false;
+    }
+
+    QVariantMap map = data.toMap();
+
+    QString key = "WAYPOINT_ID";
+
+    if (!map.contains(key))
+    {
+        ROS_ERROR("Stored data does not contain %s.", key.toStdString().c_str());
+        return false;
+    }
+
+    QVariant msg = map[key];
+
+    // Check if the data can be convertered.
+    if (!msg.canConvert(QVariant::Int))
+    {
+        ROS_ERROR("Failed to convert stored data to integer.");
+        return false;
+    }
+
+    // Convert the variant to the waypoint ID.
+    *id = msg.toInt();
+
+    return true;
+}
+
+void MotionPlanningFrame::setWaypointIDToUserData(int id, QVariant& data)
+{
+    // Ensure the data is a QVariantMap.
+    if (!data.canConvert(QVariant::Map))
+        data = QVariantMap();
+
+    // Get the underlying map.
+    QVariantMap map = data.toMap();
+
+    // Unique key for identifying the message.
+    QString key = "WAYPOINT_ID";
+
+    // Set the waypoint id into the map.
+    map[key] = id;
+
+    // Set the map back into the data.
+    data = map;
+}
+
 void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
 {
     if (!item)
@@ -142,12 +257,14 @@ void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
                                                                                        joint_model_group,
                                                                                        goal_joint_tolerance);
 
-    // Serialize the goal message.
-    QByteArray byte_array;
-    serializeGoalMsg(goal, byte_array);
+    // Get the data in the item.
+    QVariant data = item->data(Qt::UserRole);
 
-    // Save the serialized message into the item.
-    item->setData(Qt::UserRole, byte_array);
+    // Store the goal into the data.
+    setGoalMsgToUserData(goal, data);
+
+    // Save the serialized data back into the item.
+    item->setData(Qt::UserRole, data);
 
     // TODO Build a descriptive name.
     static int count = 0;
@@ -165,19 +282,9 @@ void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
     // Get the saved binary data.
     QVariant data = item->data(Qt::UserRole);
 
-    // Check if the data can be convertered.
-    if (!data.canConvert(QVariant::ByteArray))
-    {
-        ROS_ERROR("Failed to convert stored goal to query goal state.");
-        return;
-    }
-
-    // Convert the variant to a byte array.
-    QByteArray byte_array = data.toByteArray();
-
     // Deserialize byte array into move group goal.
     moveit_msgs::MoveGroupGoal goal;
-    deserializeGoalMsg(byte_array, goal);
+    getGoalMsgFromUserData(data, goal);
 
     // Get the new planning group.
     std::string group = goal.request.group_name;
@@ -201,6 +308,64 @@ void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
 
     // Set the joints related to the current group.
     planning_display_->setQueryGoalState(current_state);
+}
+
+void MotionPlanningFrame::updateDisplayedWaypoints(QListWidget* list)
+{
+
+}
+
+void MotionPlanningFrame::updateDisplayedWaypoints(QTreeWidget* tree)
+{
+
+}
+
+void MotionPlanningFrame::updateDisplayedWaypoints(std::vector<QVariant>& data)
+{
+    std::vector<int> ids;
+    typedef std::vector<QVariant>::const_iterator DataConstIterator;
+    for (DataConstIterator iter = data.begin(); iter != data.end(); ++iter)
+    {
+        int id;
+        if (getWaypointIDFromUserData(*iter, &id))
+            ids.push_back(id);
+    }
+
+    std::vector<robot_state::RobotStatePtr> waypoints;
+    for (int i = 0; i < data.size(); ++i)
+    {
+        // Create a robot state. If it's the first robot state, use
+        // the plain model. Otherwise, we want the robot state to
+        // reflect the changes of the previous states.
+        robot_state::RobotStatePtr wp;
+        if (i == 0)
+            // FIXME Use the plain robot model instead.
+            wp.reset(new robot_state::RobotState(planning_display_->getPlanningSceneRO()->getCurrentState()));
+        else
+            wp.reset(new robot_state::RobotState(waypoints[i-1]));
+
+        // Get the ith goal message in the data vector.
+        moveit_msgs::MoveGroupGoal goal;
+        getGoalMsgFromUserData(data[i], goal);
+
+        // Merge the goal message into the robot state.
+        wp->setVariableValues(goal);
+
+        // Append this waypoint to the list.
+        waypoints.push_back(wp);
+    }
+
+    std::map<int, RobotStateVisualizationPtr> active_waypoints = planning_display_->getQueryWaypoints();
+    typedef std::map<int, RobotStateVisualizationPtr>::iterator ActiveWaypointsIterator;
+    for (ActiveWaypointsIterator iter = active_waypoints.begin(); iter != active_waypoints.end(); ++iter)
+    {
+
+    }
+}
+
+void MotionPlanningFrame::mergeGoalMsgIntoRobotState(const moveit_msgs::MoveGroupGoal& goal, robot_state::RobotStatePtr& state)
+{
+
 }
 
 void MotionPlanningFrame::pushButtonClicked()

@@ -138,6 +138,9 @@ MotionPlanningDisplay::MotionPlanningDisplay() :
   query_goal_state_property_ = new rviz::BoolProperty("Query Goal State", true, "Shows the goal state for the motion planning query",
                                                       plan_category_,
                                                       SLOT(changedQueryGoalState()), this);
+  query_waypoint_state_property_ = new rviz::BoolProperty("Query Waypoint State", true, "Shows the waypoints for the motion planning query",
+                                                      plan_category_,
+                                                      SLOT(changedQueryWaypointState()), this);
   query_marker_scale_property_ = new rviz::FloatProperty("Interactive Marker Size", 0.0f, "Specifies scale of the interactive marker overlayed on the robot",
                                                          plan_category_,
                                                          SLOT(changedQueryMarkerScale()), this);
@@ -163,6 +166,17 @@ MotionPlanningDisplay::MotionPlanningDisplay() :
                             SLOT(changedQueryGoalAlpha()), this);
   query_goal_alpha_property_->setMin(0.0);
   query_goal_alpha_property_->setMax(1.0);
+
+
+  query_waypoint_color_property_ = new rviz::ColorProperty("Waypoint State Color", QColor(0, 255, 0), "The highlight color for the waypoints",
+                                                        plan_category_,
+                                                        SLOT(changedQueryWaypointColor()), this);
+  query_waypoint_alpha_property_ = new rviz::FloatProperty("Waypoint State Alpha", 1.0f, "Specifies the alpha for the robot links",
+                                                        plan_category_,
+                                                        SLOT(changedQueryWaypointAlpha()), this);
+  query_waypoint_alpha_property_->setMin(0.0);
+  query_waypoint_alpha_property_->setMax(1.0);
+
 
   query_colliding_link_color_property_ = new rviz::ColorProperty("Colliding Link Color", QColor(255, 0, 0), "The highlight color for colliding links",
                                                                  plan_category_,
@@ -824,6 +838,15 @@ void MotionPlanningDisplay::changedQueryGoalState()
   addBackgroundJob(boost::bind(&MotionPlanningDisplay::publishInteractiveMarkers, this, true), "publishInteractiveMarkers");
 }
 
+void MotionPlanningDisplay::changedQueryWaypointState()
+{
+  if (!planning_scene_monitor_)
+    return;
+  setStatusTextColor(query_waypoint_color_property_->getColor());
+  addStatusText("Changed waypoint state");
+  drawQueryWaypointState();
+}
+
 void MotionPlanningDisplay::drawQueryGoalState()
 {
   if (!planning_scene_monitor_)
@@ -885,6 +908,22 @@ void MotionPlanningDisplay::drawQueryGoalState()
   }
   else
     query_robot_goal_->setVisible(false);
+  context_->queueRender();
+}
+
+void MotionPlanningDisplay::drawQueryWaypointState()
+{
+  if (!planning_scene_monitor_)
+    return;
+
+  bool visible = query_waypoint_state_property_->getBool() && isEnabled();
+
+  std::map<int, RobotStateVisualizationPtr>::iterator iter;
+  for (iter = display_waypoint_robots_.begin(); iter != display_waypoint_robots_.end(); ++iter)
+  {
+    iter->second->setVisible(visible);
+  }
+
   context_->queueRender();
 }
 
@@ -971,6 +1010,32 @@ void MotionPlanningDisplay::changedQueryGoalAlpha()
   changedQueryGoalState();
 }
 
+void MotionPlanningDisplay::changedQueryWaypointColor()
+{
+  std_msgs::ColorRGBA color;
+  QColor qcolor = query_waypoint_color_property_->getColor();
+  color.r = qcolor.redF();
+  color.g = qcolor.greenF();
+  color.b = qcolor.blueF();
+  color.a = 1.0f;
+  std::map<int, RobotStateVisualizationPtr>::iterator iter;
+  for (iter = display_waypoint_robots_.begin(); iter != display_waypoint_robots_.end(); ++iter)
+  {
+    iter->second->setDefaultAttachedObjectColor(color);
+  }
+  changedQueryWaypointState();
+}
+
+void MotionPlanningDisplay::changedQueryWaypointAlpha()
+{
+  std::map<int, RobotStateVisualizationPtr>::iterator iter;
+  for (iter = display_waypoint_robots_.begin(); iter != display_waypoint_robots_.end(); ++iter)
+  {
+    iter->second->setAlpha(query_waypoint_alpha_property_->getFloat());
+  }
+  changedQueryWaypointState();
+}
+
 void MotionPlanningDisplay::changedQueryCollidingLinkColor()
 {
   changedQueryStartState();
@@ -1019,6 +1084,12 @@ void MotionPlanningDisplay::updateQueryGoalState()
   context_->queueRender();
 }
 
+void MotionPlanningDisplay::updateQueryWaypointState()
+{
+  addMainLoopJob(boost::bind(&MotionPlanningDisplay::changedQueryWaypointState, this));
+  context_->queueRender();
+}
+
 void MotionPlanningDisplay::setQueryStartState(const robot_state::RobotState &start)
 {
   query_start_state_->setState(start);
@@ -1029,6 +1100,46 @@ void MotionPlanningDisplay::setQueryGoalState(const robot_state::RobotState &goa
 {
   query_goal_state_->setState(goal);
   updateQueryGoalState();
+}
+
+bool MotionPlanningDisplay::setQueryWaypointState(int id, const robot_state::RobotStateConstPtr &waypoint)
+{
+  if (display_waypoint_robots_.count(id) == 0)
+    return false;
+
+  display_waypoint_robots_[id]->update(waypoint);
+  updateQueryWaypointState();
+  return true;
+}
+
+int MotionPlanningDisplay::addQueryWaypointState(const robot_state::RobotStateConstPtr &waypoint)
+{
+  // Create a robot visualization.
+  RobotStateVisualizationPtr query_waypoint;
+  query_waypoint.reset(new RobotStateVisualization(planning_scene_node_, context_, "Planning Request Waypoint", NULL));
+  query_waypoint->update(waypoint);
+  query_waypoint->setCollisionVisible(false);
+  query_waypoint->setVisualVisible(true);
+  query_waypoint->setVisible(query_waypoint_state_property_->getBool());
+  std_msgs::ColorRGBA color; QColor qcolor = query_waypoint_color_property_->getColor();
+  color.r = qcolor.redF(); color.g = qcolor.greenF(); color.b = qcolor.blueF(); color.a = 1.0f;
+  query_waypoint->setDefaultAttachedObjectColor(color);
+  query_waypoint->setAlpha(query_waypoint_alpha_property_->getFloat());
+
+  // Add robot visualization.
+  static int waypoint_id = 0; // HACK
+  int id = waypoint_id++;
+  display_waypoint_robots_[id] = query_waypoint;
+
+  updateQueryWaypointState();
+
+  return id;
+}
+
+void MotionPlanningDisplay::removeQueryWaypointState(int id)
+{
+  display_waypoint_robots_.erase(id);
+  updateQueryWaypointState();
 }
 
 void MotionPlanningDisplay::useApproximateIK(bool flag)
