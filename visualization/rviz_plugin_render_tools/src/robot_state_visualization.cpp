@@ -76,25 +76,29 @@ void RobotStateVisualization::setDefaultAttachedObjectColor(const std_msgs::Colo
   default_attached_object_color_ = default_attached_object_color;
 }
 
-void RobotStateVisualization::update(const robot_state::RobotStateConstPtr &kinematic_state)
+void RobotStateVisualization::update(const robot_state::RobotState& kinematic_state)
 {
   updateHelper(kinematic_state, default_attached_object_color_, NULL);
 }
 
+void RobotStateVisualization::update(const robot_state::RobotStateConstPtr &kinematic_state)
+{
+  updateHelper(*kinematic_state, default_attached_object_color_, NULL);
+}
 
 void RobotStateVisualization::update(const robot_state::RobotStateConstPtr &kinematic_state,
                                          const  std_msgs::ColorRGBA &default_attached_object_color)
 {
-  updateHelper(kinematic_state, default_attached_object_color, NULL);
+  updateHelper(*kinematic_state, default_attached_object_color, NULL);
 }
 
 void RobotStateVisualization::update(const robot_state::RobotStateConstPtr &kinematic_state, const std_msgs::ColorRGBA &default_attached_object_color,
                                          const std::map<std::string, std_msgs::ColorRGBA> &color_map)
 {
-  updateHelper(kinematic_state, default_attached_object_color, &color_map);
+  updateHelper(*kinematic_state, default_attached_object_color, &color_map);
 }
 
-void RobotStateVisualization::updateHelper(const robot_state::RobotStateConstPtr &kinematic_state,
+void RobotStateVisualization::updateHelper(const robot_state::RobotState& kinematic_state,
                                            const std_msgs::ColorRGBA &default_attached_object_color,
                                            const std::map<std::string, std_msgs::ColorRGBA> *color_map)
 {
@@ -102,7 +106,7 @@ void RobotStateVisualization::updateHelper(const robot_state::RobotStateConstPtr
   render_shapes_->clear();
 
   std::vector<const robot_state::AttachedBody*> attached_bodies;
-  kinematic_state->getAttachedBodies(attached_bodies);
+  kinematic_state.getAttachedBodies(attached_bodies);
   for (std::size_t i = 0 ; i < attached_bodies.size() ; ++i)
   {
     std_msgs::ColorRGBA color = default_attached_object_color;

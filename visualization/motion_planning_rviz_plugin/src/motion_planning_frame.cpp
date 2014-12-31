@@ -118,9 +118,9 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->push_button, SIGNAL( clicked() ), this, SLOT( pushButtonClicked() ));
   connect( ui_->pop_button, SIGNAL( clicked() ), this, SLOT( popButtonClicked() ));
   connect( ui_->active_goals_list,
-           SIGNAL( currentItemChanged(QListWidgetItem*, QListWidgetItem*) ),
+           SIGNAL( itemClicked(QListWidgetItem*) ),
            this,
-           SLOT( activeGoalChanged(QListWidgetItem*, QListWidgetItem*) ));
+           SLOT( activeGoalItemClicked(QListWidgetItem*) ));
   connect( ui_->plan_button_2, SIGNAL( clicked() ), this, SLOT( planButtonClicked() ));
   connect( ui_->execute_button_2, SIGNAL( clicked() ), this, SLOT( executeButtonClicked() ));
   connect( ui_->preview_button, SIGNAL( clicked() ), this, SLOT( previewButtonClicked() ));

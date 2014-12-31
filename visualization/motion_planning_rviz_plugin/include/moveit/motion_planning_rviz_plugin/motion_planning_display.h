@@ -125,10 +125,15 @@ class MotionPlanningDisplay : public PlanningSceneDisplay
   void updateQueryStartState();
   void updateQueryGoalState();
 
-  int  addQueryWaypointState(const robot_state::RobotStateConstPtr &waypoint);
-  bool setQueryWaypointState(int id, const robot_state::RobotStateConstPtr &waypoint);
-  void removeQueryWaypointState(int id);
-  void updateQueryWaypointState();
+  /**
+   * TODO
+   */
+  void clearDisplayWaypoints();
+  void addDisplayWaypoint(const robot_state::RobotState& waypoint,
+                          const std::string& group,
+                          const std::vector<std::string>& link_names,
+                          int focus = 0);
+  void updateDisplayWaypoints();
 
   void useApproximateIK(bool flag);
 
@@ -169,14 +174,14 @@ private Q_SLOTS:
   void changedTrajectoryTopic();
   void changedQueryStartState();
   void changedQueryGoalState();
-  void changedQueryWaypointState();
+  void changedDisplayWaypointsState();
   void changedQueryMarkerScale();
   void changedQueryStartColor();
   void changedQueryGoalColor();
-  void changedQueryWaypointColor();
+  void changedDisplayWaypointsColor();
   void changedQueryStartAlpha();
   void changedQueryGoalAlpha();
-  void changedQueryWaypointAlpha();
+  void changedDisplayWaypointsAlpha();
   void changedQueryCollidingLinkColor();
   void changedQueryJointViolationColor();
   void changedPlanningGroup();
@@ -222,7 +227,7 @@ protected:
   void recomputeQueryGoalStateMetrics();
   void drawQueryStartState();
   void drawQueryGoalState();
-  void drawQueryWaypointState();
+  void drawDisplayWaypoints();
   void scheduleDrawQueryStartState(robot_interaction::RobotInteraction::InteractionHandler *handler, bool error_state_changed);
   void scheduleDrawQueryGoalState(robot_interaction::RobotInteraction::InteractionHandler *handler, bool error_state_changed);
 
@@ -252,7 +257,8 @@ protected:
   RobotStateVisualizationPtr query_robot_start_;                  ///< Handles drawing the robot at the start configuration
   RobotStateVisualizationPtr query_robot_goal_;                   ///< Handles drawing the robot at the goal configuration
   RobotStateVisualizationPtr display_path_robot_;                 ///< Handles actually drawing the robot along motion plans
-  std::map<int, RobotStateVisualizationPtr> display_waypoint_robots_; ///< Handles drawing the robot at the waypoints
+  std::vector<RobotStateVisualizationPtr> display_waypoints_;     ///< Handles drawing the robot at waypoint configurations
+
 
   Ogre::SceneNode* text_display_scene_node_;        ///< displays texts
   bool text_display_for_start_;                     ///< indicates whether the text display is for the start state or not
@@ -306,14 +312,14 @@ protected:
   rviz::EditableEnumProperty* planning_group_property_;
   rviz::BoolProperty* query_start_state_property_;
   rviz::BoolProperty* query_goal_state_property_;
-  rviz::BoolProperty* query_waypoint_state_property_;
+  rviz::BoolProperty* display_waypoints_state_property_;
   rviz::FloatProperty* query_marker_scale_property_;
   rviz::ColorProperty* query_start_color_property_;
   rviz::ColorProperty* query_goal_color_property_;
-  rviz::ColorProperty* query_waypoint_color_property_;
+  rviz::ColorProperty* display_waypoints_color_property_;
   rviz::FloatProperty* query_start_alpha_property_;
   rviz::FloatProperty* query_goal_alpha_property_;
-  rviz::FloatProperty* query_waypoint_alpha_property_;
+  rviz::FloatProperty* display_waypoints_alpha_property_;
   rviz::ColorProperty* query_colliding_link_color_property_;
   rviz::ColorProperty* query_outside_joint_limits_link_color_property_;
 

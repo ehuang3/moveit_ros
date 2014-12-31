@@ -49,6 +49,17 @@ namespace moveit_rviz_plugin
 
 void MotionPlanningFrame::planButtonClicked()
 {
+  // Get the current item associated with the query goal state.
+  QListWidgetItem* current = ui_->active_goals_list->currentItem();
+
+  // Save the current query goal state into the item, if it exists. Otherwise,
+  // create a new item for the query goal state.
+  if (current)
+    saveGoalAsItem(current);
+  else
+    pushButtonClicked();
+
+  // Compute plan.
   planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computePlanButtonClicked, this), "compute plan");
 }
 

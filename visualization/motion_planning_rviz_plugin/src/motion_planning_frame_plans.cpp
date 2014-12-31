@@ -310,62 +310,69 @@ void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
     planning_display_->setQueryGoalState(current_state);
 }
 
-void MotionPlanningFrame::updateDisplayedWaypoints(QListWidget* list)
+void MotionPlanningFrame::updateDisplayWaypoints(QListWidget* list)
+{
+    std::vector<QVariant> data;
+    for (int i = 0; i < list->count(); i++)
+        data.push_back(list->item(i)->data(Qt::UserRole));
+
+    updateDisplayWaypoints(data);
+
+    for (int i = 0; i < list->count(); i++)
+        list->item(i)->setData(Qt::UserRole, data[i]);
+}
+
+void MotionPlanningFrame::updateDisplayWaypoints(QTreeWidget* tree)
 {
 
 }
 
-void MotionPlanningFrame::updateDisplayedWaypoints(QTreeWidget* tree)
+void MotionPlanningFrame::updateDisplayWaypoints(std::vector<QVariant>& data)
 {
+    // Delete all existing waypoints!
+    planning_display_->clearDisplayWaypoints();
 
-}
+    // TODO Construct the group name.
+    std::string group;
 
-void MotionPlanningFrame::updateDisplayedWaypoints(std::vector<QVariant>& data)
-{
-    std::vector<int> ids;
-    typedef std::vector<QVariant>::const_iterator DataConstIterator;
-    for (DataConstIterator iter = data.begin(); iter != data.end(); ++iter)
+    // TODO Construct the link names.
+    std::vector<std::string> link_names;
+
+    // TODO Set the focus.
+    int focus = 0;
+
+    // Construct a list of new waypoints.
+    robot_state::RobotState waypoint(planning_display_->getPlanningSceneRO()->getCurrentState());
+    for (int i = 0; i < data.size(); i++)
     {
-        int id;
-        if (getWaypointIDFromUserData(*iter, &id))
-            ids.push_back(id);
-    }
-
-    std::vector<robot_state::RobotStatePtr> waypoints;
-    for (int i = 0; i < data.size(); ++i)
-    {
-        // Create a robot state. If it's the first robot state, use
-        // the plain model. Otherwise, we want the robot state to
-        // reflect the changes of the previous states.
-        robot_state::RobotStatePtr wp;
-        if (i == 0)
-            // FIXME Use the plain robot model instead.
-            wp.reset(new robot_state::RobotState(planning_display_->getPlanningSceneRO()->getCurrentState()));
-        else
-            wp.reset(new robot_state::RobotState(waypoints[i-1]));
-
         // Get the ith goal message in the data vector.
         moveit_msgs::MoveGroupGoal goal;
         getGoalMsgFromUserData(data[i], goal);
 
-        // Merge the goal message into the robot state.
-        wp->setVariableValues(goal);
+        // Get the group name.
+        group = goal.request.group_name;
 
-        // Append this waypoint to the list.
-        waypoints.push_back(wp);
+        // Get the joint constraints. Note we only extract the first one!
+        const std::vector<moveit_msgs::JointConstraint>& joint_constraints =
+            goal.request.goal_constraints[0].joint_constraints;
+
+        // Convert goal message into joint state message.
+        sensor_msgs::JointState state;
+        for (int j = 0; j < joint_constraints.size(); j++)
+        {
+            state.name.push_back(joint_constraints[j].joint_name);
+            state.position.push_back(joint_constraints[j].position);
+        }
+
+        // Merge the goal message into the robot state. This keeps the previous values.
+        waypoint.setVariableValues(state);
+
+        // Update the dirty transforms, etc.
+        waypoint.update();
+
+        // Add waypoint.
+        planning_display_->addDisplayWaypoint(waypoint, group, link_names, focus);
     }
-
-    std::map<int, RobotStateVisualizationPtr> active_waypoints = planning_display_->getQueryWaypoints();
-    typedef std::map<int, RobotStateVisualizationPtr>::iterator ActiveWaypointsIterator;
-    for (ActiveWaypointsIterator iter = active_waypoints.begin(); iter != active_waypoints.end(); ++iter)
-    {
-
-    }
-}
-
-void MotionPlanningFrame::mergeGoalMsgIntoRobotState(const moveit_msgs::MoveGroupGoal& goal, robot_state::RobotStatePtr& state)
-{
-
 }
 
 void MotionPlanningFrame::pushButtonClicked()
@@ -383,20 +390,22 @@ void MotionPlanningFrame::pushButtonClicked()
     // Insert the item into the list.
     active_goals_list->insertItem(row + 1, item);
 
+    ROS_INFO("new item: %p", item);
+
     // Set item as active.
     active_goals_list->setCurrentItem(item);
+
+    // Update rendering.
+    updateDisplayWaypoints(active_goals_list);
 }
 
-void MotionPlanningFrame::activeGoalChanged(QListWidgetItem* current, QListWidgetItem* previous)
+void MotionPlanningFrame::activeGoalItemClicked(QListWidgetItem* item)
 {
-    if (current == previous)
-        return;
-
-    // Save the active goal query state into the previously selected item.
-    saveGoalAsItem(previous);
-
     // Load the currently selected item into the goal query state.
-    loadGoalFromItem(current);
+    loadGoalFromItem(item);
+
+    // Update rendering. FIXME Not needed here!
+    // updateDisplayWaypoints(ui_->active_goals_list);
 }
 
 void MotionPlanningFrame::popButtonClicked()
@@ -415,6 +424,9 @@ void MotionPlanningFrame::popButtonClicked()
         delete item;
 
     active_goals_list->setCurrentRow(std::max(row - 1, 0));
+
+    // Update rendering.
+    updateDisplayWaypoints(active_goals_list);
 }
 
 void MotionPlanningFrame::previewButtonClicked()

@@ -152,7 +152,7 @@ private Q_SLOTS:
   //Stored plans tab
   void pushButtonClicked();
   void popButtonClicked();
-  void activeGoalChanged(QListWidgetItem* current, QListWidgetItem* previous);
+  void activeGoalItemClicked(QListWidgetItem* item);
   void previewButtonClicked();
   void savePlansButtonClicked();
   void loadPlansButtonClicked();
@@ -234,9 +234,9 @@ private:
   void setWaypointIDToUserData(int id, QVariant& data);
   void saveGoalAsItem(QListWidgetItem* item);
   void loadGoalFromItem(QListWidgetItem* item);
-  void updateDisplayedWaypoints(QListWidget* list);
-  void updateDisplayedWaypoints(QTreeWidget* tree);
-  void updateDisplayedWaypoints(std::vector<QVariant>& data);
+  void updateDisplayWaypoints(QListWidget* list);
+  void updateDisplayWaypoints(QTreeWidget* tree);
+  void updateDisplayWaypoints(std::vector<QVariant>& data);
   void mergeGoalMsgToRobotState(const moveit_msgs::MoveGroupGoal& goal, robot_state::RobotStatePtr& state);
 
   //Scene objects tab

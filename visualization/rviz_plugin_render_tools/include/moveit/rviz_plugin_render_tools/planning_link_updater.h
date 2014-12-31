@@ -48,8 +48,13 @@ class PlanningLinkUpdater : public rviz::LinkUpdater
 {
 public:
 
-  PlanningLinkUpdater(const robot_state::RobotStateConstPtr &state)
+  PlanningLinkUpdater(const robot_state::RobotState& state)
     : kinematic_state_(state)
+  {
+  }
+
+  PlanningLinkUpdater(const robot_state::RobotStateConstPtr &state)
+    : kinematic_state_(*state)
   {
   }
 
@@ -57,7 +62,7 @@ public:
                                  Ogre::Vector3& collision_position, Ogre::Quaternion& collision_orientation) const;
 
 private:
-  robot_state::RobotStateConstPtr kinematic_state_;
+  const robot_state::RobotState& kinematic_state_;
 };
 
 }
