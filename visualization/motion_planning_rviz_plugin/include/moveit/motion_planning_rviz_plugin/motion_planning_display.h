@@ -125,15 +125,14 @@ class MotionPlanningDisplay : public PlanningSceneDisplay
   void updateQueryStartState();
   void updateQueryGoalState();
 
-  /**
-   * TODO
-   */
   void clearDisplayWaypoints();
   void addDisplayWaypoint(const robot_state::RobotState& waypoint,
                           const std::string& group,
                           const std::vector<std::string>& link_names,
                           int focus = 0);
   void updateDisplayWaypoints();
+
+  void setTrajectoryToDisplay(robot_trajectory::RobotTrajectoryPtr& robot_trajectory);
 
   void useApproximateIK(bool flag);
 

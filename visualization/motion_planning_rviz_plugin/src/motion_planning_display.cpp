@@ -1090,6 +1090,11 @@ void MotionPlanningDisplay::updateDisplayWaypoints()
   context_->queueRender();
 }
 
+void MotionPlanningDisplay::setTrajectoryToDisplay(robot_trajectory::RobotTrajectoryPtr& robot_trajectory)
+{
+  trajectory_message_to_display_ = robot_trajectory;
+}
+
 void MotionPlanningDisplay::setQueryStartState(const robot_state::RobotState &start)
 {
   query_start_state_->setState(start);

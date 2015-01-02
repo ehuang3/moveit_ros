@@ -572,7 +572,11 @@ public:
 
   /** \brief Compute a motion plan that takes the group declared in the constructor from the current state to the specified
       target. No execution is performed. The resulting plan is stored in \e plan*/
-  MoveItErrorCode plan(Plan &plan);
+  MoveItErrorCode plan(Plan &plan, const std::string& group = "");
+
+  /** \brief Compute a motion plan that takes the group declared in the constructor from the current state to the specified
+      target. No execution is performed. The resulting plan is stored in \e plan*/
+  MoveItErrorCode appendPlan(Plan &first, Plan &second);
 
   /** \brief Given a \e plan, execute it without waiting for completion. Return true on success. */
   MoveItErrorCode asyncExecute(const Plan &plan);

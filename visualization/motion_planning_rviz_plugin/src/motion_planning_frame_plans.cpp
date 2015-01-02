@@ -226,6 +226,35 @@ void MotionPlanningFrame::setWaypointIDToUserData(int id, QVariant& data)
     data = map;
 }
 
+void MotionPlanningFrame::getRobotStateFromUserData(const QVariant& data,
+                                                    robot_state::RobotState& robot)
+{
+    // Get the ith goal message in the data vector.
+    moveit_msgs::MoveGroupGoal goal;
+    getGoalMsgFromUserData(data, goal);
+
+    // Get the group name.
+    std::string group = goal.request.group_name;
+
+    // Get the joint constraints. Note we only extract the first one!
+    const std::vector<moveit_msgs::JointConstraint>& joint_constraints =
+        goal.request.goal_constraints[0].joint_constraints;
+
+    // Convert goal message into joint state message.
+    sensor_msgs::JointState state;
+    for (int j = 0; j < joint_constraints.size(); j++)
+    {
+        state.name.push_back(joint_constraints[j].joint_name);
+        state.position.push_back(joint_constraints[j].position);
+    }
+
+    // Merge the goal message into the robot state. This keeps the previous values.
+    robot.setVariableValues(state);
+
+    // Update the dirty transforms, etc.
+    robot.update();
+}
+
 void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
 {
     if (!item)
@@ -389,8 +418,6 @@ void MotionPlanningFrame::pushButtonClicked()
 
     // Insert the item into the list.
     active_goals_list->insertItem(row + 1, item);
-
-    ROS_INFO("new item: %p", item);
 
     // Set item as active.
     active_goals_list->setCurrentItem(item);

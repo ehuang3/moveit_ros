@@ -220,6 +220,7 @@ private:
   void computePlanAndExecuteButtonClickedDisplayHelper();
   void populateConstraintsList();
   void populateConstraintsList(const std::vector<std::string> &constr);
+  void configureForPlanning(const robot_state::RobotState& start, const robot_state::RobotState& goal);
   void configureForPlanning();
   void configureWorkspace();
   void updateQueryStateHelper(robot_state::RobotState &state, const std::string &v);
@@ -232,12 +233,12 @@ private:
   void setGoalMsgToUserData(const moveit_msgs::MoveGroupGoal& goal, QVariant& data);
   bool getWaypointIDFromUserData(const QVariant& data, int* id);
   void setWaypointIDToUserData(int id, QVariant& data);
+  void getRobotStateFromUserData(const QVariant& data, robot_state::RobotState& robot);
   void saveGoalAsItem(QListWidgetItem* item);
   void loadGoalFromItem(QListWidgetItem* item);
   void updateDisplayWaypoints(QListWidget* list);
   void updateDisplayWaypoints(QTreeWidget* tree);
   void updateDisplayWaypoints(std::vector<QVariant>& data);
-  void mergeGoalMsgToRobotState(const moveit_msgs::MoveGroupGoal& goal, robot_state::RobotStatePtr& state);
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,
@@ -297,6 +298,7 @@ private:
   ros::Subscriber update_goal_state_subscriber_;
   //General
   void changePlanningGroupHelper();
+  void changePlanningGroupHelper(const std::string& group);
   void importResource(const std::string &path);
   void loadStoredStates(const std::string& pattern);
 

@@ -561,7 +561,7 @@ public:
     }
   }
 
-  MoveItErrorCode plan(Plan &plan)
+  MoveItErrorCode plan(Plan &plan, const std::string& group = "")
   {
     if (!move_action_client_)
     {
@@ -573,14 +573,12 @@ public:
     }
 
     moveit_msgs::MoveGroupGoal goal;
-    constructGoal(goal);
+    constructGoal(goal, group);
     goal.planning_options.plan_only = true;
     goal.planning_options.look_around = false;
     goal.planning_options.replan = false;
     goal.planning_options.planning_scene_diff.is_diff = true;
     goal.planning_options.planning_scene_diff.robot_state.is_diff = true;
-
-    std::cout << goal << std::endl;
 
     move_action_client_->sendGoal(goal);
     if (!move_action_client_->waitForResult())
@@ -589,9 +587,14 @@ public:
     }
     if (move_action_client_->getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
     {
-      plan.trajectory_ = move_action_client_->getResult()->planned_trajectory;
-      plan.start_state_ = move_action_client_->getResult()->trajectory_start;
-      plan.planning_time_ = move_action_client_->getResult()->planning_time;
+      Plan plan_result;
+
+      plan_result.trajectory_ = move_action_client_->getResult()->planned_trajectory;
+      plan_result.start_state_ = move_action_client_->getResult()->trajectory_start;
+      plan_result.planning_time_ = move_action_client_->getResult()->planning_time;
+
+      appendPlan(plan, plan_result);
+
       return MoveItErrorCode(move_action_client_->getResult()->error_code);
     }
     else
@@ -599,6 +602,82 @@ public:
       ROS_WARN_STREAM("Fail: " << move_action_client_->getState().toString() << ": " << move_action_client_->getState().getText());
       return MoveItErrorCode(move_action_client_->getResult()->error_code);
     }
+  }
+
+  MoveItErrorCode appendPlan(Plan &first, Plan &second)
+  {
+      // If the first plan does not have a valid start state, copy the
+      // second over to the first.
+      if (first.start_state_.joint_state.name.size() == 0)
+      {
+          first = second;
+          return MoveItErrorCode(moveit_msgs::MoveItErrorCodes::SUCCESS);
+      }
+
+      // Build a map from joint names to joint indexes and of
+      // uniqueness of joint names between the two trajectory.
+      int j_index = 0;                       // New joint index.
+      std::map<std::string, int>  j_map;     // Map from joint name to new index.
+      std::map<std::string, bool> j1_unique; // Uniqueness of joint to first trajectory.
+      std::map<std::string, bool> j2_unique; // Uniqueness of joint to second trajectory.
+      std::vector<std::string>    j_names;   // New order of joint names.
+      const std::vector<std::string>& j1 = first.trajectory_.joint_trajectory.joint_names;
+      for (int j = 0; j < j1.size(); j++)
+      {
+          if (j_map.count(j1[j]) == 0)
+              j_map[j1[j]] = j_index++;
+          j1_unique[j1[j]] = true;
+          j2_unique[j1[j]] = false;
+          j_names.push_back(j1[j]);
+      }
+      const std::vector<std::string>& j2 = second.trajectory_.joint_trajectory.joint_names;
+      for (int j = 0; j < j2.size(); j++)
+      {
+          if (j_map.count(j2[j]) == 0)
+          {
+              j_map[j2[j]] = j_index++;
+              j2_unique[j2[j]] = true;
+              j_names.push_back(j2[j]);
+          }
+          j1_unique[j2[j]] = false;
+      }
+      std::map<std::string, int> s_map; // Map from joint name to joint index in start state.
+      const sensor_msgs::JointState& js_start = first.start_state_.joint_state;
+      for (int i = 0; i < js_start.name.size(); i++)
+          s_map[js_start.name[i]] = i;
+      // Append the new joint names to the first plan.
+      first.trajectory_.joint_trajectory.joint_names = j_names;
+      // Fill in missing joints from the second plan to the first plan.
+      typedef std::map<std::string, bool>::const_iterator UniqueJointIterator;
+      std::vector<trajectory_msgs::JointTrajectoryPoint>& p1 = first.trajectory_.joint_trajectory.points;
+      if (j2_unique.size() > 0)
+          for (int i = 0; i < p1.size(); i++)
+              for (UniqueJointIterator iter = j2_unique.begin(); iter != j2_unique.end(); ++iter)
+                  if (iter->second)
+                  {
+                      p1[i].positions.push_back(js_start.position[s_map[iter->first]]);
+                      p1[i].velocities.push_back(0);
+                      p1[i].accelerations.push_back(0);
+                      // p1[i].effort.push_back(0); // The planner does not return effort!
+                  }
+      // Append the second plan to the first plan.
+      std::vector<trajectory_msgs::JointTrajectoryPoint>& p2 = second.trajectory_.joint_trajectory.points;
+      trajectory_msgs::JointTrajectoryPoint point = p1.back();
+      const ros::Duration p1_time = point.time_from_start;
+      for (int i = 0; i < p2.size(); i++)
+      {
+          for (int j = 0; j < j2.size(); j++)
+          {
+              point.positions[j_map[j2[j]]] = p2[i].positions[j];
+              point.velocities[j_map[j2[j]]] = p2[i].velocities[j];
+              point.accelerations[j_map[j2[j]]] = p2[i].accelerations[j];
+              // point.effort[j_map[j2[j]]] = p2[i].effort[j]; // The planner does not return effort!
+          }
+          point.time_from_start = p1_time + p2[i].time_from_start;
+          p1.push_back(point);
+      }
+
+      return moveit_msgs::MoveItErrorCodes::SUCCESS;
   }
 
   MoveItErrorCode move(bool wait)
@@ -817,10 +896,10 @@ public:
     return replan_delay_;
   }
 
-  void constructGoal(moveit_msgs::MoveGroupGoal &goal_out)
+  void constructGoal(moveit_msgs::MoveGroupGoal &goal_out, const std::string& group = "")
   {
     moveit_msgs::MoveGroupGoal goal;
-    goal.request.group_name = opt_.group_name_;
+    goal.request.group_name = group.empty() ? opt_.group_name_ : group;
     goal.request.num_planning_attempts = num_planning_attempts_;
     goal.request.allowed_planning_time = planning_time_;
     goal.request.planner_id = planner_id_;
@@ -1099,9 +1178,9 @@ moveit::planning_interface::MoveItErrorCode moveit::planning_interface::MoveGrou
   return impl_->execute(plan, true);
 }
 
-moveit::planning_interface::MoveItErrorCode moveit::planning_interface::MoveGroup::plan(Plan &plan)
+moveit::planning_interface::MoveItErrorCode moveit::planning_interface::MoveGroup::plan(Plan &plan, const std::string& group)
 {
-  return impl_->plan(plan);
+  return impl_->plan(plan, group);
 }
 
 moveit::planning_interface::MoveItErrorCode moveit::planning_interface::MoveGroup::pick(const std::string &object)

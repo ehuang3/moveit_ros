@@ -49,14 +49,8 @@ namespace moveit_rviz_plugin
 
 void MotionPlanningFrame::planButtonClicked()
 {
-  // Get the current item associated with the query goal state.
-  QListWidgetItem* current = ui_->active_goals_list->currentItem();
-
-  // Save the current query goal state into the item, if it exists. Otherwise,
-  // create a new item for the query goal state.
-  if (current)
-    saveGoalAsItem(current);
-  else
+  // HACK Always have one thing in the plan.
+  if (ui_->active_goals_list->count() == 0)
     pushButtonClicked();
 
   // Compute plan.
@@ -117,23 +111,72 @@ void MotionPlanningFrame::computePlanButtonClicked()
   // Clear status
   ui_->result_label->setText("Planning...");
 
-  configureForPlanning();
+  // Reset the current plan.
   current_plan_.reset(new moveit::planning_interface::MoveGroup::Plan());
-  if (move_group_->plan(*current_plan_))
-  {
-    ui_->execute_button->setEnabled(true);
 
-    // Success
-    ui_->result_label->setText(QString("Time: ").append(
-        QString::number(current_plan_->planning_time_,'f',3)));
-  }
-  else
-  {
-    current_plan_.reset();
+  // Get the list of goals (waypoints) to follow.
+  QListWidget* goals_list = ui_->active_goals_list;
 
-    // Failure
-    ui_->result_label->setText("Failed");
+  // Get the current start state.
+  robot_state::RobotState start_state = *planning_display_->getQueryStartState();
+
+  // The target goal state will be initialized to the start state.
+  robot_state::RobotState goal_state = start_state;
+
+  // For each item in the active goals list, configure for planning and then
+  // append to the plan.
+  for (int i = 0; i < goals_list->count(); i++)
+  {
+    // Get the goal robot state from user data.
+    getRobotStateFromUserData(goals_list->item(i)->data(Qt::UserRole),
+                              goal_state);
+
+    // Get the group from the user data.
+    moveit_msgs::MoveGroupGoal goal_msg;
+    getGoalMsgFromUserData(goals_list->item(i)->data(Qt::UserRole),
+                           goal_msg);
+
+    // HACK Reset move group so that I can plan with a different group... SMH. FIXME Was this necessary?
+    changePlanningGroupHelper(goal_msg.request.group_name);
+    planning_display_->waitForAllMainLoopJobs(); // I hope there are no cyclic main job loops.
+
+    // Set move group variables, like start and goal states, etc.
+    configureForPlanning(start_state, goal_state);
+
+    // Make a planning service call. This will append any plans to the input.
+    if (!move_group_->plan(*current_plan_))
+    {
+      ui_->result_label->setText("Failed");
+      current_plan_.reset();
+      return;
+    }
+
+    // Start the next plan from this goal.
+    start_state = goal_state;
   }
+
+  // Success
+  ui_->execute_button->setEnabled(true);
+  ui_->result_label->setText(QString("Time: ").append(
+                               QString::number(current_plan_->planning_time_,'f',3)));
+
+  // HACK Copy trajectory over to display.
+  {
+    // Get a robot model.
+    const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
+    // Construct a new robot trajectory.
+    robot_trajectory::RobotTrajectoryPtr display_trajectory(new robot_trajectory::RobotTrajectory(robot_model, ""));
+    // Copy current plan over to robot trajectory.
+    display_trajectory->setRobotTrajectoryMsg(planning_display_->getPlanningSceneRO()->getCurrentState(),
+                                              current_plan_->start_state_,
+                                              current_plan_->trajectory_);
+    // Swap the plan trajectory into our planning display.
+    planning_display_->setTrajectoryToDisplay(display_trajectory);
+
+    // Display trail. FIXME This doesn't accomplish anything actually.
+    previewButtonClicked();
+  }
+
 }
 
 void MotionPlanningFrame::computeExecuteButtonClicked()
@@ -339,13 +382,19 @@ void MotionPlanningFrame::configureWorkspace()
   }
 }
 
-void MotionPlanningFrame::configureForPlanning()
+void MotionPlanningFrame::configureForPlanning(const robot_state::RobotState& start_state, const robot_state::RobotState& goal_state)
 {
-  move_group_->setStartState(*planning_display_->getQueryStartState());
-  move_group_->setJointValueTarget(*planning_display_->getQueryGoalState());
+  move_group_->setStartState(start_state);
+  move_group_->setJointValueTarget(goal_state);
   move_group_->setPlanningTime(ui_->planning_time->value());
   move_group_->setNumPlanningAttempts(ui_->planning_attempts->value());
   configureWorkspace();
+}
+
+void MotionPlanningFrame::configureForPlanning()
+{
+  configureForPlanning(*planning_display_->getQueryStartState(),
+                       *planning_display_->getQueryGoalState());
 }
 
 void MotionPlanningFrame::remotePlanCallback(const std_msgs::EmptyConstPtr& msg)
