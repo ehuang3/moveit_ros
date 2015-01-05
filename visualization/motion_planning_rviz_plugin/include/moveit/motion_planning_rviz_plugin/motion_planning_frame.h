@@ -152,12 +152,14 @@ private Q_SLOTS:
   //Stored plans tab
   void pushButtonClicked();
   void popButtonClicked();
-  void activeGoalItemClicked(QListWidgetItem* item);
+  void activeGoalItemDoubleClicked(QListWidgetItem* item);
   void previewButtonClicked();
   void savePlansButtonClicked();
   void loadPlansButtonClicked();
   void activeToStoredPlansButtonClicked();
   void storedToActiveGoalsButtonClicked();
+  void bumpUpButtonClicked();
+  void bumpDownButtonClicked();
 
   //Scene Objects tab
   void importFileButtonClicked();

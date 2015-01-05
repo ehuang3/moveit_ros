@@ -1146,6 +1146,12 @@ void MotionPlanningDisplay::addDisplayWaypoint(const robot_state::RobotState& wa
   // TODO Set alpha according to the waypoint's distance from focus.
   robot->setAlpha(display_waypoints_alpha_property_->getFloat());
 
+  // Disable link selection, so we can move things behind the link.
+  std::map<std::string, rviz::RobotLink*> links = robot->getRobot().getLinks();
+  typedef std::map<std::string, rviz::RobotLink*>::iterator LinkIterator;
+  for (LinkIterator iter = links.begin(); iter != links.end(); ++iter)
+    iter->second->setSelectable(false);
+
   // TODO Only display the group and link names.
 
   // Store robot visualization internally.

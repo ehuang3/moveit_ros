@@ -416,17 +416,21 @@ void MotionPlanningFrame::pushButtonClicked()
     // Get the currently selected row.
     int row = active_goals_list->currentRow();
 
+    // Unselect item.
+    if (active_goals_list->currentItem())
+        active_goals_list->currentItem()->setSelected(false);
+
     // Insert the item into the list.
     active_goals_list->insertItem(row + 1, item);
 
     // Set item as active.
     active_goals_list->setCurrentItem(item);
 
-    // Update rendering.
+    // update rendering.
     updateDisplayWaypoints(active_goals_list);
 }
 
-void MotionPlanningFrame::activeGoalItemClicked(QListWidgetItem* item)
+void MotionPlanningFrame::activeGoalItemDoubleClicked(QListWidgetItem* item)
 {
     // Load the currently selected item into the goal query state.
     loadGoalFromItem(item);
@@ -473,7 +477,37 @@ void MotionPlanningFrame::loadPlansButtonClicked()
 
 void MotionPlanningFrame::activeToStoredPlansButtonClicked()
 {
+    // Get the list of active goals (waypoints).
+    QListWidget* active_goals = ui_->active_goals_list;
 
+    // Do nothing if there are no items.
+    if (active_goals->count() == 0)
+        return;
+
+    // Get all hightlighted items, or all items if none are highlighted.
+    QList<QListWidgetItem*> items = active_goals->selectedItems();
+    if (items.count() == 0)
+        for (int i = 0; i < active_goals->count(); i++)
+            items.push_back(active_goals->item(i));
+
+    // Construct a top level tree item.
+    QTreeWidgetItem* root = new QTreeWidgetItem;
+    for (int i = 0; i < items.count(); i++)
+    {
+        QTreeWidgetItem* child = new QTreeWidgetItem;
+        child->setData(0, Qt::UserRole, items[i]->data(Qt::UserRole));
+        child->setText(0, items[i]->text());
+        root->addChild(child);
+    }
+
+    // TODO Build a descriptive name.
+    static int count = 0;
+    QString display_name = QString("plan: %1").arg(count++);
+    root->setText(0, display_name);
+
+    // Add to tree list.
+    QTreeWidget* stored_plans = ui_->stored_plans_tree;
+    stored_plans->addTopLevelItem(root);
 }
 
 void MotionPlanningFrame::storedToActiveGoalsButtonClicked()

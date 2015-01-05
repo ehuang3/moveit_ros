@@ -764,7 +764,7 @@
          <item>
           <widget class="QToolButton" name="active_to_stored_button">
            <property name="text">
-            <string>&gt;</string>
+            <string>▶</string>
            </property>
            <property name="iconSize">
             <size>
@@ -777,7 +777,7 @@
          <item>
           <widget class="QToolButton" name="stored_to_active_button">
            <property name="text">
-            <string>&lt;</string>
+            <string>◀</string>
            </property>
           </widget>
          </item>
@@ -817,6 +817,21 @@
          </item>
          <item>
           <widget class="QTreeWidget" name="stored_plans_tree">
+           <property name="dragEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="dragDropMode">
+            <enum>QAbstractItemView::DragDrop</enum>
+           </property>
+           <property name="defaultDropAction">
+            <enum>Qt::MoveAction</enum>
+           </property>
+           <property name="headerHidden">
+            <bool>true</bool>
+           </property>
+           <attribute name="headerVisible">
+            <bool>false</bool>
+           </attribute>
            <column>
             <property name="text">
              <string notr="true">1</string>
@@ -836,7 +851,23 @@
           </widget>
          </item>
          <item>
-          <widget class="QListWidget" name="active_goals_list"/>
+          <widget class="QListWidget" name="active_goals_list">
+           <property name="dragEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="dragDropMode">
+            <enum>QAbstractItemView::DragDrop</enum>
+           </property>
+           <property name="defaultDropAction">
+            <enum>Qt::MoveAction</enum>
+           </property>
+           <property name="alternatingRowColors">
+            <bool>false</bool>
+           </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::ContiguousSelection</enum>
+           </property>
+          </widget>
          </item>
         </layout>
        </item>
