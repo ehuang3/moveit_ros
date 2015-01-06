@@ -37,6 +37,7 @@
 #include <moveit/warehouse/planning_scene_storage.h>
 #include <moveit/warehouse/constraints_storage.h>
 #include <moveit/warehouse/state_storage.h>
+#include <moveit/warehouse/primitive_plan_storage.h>
 
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
@@ -89,6 +90,7 @@ void MotionPlanningFrame::resetDbButtonClicked()
   dbs.append("Planning Scenes");
   dbs.append("Constraints");
   dbs.append("Robot States");
+  dbs.append("Primitive Plans");
 
   bool ok = false;
   QString response = QInputDialog::getItem(this, tr("Select Database"), tr("Choose the database to reset:"),
@@ -105,11 +107,12 @@ void MotionPlanningFrame::resetDbButtonClicked()
 
 void MotionPlanningFrame::computeDatabaseConnectButtonClicked()
 {
-  if (planning_scene_storage_)
+  if (planning_scene_storage_)  // Disconnect
   {
     planning_scene_storage_.reset();
     robot_state_storage_.reset();
     constraints_storage_.reset();
+    primitive_plan_storage_.reset();
     planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::computeDatabaseConnectButtonClickedHelper, this, 1));
   }
   else
@@ -123,6 +126,8 @@ void MotionPlanningFrame::computeDatabaseConnectButtonClicked()
                                                                          ui_->database_port->value(), 5.0));
       constraints_storage_.reset(new moveit_warehouse::ConstraintsStorage(ui_->database_host->text().toStdString(),
                                                                           ui_->database_port->value(), 5.0));
+      primitive_plan_storage_.reset(new moveit_warehouse::PrimitivePlanStorage(ui_->database_host->text().toStdString(),
+                                                                               ui_->database_port->value(), 5.0));
     }
     catch(std::runtime_error &ex)
     {
@@ -184,6 +189,10 @@ void MotionPlanningFrame::computeDatabaseConnectButtonClickedHelper(int mode)
           ui_->reset_db_button->show();
           populatePlanningSceneTreeView();
           loadStoredStates(".*"); // automatically populate the 'Stored States' tab with all states
+
+          // Populate the 'Stored Plans' tab with all the plans. ; FIXME This should append, not overwrite...
+          // computeLoadPlansButtonClicked();
+
           if (move_group_)
           {
             move_group_->setConstraintsDatabase(ui_->database_host->text().toStdString(), ui_->database_port->value());
@@ -202,5 +211,7 @@ void MotionPlanningFrame::computeResetDbButtonClicked(const std::string &db)
     else
       if (db == "Planning Scenes")
         planning_scene_storage_->reset();
+      else if (db == "Primitive Plans")
+        primitive_plan_storage_->reset();
 }
 }

@@ -23,7 +23,8 @@ catkin_package(
     warehouse/include
   CATKIN_DEPENDS
     moveit_ros_planning
-    warehouse_ros)
+    warehouse_ros
+    apc_msgs)
 
 include_directories(warehouse/include)
 include_directories(${catkin_INCLUDE_DIRS})

@@ -109,7 +109,7 @@ protected:
   void updateSceneMarkers(float wall_dt, float ros_dt);
 
   void updateExternalCommunication();
-  
+
   MotionPlanningDisplay *planning_display_;
   rviz::DisplayContext* context_;
   Ui::MotionPlanningUI *ui_;
@@ -236,12 +236,14 @@ private:
   template< typename Message > static Message getMessageFromUserData(const QVariant& data);
   template< typename Message > static void setMessageToUserData(QVariant& data, const Message& msg);
   void getRobotStateFromUserData(const QVariant& data, robot_state::RobotState& robot);
+  void saveGoalAsItem(const robot_state::RobotState& state, QListWidgetItem* item);
   void saveGoalAsItem(QListWidgetItem* item);
   void loadGoalFromItem(QListWidgetItem* item);
   void updateDisplayWaypoints(QListWidget* list);
   void updateDisplayWaypoints(QTreeWidget* tree);
   void updateDisplayWaypoints(std::vector<QVariant>& data);
   void computeSavePlansButtonClicked();
+  void computeLoadPlansButtonClicked();
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

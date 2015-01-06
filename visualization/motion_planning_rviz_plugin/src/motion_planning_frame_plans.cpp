@@ -35,6 +35,7 @@
 /* Author: Eric Huang */
 
 #include <moveit/warehouse/primitive_plan_storage.h>
+#include <QMessageBox>
 
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
@@ -93,6 +94,8 @@ template< typename Message > QByteArray MotionPlanningFrame::serializeMessage(co
         char b = (char) buffer.get()[i];
         string.append(b);
     }
+
+    return string;
 }
 
 template< typename Message > Message MotionPlanningFrame::deserializeMessage(const QByteArray& string)
@@ -121,7 +124,7 @@ template< typename Message > Message MotionPlanningFrame::deserializeMessage(con
     return msg;
 }
 
-template< typename Message > Message getMessageFromUserData(const QVariant& data)
+template< typename Message > Message MotionPlanningFrame::getMessageFromUserData(const QVariant& data)
 {
     // The message we are getting.
     Message msg;
@@ -136,7 +139,7 @@ template< typename Message > Message getMessageFromUserData(const QVariant& data
     QVariantMap map = data.toMap();
 
     // Auto-generate key for message type. May not be human readable.
-    QString key = typeid(Message).name();
+    QString key = "DUMB_KEY"; // typeid(Message).name();
 
     if (!map.contains(key))
     {
@@ -157,12 +160,12 @@ template< typename Message > Message getMessageFromUserData(const QVariant& data
     QByteArray byte_array = msg_data.toByteArray();
 
     // Deserialize message.
-    deserializeGoalMsg(byte_array, msg);
+    msg = deserializeMessage<Message>(byte_array);
 
     return msg;
 }
 
-template< typename Message > void setMessageToUserData(QVariant& data, const Message& msg)
+template< typename Message > void MotionPlanningFrame::setMessageToUserData(QVariant& data, const Message& msg)
 {
     // Ensure the data is a QVariantMap.
     if (!data.canConvert(QVariant::Map))
@@ -175,10 +178,10 @@ template< typename Message > void setMessageToUserData(QVariant& data, const Mes
     QByteArray byte_array;
 
     // Serialize the goal message into a byte array.
-    serializeGoalMsg(msg, byte_array);
+    byte_array = serializeMessage<Message>(msg);
 
     // Auto-generate key for message type. May not be human readable.
-    QString key = typeid(Message).name();
+    QString key = "DUMB_KEY"; // typeid(Message).name();
 
     // Set the goal message into the map.
     map[key] = byte_array;
@@ -202,7 +205,6 @@ void MotionPlanningFrame::getRobotStateFromUserData(const QVariant& data,
     // Get the joint constraints. Note we only extract the first one!
     state.position = goal.joint_trajectory.points[0].positions;
 
-
     // Merge the goal message into the robot state. This keeps the previous values.
     robot.setVariableValues(state);
 
@@ -210,7 +212,16 @@ void MotionPlanningFrame::getRobotStateFromUserData(const QVariant& data,
     robot.update();
 }
 
+
+
 void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
+{
+    const robot_state::RobotState& state = *planning_display_->getQueryGoalState();
+    saveGoalAsItem(state, item);
+}
+
+void MotionPlanningFrame::saveGoalAsItem(const robot_state::RobotState& state,
+                                         QListWidgetItem* item)
 {
     if (!item)
         return;
@@ -219,9 +230,6 @@ void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
 
     // Get current planning group (set of active joints).
     std::string group = planning_display_->getCurrentPlanningGroup();
-
-    // Get the current query goal state.
-    robot_state::RobotState state = *planning_display_->getQueryGoalState();
 
     // Get the active joint models in that group.
     const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(group);
@@ -245,8 +253,14 @@ void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
     for (int i = 0; i < constraints.joint_constraints.size(); i++)
     {
         goal.joint_trajectory.joint_names.push_back(constraints.joint_constraints[i].joint_name);
-        goal.joint_trajectory.points[0].positions[i] = constraints.joint_constraints[i].position;
+        goal.joint_trajectory.points[0].positions.push_back(constraints.joint_constraints[i].position);
     }
+
+    // TODO Build a descriptive name.
+    static int count = 0;
+    QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
+
+    goal.action_name = display_name.toStdString();
 
     // Get the data in the item.
     QVariant data = item->data(Qt::UserRole);
@@ -256,10 +270,6 @@ void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
 
     // Save the serialized data back into the item.
     item->setData(Qt::UserRole, data);
-
-    // TODO Build a descriptive name.
-    static int count = 0;
-    QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
 
     // Set the display name of the item.
     item->setText(display_name);
@@ -430,7 +440,7 @@ void MotionPlanningFrame::savePlansButtonClicked()
 
 void MotionPlanningFrame::loadPlansButtonClicked()
 {
-
+    planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeLoadPlansButtonClicked, this), "load plans");
 }
 
 void MotionPlanningFrame::activeToStoredPlansButtonClicked()
@@ -461,6 +471,7 @@ void MotionPlanningFrame::activeToStoredPlansButtonClicked()
     // TODO Build a descriptive name.
     static int count = 0;
     QString display_name = QString("plan: %1").arg(count++);
+
     root->setText(0, display_name);
 
     // Add to tree list.
@@ -470,7 +481,43 @@ void MotionPlanningFrame::activeToStoredPlansButtonClicked()
 
 void MotionPlanningFrame::storedToActiveGoalsButtonClicked()
 {
+    // Tree of stored plans.
+    QTreeWidget* stored_plans = ui_->stored_plans_tree;
 
+    // The selected stored plan.
+    QTreeWidgetItem* plan_item = stored_plans->currentItem();
+
+    if (!plan_item)
+        return;
+
+    // List of active goals.
+    QListWidget* active_goals = ui_->active_goals_list;
+
+    // Active goal's selected row or else the last row.
+    int row = active_goals->currentRow() == -1 ? active_goals->count()-1 : active_goals->currentRow();
+
+    // Append stored plans to active goals.
+    for (int i = 0; i < plan_item->childCount(); i++)
+    {
+        QListWidgetItem* item = new QListWidgetItem;
+
+        apc_msgs::PrimitiveAction goal =
+            getMessageFromUserData<apc_msgs::PrimitiveAction>(plan_item->child(i)->data(0, Qt::UserRole));
+
+        item->setText(QString(goal.action_name.c_str()));
+
+        item->setData(Qt::UserRole, plan_item->child(i)->data(0, Qt::UserRole));
+
+        active_goals->insertItem(++row, item);
+    }
+
+    // FIXME Doesn't work...
+    // planning_display_->addBackgroundJob(
+    //     boost::bind(static_cast<void (*)(QListWidget*)>(&MotionPlanningFrame::updateDisplayWaypoints),
+    //                 this,
+    //                 ui_->active_goals_list),
+    //     "update display waypoints");
+    updateDisplayWaypoints(active_goals);
 }
 
 void MotionPlanningFrame::computeSavePlansButtonClicked()
@@ -515,4 +562,78 @@ void MotionPlanningFrame::computeSavePlansButtonClicked()
     }
 }
 
+void MotionPlanningFrame::computeLoadPlansButtonClicked()
+{
+    if (!primitive_plan_storage_)
+        return;
+
+    // Names of the stored plans.
+    std::vector<std::string> plan_names;
+
+    // Get all the stored plans.
+    try
+    {
+        primitive_plan_storage_->getKnownPrimitivePlans(plan_names);
+    }
+    catch (std::runtime_error &ex)
+    {
+        QMessageBox::warning(this, "Cannot query the database", QString("Error: ").append(ex.what()));
+        return;
+    }
+
+    // Clear the current stored plan tree.
+    ui_->stored_plans_tree->clear();
+
+    // Add plans to the tree!
+    for (int i = 0; i < plan_names.size(); i++)
+    {
+        moveit_warehouse::PrimitivePlanWithMetadata plan;
+        bool got_plan = false;
+        try
+        {
+            got_plan = primitive_plan_storage_->getPrimitivePlan(plan, plan_names[i]);
+        }
+        catch(std::runtime_error &ex)
+        {
+            ROS_ERROR("%s", ex.what());
+        }
+        if (!got_plan)
+            continue;
+
+        // Create tree widget item to hold the plan.
+        QTreeWidgetItem* root = new QTreeWidgetItem;
+
+        root->setText(0, QString(plan->plan_name.c_str()));
+
+        for (int j = 0; j < plan->actions.size(); j++)
+        {
+            QTreeWidgetItem* child = new QTreeWidgetItem;
+
+            // Set the child's name.
+            child->setText(0, QString(plan->actions[j].action_name.c_str()));
+
+            // Store primitive action in the data.
+            QVariant data;
+            setMessageToUserData<apc_msgs::PrimitiveAction>(data, plan->actions[j]);
+
+            // Store data into the child node.
+            child->setData(0, Qt::UserRole, data);
+
+            // Append to root.
+            root->addChild(child);
+        }
+
+        ui_->stored_plans_tree->addTopLevelItem(root);
+    }
+}
+
+// HACK Define the template instantiations here because the template definitions are in this cpp file.
+template QByteArray MotionPlanningFrame::serializeMessage<apc_msgs::PrimitiveAction>(const apc_msgs::PrimitiveAction& msg);
+template QByteArray MotionPlanningFrame::serializeMessage<apc_msgs::PrimitivePlan>(const apc_msgs::PrimitivePlan& msg);
+template apc_msgs::PrimitiveAction MotionPlanningFrame::deserializeMessage<apc_msgs::PrimitiveAction>(const QByteArray& string);
+template apc_msgs::PrimitivePlan MotionPlanningFrame::deserializeMessage<apc_msgs::PrimitivePlan>(const QByteArray& string);
+template apc_msgs::PrimitiveAction MotionPlanningFrame::getMessageFromUserData<apc_msgs::PrimitiveAction>(const QVariant& data);
+template apc_msgs::PrimitivePlan MotionPlanningFrame::getMessageFromUserData<apc_msgs::PrimitivePlan>(const QVariant& data);
+template void MotionPlanningFrame::setMessageToUserData<apc_msgs::PrimitiveAction>(QVariant& data, const apc_msgs::PrimitiveAction& msg);
+template void MotionPlanningFrame::setMessageToUserData<apc_msgs::PrimitivePlan>(QVariant& data, const apc_msgs::PrimitivePlan& msg);
 }
