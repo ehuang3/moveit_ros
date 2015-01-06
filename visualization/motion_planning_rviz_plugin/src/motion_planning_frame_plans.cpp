@@ -468,14 +468,14 @@ void MotionPlanningFrame::activeToStoredPlansButtonClicked()
         root->addChild(child);
     }
 
+    QTreeWidget* stored_plans = ui_->stored_plans_tree;
+
     // TODO Build a descriptive name.
-    static int count = 0;
-    QString display_name = QString("plan: %1").arg(count++);
+    QString display_name = QString("plan: %1").arg(stored_plans->topLevelItemCount());
 
     root->setText(0, display_name);
 
     // Add to tree list.
-    QTreeWidget* stored_plans = ui_->stored_plans_tree;
     stored_plans->addTopLevelItem(root);
 }
 
