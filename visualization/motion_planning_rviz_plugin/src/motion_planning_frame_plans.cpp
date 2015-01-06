@@ -34,6 +34,8 @@
 
 /* Author: Eric Huang */
 
+#include <moveit/warehouse/primitive_plan_storage.h>
+
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
 
@@ -65,10 +67,13 @@ QString toDebug(const QByteArray & line) {
     return s;
 }
 
-void MotionPlanningFrame::serializeGoalMsg(const moveit_msgs::MoveGroupGoal& goal, QByteArray& string)
+template< typename Message > QByteArray MotionPlanningFrame::serializeMessage(const Message& msg)
 {
+    // Stored data.
+    QByteArray string;
+
     // Get the length of serialization.
-    uint32_t serial_size = ros::serialization::serializationLength(goal);
+    uint32_t serial_size = ros::serialization::serializationLength(msg);
 
     // Construct a middle man for the serialization?
     boost::scoped_array<uint8_t> buffer(new uint8_t[serial_size]);
@@ -77,7 +82,7 @@ void MotionPlanningFrame::serializeGoalMsg(const moveit_msgs::MoveGroupGoal& goa
     ros::serialization::OStream stream(buffer.get(), serial_size);
 
     // Serialize.
-    ros::serialization::serialize(stream, goal);
+    ros::serialization::serialize(stream, msg);
 
     // Clear QByteArray.
     string.clear();
@@ -90,8 +95,11 @@ void MotionPlanningFrame::serializeGoalMsg(const moveit_msgs::MoveGroupGoal& goa
     }
 }
 
-void MotionPlanningFrame::deserializeGoalMsg(const QByteArray& string, moveit_msgs::MoveGroupGoal& goal)
+template< typename Message > Message MotionPlanningFrame::deserializeMessage(const QByteArray& string)
 {
+    // Deserialized message.
+    Message msg;
+
     // Get the length of serialization.
     uint32_t serial_size = (uint32_t) (string.size() / sizeof(char));
 
@@ -108,47 +116,53 @@ void MotionPlanningFrame::deserializeGoalMsg(const QByteArray& string, moveit_ms
     ros::serialization::IStream stream(buffer.get(), serial_size);
 
     // Deserialize.
-    ros::serialization::Serializer<moveit_msgs::MoveGroupGoal>::read(stream, goal);
+    ros::serialization::Serializer<Message>::read(stream, msg);
+
+    return msg;
 }
 
-bool MotionPlanningFrame::getGoalMsgFromUserData(const QVariant& data, moveit_msgs::MoveGroupGoal& goal)
+template< typename Message > Message getMessageFromUserData(const QVariant& data)
 {
+    // The message we are getting.
+    Message msg;
+
     // Check if the data can be convertered.
     if (!data.canConvert(QVariant::Map))
     {
         ROS_ERROR("Failed to convert stored data to QVariantMap.");
-        return false;
+        return msg;
     }
 
     QVariantMap map = data.toMap();
 
-    QString key = "GOAL_MESSAGE";
+    // Auto-generate key for message type. May not be human readable.
+    QString key = typeid(Message).name();
 
     if (!map.contains(key))
     {
         ROS_ERROR("Stored data does not contain %s.", key.toStdString().c_str());
-        return false;
+        return msg;
     }
 
-    QVariant msg = map[key];
+    QVariant msg_data = map[key];
 
     // Check if the data can be convertered.
-    if (!msg.canConvert(QVariant::ByteArray))
+    if (!msg_data.canConvert(QVariant::ByteArray))
     {
         ROS_ERROR("Failed to convert stored data to QByteArray.");
-        return false;
+        return msg;
     }
 
     // Convert the variant to a byte array.
-    QByteArray byte_array = msg.toByteArray();
+    QByteArray byte_array = msg_data.toByteArray();
 
     // Deserialize message.
-    deserializeGoalMsg(byte_array, goal);
+    deserializeGoalMsg(byte_array, msg);
 
-    return true;
+    return msg;
 }
 
-void MotionPlanningFrame::setGoalMsgToUserData(const moveit_msgs::MoveGroupGoal& goal, QVariant& data)
+template< typename Message > void setMessageToUserData(QVariant& data, const Message& msg)
 {
     // Ensure the data is a QVariantMap.
     if (!data.canConvert(QVariant::Map))
@@ -161,66 +175,13 @@ void MotionPlanningFrame::setGoalMsgToUserData(const moveit_msgs::MoveGroupGoal&
     QByteArray byte_array;
 
     // Serialize the goal message into a byte array.
-    serializeGoalMsg(goal, byte_array);
+    serializeGoalMsg(msg, byte_array);
 
-    // Unique key for identifying the message.
-    QString key = "GOAL_MESSAGE";
+    // Auto-generate key for message type. May not be human readable.
+    QString key = typeid(Message).name();
 
     // Set the goal message into the map.
     map[key] = byte_array;
-
-    // Set the map back into the data.
-    data = map;
-}
-
-bool MotionPlanningFrame::getWaypointIDFromUserData(const QVariant& data, int* id)
-{
-    // Check if the data can be convertered.
-    if (!data.canConvert(QVariant::Map))
-    {
-        ROS_ERROR("Failed to convert stored data to QVariantMap.");
-        return false;
-    }
-
-    QVariantMap map = data.toMap();
-
-    QString key = "WAYPOINT_ID";
-
-    if (!map.contains(key))
-    {
-        ROS_ERROR("Stored data does not contain %s.", key.toStdString().c_str());
-        return false;
-    }
-
-    QVariant msg = map[key];
-
-    // Check if the data can be convertered.
-    if (!msg.canConvert(QVariant::Int))
-    {
-        ROS_ERROR("Failed to convert stored data to integer.");
-        return false;
-    }
-
-    // Convert the variant to the waypoint ID.
-    *id = msg.toInt();
-
-    return true;
-}
-
-void MotionPlanningFrame::setWaypointIDToUserData(int id, QVariant& data)
-{
-    // Ensure the data is a QVariantMap.
-    if (!data.canConvert(QVariant::Map))
-        data = QVariantMap();
-
-    // Get the underlying map.
-    QVariantMap map = data.toMap();
-
-    // Unique key for identifying the message.
-    QString key = "WAYPOINT_ID";
-
-    // Set the waypoint id into the map.
-    map[key] = id;
 
     // Set the map back into the data.
     data = map;
@@ -230,23 +191,17 @@ void MotionPlanningFrame::getRobotStateFromUserData(const QVariant& data,
                                                     robot_state::RobotState& robot)
 {
     // Get the ith goal message in the data vector.
-    moveit_msgs::MoveGroupGoal goal;
-    getGoalMsgFromUserData(data, goal);
+    apc_msgs::PrimitiveAction goal = getMessageFromUserData<apc_msgs::PrimitiveAction>(data);
 
     // Get the group name.
-    std::string group = goal.request.group_name;
-
-    // Get the joint constraints. Note we only extract the first one!
-    const std::vector<moveit_msgs::JointConstraint>& joint_constraints =
-        goal.request.goal_constraints[0].joint_constraints;
+    std::string group = goal.group_name;
 
     // Convert goal message into joint state message.
     sensor_msgs::JointState state;
-    for (int j = 0; j < joint_constraints.size(); j++)
-    {
-        state.name.push_back(joint_constraints[j].joint_name);
-        state.position.push_back(joint_constraints[j].position);
-    }
+    state.name = goal.joint_trajectory.joint_names;
+    // Get the joint constraints. Note we only extract the first one!
+    state.position = goal.joint_trajectory.points[0].positions;
+
 
     // Merge the goal message into the robot state. This keeps the previous values.
     robot.setVariableValues(state);
@@ -275,22 +230,29 @@ void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
     double goal_joint_tolerance = move_group_->getGoalJointTolerance();
 
     // Create a move group goal message.
-    moveit_msgs::MoveGroupGoal goal;
+    apc_msgs::PrimitiveAction goal;
 
     // Set the goal group name.
-    goal.request.group_name = group;
+    goal.group_name = group;
 
     // Construct goal constraints only for the joint model group.
-    goal.request.goal_constraints.resize(1);
-    goal.request.goal_constraints[0] = kinematic_constraints::constructGoalConstraints(state,
-                                                                                       joint_model_group,
-                                                                                       goal_joint_tolerance);
+    moveit_msgs::Constraints constraints = kinematic_constraints::constructGoalConstraints(state,
+                                                                                           joint_model_group,
+                                                                                           goal_joint_tolerance);
+
+    // Copy constraints to goal.
+    goal.joint_trajectory.points.resize(1);
+    for (int i = 0; i < constraints.joint_constraints.size(); i++)
+    {
+        goal.joint_trajectory.joint_names.push_back(constraints.joint_constraints[i].joint_name);
+        goal.joint_trajectory.points[0].positions[i] = constraints.joint_constraints[i].position;
+    }
 
     // Get the data in the item.
     QVariant data = item->data(Qt::UserRole);
 
     // Store the goal into the data.
-    setGoalMsgToUserData(goal, data);
+    setMessageToUserData<apc_msgs::PrimitiveAction>(data, goal);
 
     // Save the serialized data back into the item.
     item->setData(Qt::UserRole, data);
@@ -312,11 +274,10 @@ void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
     QVariant data = item->data(Qt::UserRole);
 
     // Deserialize byte array into move group goal.
-    moveit_msgs::MoveGroupGoal goal;
-    getGoalMsgFromUserData(data, goal);
+    apc_msgs::PrimitiveAction goal = getMessageFromUserData<apc_msgs::PrimitiveAction>(data);
 
     // Get the new planning group.
-    std::string group = goal.request.group_name;
+    std::string group = goal.group_name;
 
     // Update the planning group.
     planning_display_->changePlanningGroup(group);
@@ -325,14 +286,13 @@ void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
     robot_state::RobotState current_state = *planning_display_->getQueryGoalState();
 
     // Get the saved joint constraints.
-    const std::vector<moveit_msgs::JointConstraint>& joint_constraints =
-        goal.request.goal_constraints[0].joint_constraints;
+    const trajectory_msgs::JointTrajectory& joint_trajectory = goal.joint_trajectory;
 
     // Copy the joints in the goal to the current state.
-    for (int i = 0; i < joint_constraints.size(); i++)
+    for (int i = 0; i < joint_trajectory.joint_names.size(); i++)
     {
-        current_state.setJointPositions(joint_constraints[i].joint_name,
-                                        &joint_constraints[i].position);
+        current_state.setJointPositions(joint_trajectory.joint_names[i],
+                                        &joint_trajectory.points[0].positions[i]);
     }
 
     // Set the joints related to the current group.
@@ -375,22 +335,20 @@ void MotionPlanningFrame::updateDisplayWaypoints(std::vector<QVariant>& data)
     for (int i = 0; i < data.size(); i++)
     {
         // Get the ith goal message in the data vector.
-        moveit_msgs::MoveGroupGoal goal;
-        getGoalMsgFromUserData(data[i], goal);
+        apc_msgs::PrimitiveAction goal = getMessageFromUserData<apc_msgs::PrimitiveAction>(data[i]);
 
         // Get the group name.
-        group = goal.request.group_name;
+        group = goal.group_name;
 
-        // Get the joint constraints. Note we only extract the first one!
-        const std::vector<moveit_msgs::JointConstraint>& joint_constraints =
-            goal.request.goal_constraints[0].joint_constraints;
+        // Get the joint trajectory. Note we only extract the first one!
+        const trajectory_msgs::JointTrajectory& joint_trajectory = goal.joint_trajectory;
 
         // Convert goal message into joint state message.
         sensor_msgs::JointState state;
-        for (int j = 0; j < joint_constraints.size(); j++)
+        for (int j = 0; j < joint_trajectory.joint_names.size(); j++)
         {
-            state.name.push_back(joint_constraints[j].joint_name);
-            state.position.push_back(joint_constraints[j].position);
+            state.name.push_back(joint_trajectory.joint_names[j]);
+            state.position.push_back(joint_trajectory.points[0].positions[j]);
         }
 
         // Merge the goal message into the robot state. This keeps the previous values.
@@ -467,7 +425,7 @@ void MotionPlanningFrame::previewButtonClicked()
 
 void MotionPlanningFrame::savePlansButtonClicked()
 {
-
+    planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeSavePlansButtonClicked, this), "save plans");
 }
 
 void MotionPlanningFrame::loadPlansButtonClicked()
@@ -513,6 +471,48 @@ void MotionPlanningFrame::activeToStoredPlansButtonClicked()
 void MotionPlanningFrame::storedToActiveGoalsButtonClicked()
 {
 
+}
+
+void MotionPlanningFrame::computeSavePlansButtonClicked()
+{
+    if (primitive_plan_storage_)
+    {
+        // TODO
+        QTreeWidget* stored_plans = ui_->stored_plans_tree;
+
+        // A primitive plan message.
+        apc_msgs::PrimitivePlan msg;
+
+        // Construct primitive plans.
+        for (int i = 0; i < stored_plans->topLevelItemCount(); i++)
+        {
+            // Get the toplevel item.
+            QTreeWidgetItem* root = stored_plans->topLevelItem(i);
+
+            // Build primitive plan message.
+            msg.plan_name = root->text(0).toStdString(); // TODO Unique plan names.
+            msg.actions.clear();
+            for (int j = 0; j < root->childCount(); j++)
+            {
+                // Get the child.
+                QTreeWidgetItem* child = root->child(j);
+
+                // Append primitive action to primitive plan.
+                msg.actions.push_back(getMessageFromUserData<apc_msgs::PrimitiveAction>(child->data(0, Qt::UserRole)));
+            }
+
+            // Store message in database.
+            try
+            {
+                primitive_plan_storage_->removePrimitivePlan(msg.plan_name);
+                primitive_plan_storage_->addPrimitivePlan(msg, msg.plan_name);
+            }
+            catch (std::runtime_error &ex)
+            {
+                ROS_ERROR("%s", ex.what());
+            }
+        }
+    }
 }
 
 }

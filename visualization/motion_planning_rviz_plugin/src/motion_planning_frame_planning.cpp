@@ -42,6 +42,8 @@
 
 #include <std_srvs/Empty.h>
 
+#include <apc_msgs/PrimitiveAction.h>
+
 #include "ui_motion_planning_rviz_plugin_frame.h"
 
 namespace moveit_rviz_plugin
@@ -132,12 +134,11 @@ void MotionPlanningFrame::computePlanButtonClicked()
                               goal_state);
 
     // Get the group from the user data.
-    moveit_msgs::MoveGroupGoal goal_msg;
-    getGoalMsgFromUserData(goals_list->item(i)->data(Qt::UserRole),
-                           goal_msg);
+    apc_msgs::PrimitiveAction goal_msg =
+      getMessageFromUserData<apc_msgs::PrimitiveAction>(goals_list->item(i)->data(Qt::UserRole));
 
     // HACK Reset move group so that I can plan with a different group... SMH. FIXME Was this necessary?
-    changePlanningGroupHelper(goal_msg.request.group_name);
+    changePlanningGroupHelper(goal_msg.group_name);
     planning_display_->waitForAllMainLoopJobs(); // I hope there are no cyclic main job loops.
 
     // Set move group variables, like start and goal states, etc.

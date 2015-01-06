@@ -77,6 +77,7 @@ namespace moveit_warehouse
 class PlanningSceneStorage;
 class ConstraintsStorage;
 class RobotStateStorage;
+class PrimitivePlanStorage;
 }
 
 namespace moveit_rviz_plugin
@@ -121,6 +122,7 @@ protected:
   boost::shared_ptr<moveit_warehouse::PlanningSceneStorage> planning_scene_storage_;
   boost::shared_ptr<moveit_warehouse::ConstraintsStorage> constraints_storage_;
   boost::shared_ptr<moveit_warehouse::RobotStateStorage> robot_state_storage_;
+  boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> primitive_plan_storage_;
 
   boost::shared_ptr<rviz::InteractiveMarker> scene_marker_;
 
@@ -229,18 +231,17 @@ private:
   void fillStateSelectionOptions();
 
   //Stored plans tab
-  void serializeGoalMsg(const moveit_msgs::MoveGroupGoal& goal, QByteArray& string);
-  void deserializeGoalMsg(const QByteArray& string, moveit_msgs::MoveGroupGoal& goal);
-  bool getGoalMsgFromUserData(const QVariant& data, moveit_msgs::MoveGroupGoal& goal);
-  void setGoalMsgToUserData(const moveit_msgs::MoveGroupGoal& goal, QVariant& data);
-  bool getWaypointIDFromUserData(const QVariant& data, int* id);
-  void setWaypointIDToUserData(int id, QVariant& data);
+  template< typename Message > static QByteArray serializeMessage(const Message& msg);
+  template< typename Message > static Message deserializeMessage(const QByteArray& string);
+  template< typename Message > static Message getMessageFromUserData(const QVariant& data);
+  template< typename Message > static void setMessageToUserData(QVariant& data, const Message& msg);
   void getRobotStateFromUserData(const QVariant& data, robot_state::RobotState& robot);
   void saveGoalAsItem(QListWidgetItem* item);
   void loadGoalFromItem(QListWidgetItem* item);
   void updateDisplayWaypoints(QListWidget* list);
   void updateDisplayWaypoints(QTreeWidget* tree);
   void updateDisplayWaypoints(std::vector<QVariant>& data);
+  void computeSavePlansButtonClicked();
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

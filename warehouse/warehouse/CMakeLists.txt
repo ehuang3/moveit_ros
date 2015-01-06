@@ -7,6 +7,7 @@ add_library(${MOVEIT_LIB_NAME}
   src/constraints_storage.cpp
   src/trajectory_constraints_storage.cpp
   src/state_storage.cpp
+  src/primitive_plan_storage.cpp
   src/warehouse_connector.cpp)
 target_link_libraries(${MOVEIT_LIB_NAME} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 

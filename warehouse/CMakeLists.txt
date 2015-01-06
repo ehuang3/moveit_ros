@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosconsole
   warehouse_ros
   tf
+  apc_msgs
 )
 
 catkin_package(
