@@ -33,6 +33,8 @@ msg/_.*\.py$
 
 # qcreator stuff
 CMakeLists.txt.user
+.user
+.creator
 
 srv/_.*\.py$
 \.pcd$

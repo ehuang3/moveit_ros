@@ -167,6 +167,24 @@ void MotionPlanningFrame::computePlanButtonClicked()
     const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
     // Construct a new robot trajectory.
     robot_trajectory::RobotTrajectoryPtr display_trajectory(new robot_trajectory::RobotTrajectory(robot_model, ""));
+
+    //Hack for simple linear movement.
+    //It calculates the distance between start and goal point and puts waypoints inbetween at equal intervals
+    int num_of_points=sizeof(current_plan_->trajectory_.joint_trajectory.points)/sizeof(current_plan_->trajectory_.joint_trajectory.points[0]);
+
+    trajectory_msgs::JointTrajectoryPoint temp_point,cur_point,start,end;
+    start=current_plan_->trajectory_.joint_trajectory.points[0];
+    end=current_plan_->trajectory_.joint_trajectory.points[num_of_points-2];
+    temp_point.positions[0]=(end.positions[0]-start.positions[0])/(num_of_points-2);
+    temp_point.positions[1]=(end.positions[1]-start.positions[1])/(num_of_points-2);
+    temp_point.positions[2]=(end.positions[2]-start.positions[2])/(num_of_points-2);
+    cur_point=current_plan_->trajectory_.joint_trajectory.points[0];
+    for(int idx=1;idx<num_of_points-1;++idx)
+    {
+        current_plan_->trajectory_.joint_trajectory.points[idx].positions[0]=temp_point.positions[0]*idx;
+        current_plan_->trajectory_.joint_trajectory.points[idx].positions[1]=temp_point.positions[1]*idx;
+        current_plan_->trajectory_.joint_trajectory.points[idx].positions[2]=temp_point.positions[2]*idx;
+    }
     // Copy current plan over to robot trajectory.
     display_trajectory->setRobotTrajectoryMsg(planning_display_->getPlanningSceneRO()->getCurrentState(),
                                               current_plan_->start_state_,
