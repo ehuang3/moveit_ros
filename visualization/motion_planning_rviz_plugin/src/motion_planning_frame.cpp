@@ -126,9 +126,8 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->active_to_stored_button, SIGNAL( clicked() ), this, SLOT( activeToStoredPlansButtonClicked() ));
   connect( ui_->stored_to_active_button, SIGNAL( clicked() ), this, SLOT( storedToActiveGoalsButtonClicked() ));
   connect( ui_->stop_button, SIGNAL( clicked() ), this, SLOT( stopExecutionButtonClicked() ));
-  // connect( ui_->bump_up_button, SIGNAL( clicked() ), this, SLOT( bumpUpButtonClicked() ));
-  // connect( ui_->bump_down_button, SIGNAL( clicked() ), this, SLOT( bumpDownButtonClicked() ));
-
+  connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
+  connect( ui_->goal_to_current_button, SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
 
   connect( ui_->detect_objects_button, SIGNAL( clicked() ), this, SLOT( detectObjectsButtonClicked() ));
   connect( ui_->pick_button, SIGNAL( clicked() ), this, SLOT( pickObjectButtonClicked() ));

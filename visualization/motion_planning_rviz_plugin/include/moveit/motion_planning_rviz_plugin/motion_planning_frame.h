@@ -168,6 +168,8 @@ private Q_SLOTS:
   void planPlansButtonClicked();
   void stopExecutionButtonClicked();
   void executePlansButtonClicked();
+  void setStartToCurrentButtonClicked();
+  void setGoalToCurrentButtonClicked();
 
   //Scene Objects tab
   void importFileButtonClicked();

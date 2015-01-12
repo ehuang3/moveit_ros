@@ -82,6 +82,7 @@ void MotionPlanningFrame::getRobotStateFromUserData(const QVariant& data,
     // Convert goal message into joint state message.
     sensor_msgs::JointState state;
     state.name = goal.joint_trajectory.joint_names;
+
     // Get the joint constraints. Note we only extract the first one!
     state.position = goal.joint_trajectory.points[0].positions;
 
@@ -91,8 +92,6 @@ void MotionPlanningFrame::getRobotStateFromUserData(const QVariant& data,
     // Update the dirty transforms, etc.
     robot.update();
 }
-
-
 
 void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
 {
@@ -507,13 +506,18 @@ void MotionPlanningFrame::computeLoadPlansButtonClicked()
     }
 }
 
-// HACK Define the template instantiations here because the template definitions are in this cpp file.
-template QByteArray MotionPlanningFrame::serializeMessage<apc_msgs::PrimitiveAction>(const apc_msgs::PrimitiveAction& msg);
-template QByteArray MotionPlanningFrame::serializeMessage<apc_msgs::PrimitivePlan>(const apc_msgs::PrimitivePlan& msg);
-template apc_msgs::PrimitiveAction MotionPlanningFrame::deserializeMessage<apc_msgs::PrimitiveAction>(const QByteArray& string);
-template apc_msgs::PrimitivePlan MotionPlanningFrame::deserializeMessage<apc_msgs::PrimitivePlan>(const QByteArray& string);
-template apc_msgs::PrimitiveAction MotionPlanningFrame::getMessageFromUserData<apc_msgs::PrimitiveAction>(const QVariant& data);
-template apc_msgs::PrimitivePlan MotionPlanningFrame::getMessageFromUserData<apc_msgs::PrimitivePlan>(const QVariant& data);
-template void MotionPlanningFrame::setMessageToUserData<apc_msgs::PrimitiveAction>(QVariant& data, const apc_msgs::PrimitiveAction& msg);
-template void MotionPlanningFrame::setMessageToUserData<apc_msgs::PrimitivePlan>(QVariant& data, const apc_msgs::PrimitivePlan& msg);
+void MotionPlanningFrame::setStartToCurrentButtonClicked()
+{
+  robot_state::RobotState start = *planning_display_->getQueryStartState();
+  updateQueryStateHelper(start, "<current>");
+  planning_display_->setQueryStartState(start);
+}
+
+void MotionPlanningFrame::setGoalToCurrentButtonClicked()
+{
+  robot_state::RobotState goal = *planning_display_->getQueryGoalState();
+  updateQueryStateHelper(goal, "<current>");
+  planning_display_->setQueryGoalState(goal);
+}
+
 }

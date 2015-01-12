@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>631</width>
+    <width>643</width>
     <height>540</height>
    </rect>
   </property>
@@ -311,7 +311,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>99</width>
-                   <height>70</height>
+                   <height>71</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -360,8 +360,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>195</width>
-                   <height>70</height>
+                   <width>99</width>
+                   <height>71</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -715,14 +715,14 @@
               <item>
                <layout class="QGridLayout" name="gridLayout_20">
                 <item row="1" column="1">
-                 <widget class="QPushButton" name="pushButton_2">
+                 <widget class="QPushButton" name="goal_to_current_button">
                   <property name="text">
                    <string>Goal to Current</string>
                   </property>
                  </widget>
                 </item>
                 <item row="1" column="0">
-                 <widget class="QPushButton" name="pushButton_3">
+                 <widget class="QPushButton" name="start_to_current_button">
                   <property name="text">
                    <string>Start to Current</string>
                   </property>
