@@ -19,7 +19,9 @@ set(SOURCE_FILES
   src/motion_planning_frame.cpp
   src/motion_planning_frame_context.cpp
   src/motion_planning_frame_planning.cpp
-  src/motion_planning_frame_plans.cpp
+  src/motion_planning_frame_primitive_planning.cpp
+  src/motion_planning_frame_stored_plans.cpp
+  src/motion_planning_frame_execution.cpp
   src/motion_planning_frame_objects.cpp
   src/motion_planning_frame_scenes.cpp
   src/motion_planning_frame_states.cpp

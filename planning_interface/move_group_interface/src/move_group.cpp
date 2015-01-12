@@ -1831,3 +1831,8 @@ bool moveit::planning_interface::MoveGroup::detachObject(const std::string &name
 {
   return impl_->detachObject(name);
 }
+
+moveit::planning_interface::MoveItErrorCode moveit::planning_interface::MoveGroup::appendPlan(Plan &first, Plan &second)
+{
+  return impl_->appendPlan(first, second);
+}

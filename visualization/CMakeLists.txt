@@ -34,6 +34,8 @@ find_package(catkin REQUIRED COMPONENTS
   rosconsole
   object_recognition_msgs
   apc_msgs
+  actionlib
+  actionlib_msgs
 )
 find_package(Eigen REQUIRED)
 catkin_python_setup()

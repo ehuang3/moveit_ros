@@ -59,6 +59,7 @@
 
 #include <std_msgs/Bool.h>
 #include <std_msgs/Empty.h>
+#include <apc_msgs/FollowPrimitivePlanAction.h>
 #include <map>
 #include <string>
 
@@ -79,6 +80,7 @@ class ConstraintsStorage;
 class RobotStateStorage;
 class PrimitivePlanStorage;
 }
+
 
 namespace moveit_rviz_plugin
 {
@@ -119,6 +121,7 @@ protected:
   boost::shared_ptr<moveit::semantic_world::SemanticWorld> semantic_world_;
 
   boost::shared_ptr<moveit::planning_interface::MoveGroup::Plan> current_plan_;
+  boost::shared_ptr<apc_msgs::PrimitivePlan> primitive_plan_;
   boost::shared_ptr<moveit_warehouse::PlanningSceneStorage> planning_scene_storage_;
   boost::shared_ptr<moveit_warehouse::ConstraintsStorage> constraints_storage_;
   boost::shared_ptr<moveit_warehouse::RobotStateStorage> robot_state_storage_;
@@ -162,6 +165,9 @@ private Q_SLOTS:
   void storedToActiveGoalsButtonClicked();
   void bumpUpButtonClicked();
   void bumpDownButtonClicked();
+  void planPlansButtonClicked();
+  void stopExecutionButtonClicked();
+  void executePlansButtonClicked();
 
   //Scene Objects tab
   void importFileButtonClicked();
@@ -231,6 +237,7 @@ private:
   void fillStateSelectionOptions();
 
   //Stored plans tab
+  boost::shared_ptr<actionlib::SimpleActionClient<apc_msgs::FollowPrimitivePlanAction> > execute_client_;
   template< typename Message > static QByteArray serializeMessage(const Message& msg);
   template< typename Message > static Message deserializeMessage(const QByteArray& string);
   template< typename Message > static Message getMessageFromUserData(const QVariant& data);
@@ -244,6 +251,17 @@ private:
   void updateDisplayWaypoints(std::vector<QVariant>& data);
   void computeSavePlansButtonClicked();
   void computeLoadPlansButtonClicked();
+  void computePlanPlansButtonClicked();
+  void computeLinearInterpPlan(const robot_state::RobotState& start, apc_msgs::PrimitiveAction& goal);
+  // Execution
+  void initExecutePlans();
+  void computeExecutePlansButtonClicked();
+  void executeActiveCallback();
+  void executeFeedbackCallback(const apc_msgs::FollowPrimitivePlanFeedbackConstPtr &feedback);
+  void executeDoneCallback(const actionlib::SimpleClientGoalState &state, const apc_msgs::FollowPrimitivePlanResultConstPtr &result);
+  void updateExecuteActive();
+  void updateExecuteFeedback(const apc_msgs::FollowPrimitivePlanFeedback &feedback);
+  void updateExecuteDone(const actionlib::SimpleClientGoalState& state, const apc_msgs::FollowPrimitivePlanResult& result);
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

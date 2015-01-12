@@ -44,6 +44,8 @@
 #include <moveit/robot_state/conversions.h>
 
 #include <std_srvs/Empty.h>
+#include <apc_msgs/FollowPrimitivePlanAction.h>
+#include <actionlib/client/simple_action_client.h>
 
 #include "ui_motion_planning_rviz_plugin_frame.h"
 

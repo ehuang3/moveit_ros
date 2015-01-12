@@ -118,13 +118,14 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->push_button, SIGNAL( clicked() ), this, SLOT( pushButtonClicked() ));
   connect( ui_->pop_button, SIGNAL( clicked() ), this, SLOT( popButtonClicked() ));
   connect( ui_->active_goals_list, SIGNAL( itemDoubleClicked(QListWidgetItem*) ), this, SLOT( activeGoalItemDoubleClicked(QListWidgetItem*) ));
-  connect( ui_->plan_button_2, SIGNAL( clicked() ), this, SLOT( planButtonClicked() ));
-  connect( ui_->execute_button_2, SIGNAL( clicked() ), this, SLOT( executeButtonClicked() ));
+  connect( ui_->plan_button_2, SIGNAL( clicked() ), this, SLOT( planPlansButtonClicked() ));
+  connect( ui_->execute_button_2, SIGNAL( clicked() ), this, SLOT( executePlansButtonClicked() ));
   connect( ui_->preview_button, SIGNAL( clicked() ), this, SLOT( previewButtonClicked() ));
   connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
   connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
   connect( ui_->active_to_stored_button, SIGNAL( clicked() ), this, SLOT( activeToStoredPlansButtonClicked() ));
   connect( ui_->stored_to_active_button, SIGNAL( clicked() ), this, SLOT( storedToActiveGoalsButtonClicked() ));
+  connect( ui_->stop_button, SIGNAL( clicked() ), this, SLOT( stopExecutionButtonClicked() ));
   // connect( ui_->bump_up_button, SIGNAL( clicked() ), this, SLOT( bumpUpButtonClicked() ));
   // connect( ui_->bump_down_button, SIGNAL( clicked() ), this, SLOT( bumpDownButtonClicked() ));
 
