@@ -345,47 +345,7 @@ private:
   ros::ServiceClient clear_octomap_service_client_;
 };
 
-// \todo THIS IS REALLY BAD. NEED TO MOVE THIS AND RELATED FUNCTIONALITY OUT OF HERE
-template<typename T>
-void MotionPlanningFrame::waitForAction(const T &action, const ros::NodeHandle &node_handle,
-                                        const ros::Duration &wait_for_server, const std::string &name)
-{
-  ROS_DEBUG("Waiting for MoveGroup action server (%s)...", name.c_str());
-
-  // in case ROS time is published, wait for the time data to arrive                                    
-  ros::Time start_time = ros::Time::now();
-  while (start_time == ros::Time::now())
-  {
-    ros::WallDuration(0.01).sleep();
-    ros::spinOnce();
-  }
-
-  // wait for the server (and spin as needed)                                                           
-  if (wait_for_server == ros::Duration(0, 0))
-  {
-    // wait forever until action server connects
-    while (node_handle.ok() && !action->isServerConnected())
-    {
-      ros::WallDuration(0.02).sleep();
-      ros::spinOnce();
-    }
-  }
-  else
-  {
-    // wait for a limited amount of non-simulated time
-    ros::WallTime final_time = ros::WallTime::now() + ros::WallDuration(wait_for_server.toSec());
-    while (node_handle.ok() && !action->isServerConnected() && final_time > ros::WallTime::now())
-    {
-      ros::WallDuration(0.02).sleep();
-      ros::spinOnce();
-    }
-  }
-
-  if (!action->isServerConnected())
-    throw std::runtime_error("Unable to connect to move_group action server within allotted time");
-  else
-    ROS_DEBUG("Connected to '%s'", name.c_str());
-};
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame_impl.hpp>
 
 }
 
