@@ -70,21 +70,18 @@ namespace moveit_rviz_plugin
         return s;
     }
 
-    void MotionPlanningFrame::getRobotStateFromUserData(const QVariant& data,
-                                                        robot_state::RobotState& robot)
+    void MotionPlanningFrame::getStateFromAction(robot_state::RobotState& robot,
+                                                 const apc_msgs::PrimitiveAction& action)
     {
-        // Get the ith goal message in the data vector.
-        apc_msgs::PrimitiveAction goal = getMessageFromUserData<apc_msgs::PrimitiveAction>(data);
-
         // Get the group name.
-        std::string group = goal.group_name;
+        std::string group = action.group_name;
 
         // Convert goal message into joint state message.
         sensor_msgs::JointState state;
-        state.name = goal.joint_trajectory.joint_names;
+        state.name = action.joint_trajectory.joint_names;
 
         // Get the joint constraints. Note we only extract the first one!
-        state.position = goal.joint_trajectory.points[0].positions;
+        state.position = action.joint_trajectory.points[0].positions;
 
         // Merge the goal message into the robot state. This keeps the previous values.
         robot.setVariableValues(state);
@@ -93,13 +90,13 @@ namespace moveit_rviz_plugin
         robot.update();
     }
 
-    void MotionPlanningFrame::saveGoalAsItem(QListWidgetItem* item)
+    void MotionPlanningFrame::saveGoalToItem(QListWidgetItem* item)
     {
         const robot_state::RobotState& state = *planning_display_->getQueryGoalState();
-        saveGoalAsItem(state, item);
+        saveGoalToItem(state, item);
     }
 
-    void MotionPlanningFrame::saveGoalAsItem(const robot_state::RobotState& state,
+    void MotionPlanningFrame::saveGoalToItem(const robot_state::RobotState& state,
                                              QListWidgetItem* item)
     {
         if (!item)
@@ -117,10 +114,11 @@ namespace moveit_rviz_plugin
         double goal_joint_tolerance = move_group_->getGoalJointTolerance();
 
         // Create a move group goal message.
-        apc_msgs::PrimitiveAction goal;
+        apc_msgs::PrimitivePlan goal;
+        goal.actions.resize(1);
 
         // Set the goal group name.
-        goal.group_name = group;
+        goal.actions[0].group_name = group;
 
         // Construct goal constraints only for the joint model group.
         moveit_msgs::Constraints constraints = kinematic_constraints::constructGoalConstraints(state,
@@ -128,24 +126,24 @@ namespace moveit_rviz_plugin
                                                                                                goal_joint_tolerance);
 
         // Copy constraints to goal.
-        goal.joint_trajectory.points.resize(1);
+        goal.actions[0].joint_trajectory.points.resize(1);
         for (int i = 0; i < constraints.joint_constraints.size(); i++)
         {
-            goal.joint_trajectory.joint_names.push_back(constraints.joint_constraints[i].joint_name);
-            goal.joint_trajectory.points[0].positions.push_back(constraints.joint_constraints[i].position);
+            goal.actions[0].joint_trajectory.joint_names.push_back(constraints.joint_constraints[i].joint_name);
+            goal.actions[0].joint_trajectory.points[0].positions.push_back(constraints.joint_constraints[i].position);
         }
 
         // TODO Build a descriptive name.
         static int count = 0;
         QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
 
-        goal.action_name = display_name.toStdString();
+        goal.actions[0].action_name = display_name.toStdString();
 
         // Get the data in the item.
         QVariant data = item->data(Qt::UserRole);
 
         // Store the goal into the data.
-        setMessageToUserData<apc_msgs::PrimitiveAction>(data, goal);
+        setMessageToUserData<apc_msgs::PrimitivePlan>(data, goal);
 
         // Save the serialized data back into the item.
         item->setData(Qt::UserRole, data);
@@ -162,11 +160,29 @@ namespace moveit_rviz_plugin
         // Get the saved binary data.
         QVariant data = item->data(Qt::UserRole);
 
+        // Load goal from data.
+        loadGoalFromData(data);
+    }
+
+    void MotionPlanningFrame::loadGoalFromItem(QTreeWidgetItem* item)
+    {
+        if (!item)
+            return;
+
+        // Get the saved binary data.
+        QVariant data = item->data(0, Qt::UserRole);
+
+        // Load goal from data.
+        loadGoalFromData(data);
+    }
+
+    void MotionPlanningFrame::loadGoalFromData(const QVariant& data)
+    {
         // Deserialize byte array into move group goal.
-        apc_msgs::PrimitiveAction goal = getMessageFromUserData<apc_msgs::PrimitiveAction>(data);
+        apc_msgs::PrimitivePlan goal = getMessageFromUserData<apc_msgs::PrimitivePlan>(data);
 
         // Get the new planning group.
-        std::string group = goal.group_name;
+        std::string group = goal.actions[0].group_name;
 
         // Update the planning group.
         planning_display_->changePlanningGroup(group);
@@ -175,7 +191,7 @@ namespace moveit_rviz_plugin
         robot_state::RobotState current_state = *planning_display_->getQueryGoalState();
 
         // Get the saved joint constraints.
-        const trajectory_msgs::JointTrajectory& joint_trajectory = goal.joint_trajectory;
+        const trajectory_msgs::JointTrajectory& joint_trajectory = goal.actions[0].joint_trajectory;
 
         // Copy the joints in the goal to the current state.
         for (int i = 0; i < joint_trajectory.joint_names.size(); i++)
@@ -188,24 +204,29 @@ namespace moveit_rviz_plugin
         planning_display_->setQueryGoalState(current_state);
     }
 
-    void MotionPlanningFrame::updateDisplayWaypoints(QListWidget* list)
+    void MotionPlanningFrame::loadWaypointsToDisplay(QList<QListWidgetItem*> items)
     {
         std::vector<QVariant> data;
-        for (int i = 0; i < list->count(); i++)
-            data.push_back(list->item(i)->data(Qt::UserRole));
+        for (int i = 0; i < items.count(); i++)
+            data.push_back(items[i]->data(Qt::UserRole));
 
-        updateDisplayWaypoints(data);
-
-        for (int i = 0; i < list->count(); i++)
-            list->item(i)->setData(Qt::UserRole, data[i]);
+        loadWaypointsToDisplay(data);
     }
 
-    void MotionPlanningFrame::updateDisplayWaypoints(QTreeWidget* tree)
+    void MotionPlanningFrame::loadWaypointsToDisplay(QList<QTreeWidgetItem*> items)
     {
+        std::vector<QVariant> data;
+        for (int i = 0; i < items.count(); i++)
+            if (items[i]->childCount() > 0)
+                for (int j = 0; j < items[i]->childCount(); j++)
+                    data.push_back(items[i]->child(j)->data(0, Qt::UserRole));
+            else
+                data.push_back(items[i]->data(0, Qt::UserRole));
 
+        loadWaypointsToDisplay(data);
     }
 
-    void MotionPlanningFrame::updateDisplayWaypoints(std::vector<QVariant>& data)
+    void MotionPlanningFrame::loadWaypointsToDisplay(std::vector<QVariant>& data)
     {
         // Delete all existing waypoints!
         planning_display_->clearDisplayWaypoints();
@@ -224,13 +245,13 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < data.size(); i++)
         {
             // Get the ith goal message in the data vector.
-            apc_msgs::PrimitiveAction goal = getMessageFromUserData<apc_msgs::PrimitiveAction>(data[i]);
+            apc_msgs::PrimitivePlan goal = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[i]);
 
             // Get the group name.
-            group = goal.group_name;
+            group = goal.actions[0].group_name;
 
             // Get the joint trajectory. Note we only extract the first one!
-            const trajectory_msgs::JointTrajectory& joint_trajectory = goal.joint_trajectory;
+            const trajectory_msgs::JointTrajectory& joint_trajectory = goal.actions[0].joint_trajectory;
 
             // Convert goal message into joint state message.
             sensor_msgs::JointState state;
@@ -251,152 +272,145 @@ namespace moveit_rviz_plugin
         }
     }
 
-    void MotionPlanningFrame::pushButtonClicked()
+    void MotionPlanningFrame::loadOptionsToView(QList<QListWidgetItem*> items, bool enable)
     {
-        // Get the list of active goals (waypoints).
-        QListWidget* active_goals_list = ui_->active_goals_list;
-
-        // Save the current goal to a new item.
-        QListWidgetItem* item = new QListWidgetItem;
-        saveGoalAsItem(item);
-
-        // Get the currently selected row.
-        int row = active_goals_list->currentRow();
-
-        // Unselect item.
-        if (active_goals_list->currentItem())
-            active_goals_list->currentItem()->setSelected(false);
-
-        // Insert the item into the list.
-        active_goals_list->insertItem(row + 1, item);
-
-        // Set item as active.
-        active_goals_list->setCurrentItem(item);
-
-        // update rendering.
-        updateDisplayWaypoints(active_goals_list);
-    }
-
-    void MotionPlanningFrame::activeGoalItemDoubleClicked(QListWidgetItem* item)
-    {
-        // Load the currently selected item into the goal query state.
-        loadGoalFromItem(item);
-
-        // Update rendering. FIXME Not needed here!
-        // updateDisplayWaypoints(ui_->active_goals_list);
-    }
-
-    void MotionPlanningFrame::popButtonClicked()
-    {
-        // Get the list of active goals (waypoints).
-        QListWidget* active_goals_list = ui_->active_goals_list;
-
-        if (active_goals_list->count() == 0)
-            return;
-
-        int row = active_goals_list->currentRow();
-
-        QListWidgetItem* item = active_goals_list->takeItem(row);
-
-        if (item)
-            delete item;
-
-        active_goals_list->setCurrentRow(std::max(row - 1, 0));
-
-        // Update rendering.
-        updateDisplayWaypoints(active_goals_list);
-    }
-
-    void MotionPlanningFrame::previewButtonClicked()
-    {
-        planning_display_->previewTrail();
-    }
-
-    void MotionPlanningFrame::savePlansButtonClicked()
-    {
-        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeSavePlansButtonClicked, this), "save plans");
-    }
-
-    void MotionPlanningFrame::loadPlansButtonClicked()
-    {
-        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeLoadPlansButtonClicked, this), "load plans");
-    }
-
-    void MotionPlanningFrame::activeToStoredPlansButtonClicked()
-    {
-        // Get the list of active goals (waypoints).
-        QListWidget* active_goals = ui_->active_goals_list;
-
-        // Do nothing if there are no items.
-        if (active_goals->count() == 0)
-            return;
-
-        // Get all hightlighted items, or all items if none are highlighted.
-        QList<QListWidgetItem*> items = active_goals->selectedItems();
-        if (items.count() == 0)
-            for (int i = 0; i < active_goals->count(); i++)
-                items.push_back(active_goals->item(i));
-
-        // Construct a top level tree item.
-        QTreeWidgetItem* root = new QTreeWidgetItem;
+        std::vector<QVariant> data;
         for (int i = 0; i < items.count(); i++)
-        {
-            QTreeWidgetItem* child = new QTreeWidgetItem;
-            child->setData(0, Qt::UserRole, items[i]->data(Qt::UserRole));
-            child->setText(0, items[i]->text());
-            root->addChild(child);
-        }
-
-        QTreeWidget* stored_plans = ui_->stored_plans_tree;
-
-        // TODO Build a descriptive name.
-        QString display_name = QString("plan: %1").arg(stored_plans->topLevelItemCount());
-
-        root->setText(0, display_name);
-
-        // Add to tree list.
-        stored_plans->addTopLevelItem(root);
+            data.push_back(items[i]->data(Qt::UserRole));
+        loadOptionsToView(data, enable);
     }
 
-    void MotionPlanningFrame::storedToActiveGoalsButtonClicked()
+    void MotionPlanningFrame::loadOptionsToView(QList<QTreeWidgetItem*> items, bool enable)
     {
-        // Tree of stored plans.
-        QTreeWidget* stored_plans = ui_->stored_plans_tree;
+        std::vector<QVariant> data;
+        for (int i = 0; i < items.count(); i++)
+            if (items[i]->childCount() > 0)
+                for (int j = 0; j < items[i]->childCount(); j++)
+                    data.push_back(items[i]->child(j)->data(0, Qt::UserRole));
+            else
+                data.push_back(items[i]->data(0, Qt::UserRole));
+        loadOptionsToView(data, enable);
+    }
 
-        // The selected stored plan.
-        QTreeWidgetItem* plan_item = stored_plans->currentItem();
+    void MotionPlanningFrame::loadOptionsToView(std::vector<QVariant>& data, bool enable)
+    {
+        // The number of checkboxes.
+        const int num_checkboxes = 7;
 
-        if (!plan_item)
-            return;
+        // Array of checkbox pointers.
+        class QCheckBox* checkbox[num_checkboxes] = { ui_->relative_to_object_checkbox,
+                                                      ui_->relative_to_pose_checkbox,
+                                                      ui_->eef_trajectory_checkbox,
+                                                      ui_->dense_trajectory_checkbox,
+                                                      ui_->monitor_contact_checkbox,
+                                                      ui_->monitor_profile_checkbox,
+                                                      ui_->cartesian_interpolate_checkbox };
 
-        // List of active goals.
-        QListWidget* active_goals = ui_->active_goals_list;
-
-        // Active goal's selected row or else the last row.
-        int row = active_goals->currentRow() == -1 ? active_goals->count()-1 : active_goals->currentRow();
-
-        // Append stored plans to active goals.
-        for (int i = 0; i < plan_item->childCount(); i++)
+        // Clear and disable all the options.
+        for (int i = 0; i < num_checkboxes; i++)
         {
-            QListWidgetItem* item = new QListWidgetItem;
-
-            apc_msgs::PrimitiveAction goal =
-                getMessageFromUserData<apc_msgs::PrimitiveAction>(plan_item->child(i)->data(0, Qt::UserRole));
-
-            item->setText(QString(goal.action_name.c_str()));
-
-            item->setData(Qt::UserRole, plan_item->child(i)->data(0, Qt::UserRole));
-
-            active_goals->insertItem(++row, item);
+            checkbox[i]->setChecked(false);
+            checkbox[i]->setEnabled(false);
+            checkbox[i]->setTristate(false);
         }
 
-        // FIXME Doesn't work...
-        // planning_display_->addBackgroundJob(
-        //     boost::bind(static_cast<void (*)(QListWidget*)>(&MotionPlanningFrame::updateDisplayWaypoints),
-        //                 this,
-        //                 ui_->active_goals_list),
-        //     "update display waypoints");
-        updateDisplayWaypoints(active_goals);
+        // Exit if there's nothing to display.
+        if (data.size() == 0)
+            return;
+
+        // Set all options to enabled or disabled.
+        for (int i = 0; i < num_checkboxes; i++)
+        {
+            checkbox[i]->setEnabled(enable);
+        }
+
+        // Copy the options over to view.
+        bool init = false;
+        for (int i = 0; i < data.size(); i++)
+        {
+            // Get the thing out of the data.
+            apc_msgs::PrimitivePlan plan = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[i]);
+            for (int j = 0; j < plan.actions.size(); j++)
+            {
+                const apc_msgs::PrimitiveAction& action = plan.actions[j];
+                unsigned char options[num_checkboxes] = { action.relative_to_object,
+                                                          action.relative_to_previous_pose,
+                                                          action.use_eef_trajectory,
+                                                          action.dense_trajectory,
+                                                          action.stop_on_contact,
+                                                          action.use_haptic_profile,
+                                                          action.interpolate_cartesian };
+                // Set the tristate of the checkbox.
+                for (int k = 0; k < num_checkboxes; k++)
+                    setTristateCheckBox(checkbox[k], options[k], init);
+                init = true;
+            }
+        }
+    }
+
+    void MotionPlanningFrame::setTristateCheckBox(QCheckBox* checkbox, bool b, bool init)
+    {
+        if (!init)
+            checkbox->setChecked(b);
+        else if ((int) checkbox->checkState() != 2 * (int) b)
+        {
+            checkbox->setTristate();
+            checkbox->setChecked(Qt::PartiallyChecked);
+            checkbox->setEnabled(false);
+        }
+        checkbox->update();
+    }
+
+    void MotionPlanningFrame::saveOptionsFromView(QList<QListWidgetItem*> items)
+    {
+        std::vector<QVariant> data;
+        for (int i = 0; i < items.count(); i++)
+            data.push_back(items[i]->data(Qt::UserRole));
+
+        saveOptionsFromView(data);
+
+        for (int i = 0; i < items.count(); i++)
+            items[i]->setData(Qt::UserRole, data[i]);
+    }
+
+    void MotionPlanningFrame::saveOptionsFromView(std::vector<QVariant>& data)
+    {
+        if (!ui_->relative_to_object_checkbox->isEnabled())
+            return;
+
+        for (int i = 0; i < data.size(); i++)
+        {
+            // Get message from data.
+            apc_msgs::PrimitivePlan plan = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[i]);
+
+            // Fill message options.
+            for (int j = 0; j < plan.actions.size(); j++)
+            {
+                apc_msgs::PrimitiveAction& action = plan.actions[i];
+                QCheckBox* checkbox[7] = { ui_->relative_to_object_checkbox,
+                                           ui_->relative_to_pose_checkbox,
+                                           ui_->eef_trajectory_checkbox,
+                                           ui_->dense_trajectory_checkbox,
+                                           ui_->monitor_contact_checkbox,
+                                           ui_->monitor_profile_checkbox,
+                                           ui_->cartesian_interpolate_checkbox };
+                unsigned char* options[7] = { &action.relative_to_object,
+                                              &action.relative_to_previous_pose,
+                                              &action.use_eef_trajectory,
+                                              &action.dense_trajectory,
+                                              &action.stop_on_contact,
+                                              &action.use_haptic_profile,
+                                              &action.interpolate_cartesian };
+                for (int k = 0; k < 7; k++)
+                    if (checkbox[k]->checkState() == Qt::PartiallyChecked)
+                        ROS_WARN("Skipping partially checked checkbox: %s", checkbox[k]->text().toStdString().c_str());
+                    else
+                        *options[k] = checkbox[k]->isChecked();
+            }
+
+            // Set message back into user data!
+            setMessageToUserData<apc_msgs::PrimitivePlan>(data[i], plan);
+        }
     }
 
     void MotionPlanningFrame::computeSavePlansButtonClicked()
@@ -423,8 +437,12 @@ namespace moveit_rviz_plugin
                     // Get the child.
                     QTreeWidgetItem* child = root->child(j);
 
-                    // Append primitive action to primitive plan.
-                    msg.actions.push_back(getMessageFromUserData<apc_msgs::PrimitiveAction>(child->data(0, Qt::UserRole)));
+                    // Get the message stored in the child.
+                    apc_msgs::PrimitivePlan plan = getMessageFromUserData<apc_msgs::PrimitivePlan>(child->data(0, Qt::UserRole));
+
+                    // Append primitive actions in child plan to primitive plan.
+                    for (int k = 0; k < plan.actions.size(); k++)
+                        msg.actions.push_back(plan.actions[k]);
                 }
 
                 // Store message in database.
@@ -491,9 +509,13 @@ namespace moveit_rviz_plugin
                 // Set the child's name.
                 child->setText(0, QString(plan->actions[j].action_name.c_str()));
 
+                // Construct a plan to hold the action.
+                apc_msgs::PrimitivePlan child_plan;
+                child_plan.actions.push_back(plan->actions[j]);
+
                 // Store primitive action in the data.
                 QVariant data;
-                setMessageToUserData<apc_msgs::PrimitiveAction>(data, plan->actions[j]);
+                setMessageToUserData<apc_msgs::PrimitivePlan>(data, child_plan);
 
                 // Store data into the child node.
                 child->setData(0, Qt::UserRole, data);
@@ -504,25 +526,6 @@ namespace moveit_rviz_plugin
 
             ui_->stored_plans_tree->addTopLevelItem(root);
         }
-    }
-
-    void MotionPlanningFrame::setStartToCurrentButtonClicked()
-    {
-        robot_state::RobotState start = *planning_display_->getQueryStartState();
-        updateQueryStateHelper(start, "<current>");
-        planning_display_->setQueryStartState(start);
-    }
-
-    void MotionPlanningFrame::setGoalToCurrentButtonClicked()
-    {
-        robot_state::RobotState goal = *planning_display_->getQueryGoalState();
-        updateQueryStateHelper(goal, "<current>");
-        planning_display_->setQueryGoalState(goal);
-    }
-
-    void MotionPlanningFrame::deleteStoredPlanButtonClicked()
-    {
-
     }
 
 }

@@ -115,19 +115,47 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->clear_states_button, SIGNAL( clicked() ), this, SLOT( clearStatesButtonClicked() ));
   connect( ui_->approximate_ik, SIGNAL( stateChanged(int) ), this, SLOT( approximateIKChanged(int) ));
   // Stored plans tab
-  connect( ui_->push_button, SIGNAL( clicked() ), this, SLOT( pushButtonClicked() ));
-  connect( ui_->pop_button, SIGNAL( clicked() ), this, SLOT( popButtonClicked() ));
-  connect( ui_->active_goals_list, SIGNAL( itemDoubleClicked(QListWidgetItem*) ), this, SLOT( activeGoalItemDoubleClicked(QListWidgetItem*) ));
-  connect( ui_->plan_button_2, SIGNAL( clicked() ), this, SLOT( planPlansButtonClicked() ));
-  connect( ui_->execute_button_2, SIGNAL( clicked() ), this, SLOT( executePlansButtonClicked() ));
+  // commands
+  connect( ui_->plan_goals_button, SIGNAL( clicked() ), this, SLOT( planGoalsButtonClicked() ));
+  connect( ui_->execute_goals_button, SIGNAL( clicked() ), this, SLOT( executePlansButtonClicked() ));
   connect( ui_->preview_button, SIGNAL( clicked() ), this, SLOT( previewButtonClicked() ));
-  connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
-  connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
-  connect( ui_->active_to_stored_button, SIGNAL( clicked() ), this, SLOT( activeToStoredPlansButtonClicked() ));
-  connect( ui_->stored_to_active_button, SIGNAL( clicked() ), this, SLOT( storedToActiveGoalsButtonClicked() ));
   connect( ui_->stop_button, SIGNAL( clicked() ), this, SLOT( stopExecutionButtonClicked() ));
+  // active goals commands
   connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
   connect( ui_->goal_to_current_button, SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
+  connect( ui_->insert_goal_button, SIGNAL( clicked() ), this, SLOT( insertGoalButtonClicked() ));
+  connect( ui_->delete_goal_button, SIGNAL( clicked() ), this, SLOT( deleteGoalButtonClicked() ));
+  // active goals list
+  connect( ui_->active_goals_list, SIGNAL( itemSelectionChanged() ), this,
+           SLOT( activeGoalSelectionChanged() ));
+  connect( ui_->active_goals_list, SIGNAL( itemClicked(QListWidgetItem*) ), this,
+           SLOT( activeGoalItemClicked(QListWidgetItem*) ));
+  connect( ui_->active_goals_list, SIGNAL( itemDoubleClicked(QListWidgetItem*) ), this,
+           SLOT( activeGoalItemDoubleClicked(QListWidgetItem*) ));
+  // active <-> stored commands
+  connect( ui_->active_to_stored_button, SIGNAL( clicked() ), this, SLOT( activeToStoredPlansButtonClicked() ));
+  connect( ui_->stored_to_active_button, SIGNAL( clicked() ), this, SLOT( storedToActiveGoalsButtonClicked() ));
+  // stored plans database commands
+  connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
+  connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
+  connect( ui_->delete_plan_button, SIGNAL( clicked() ), this, SLOT( deleteStoredPlanButtonClicked() ));
+  // stored plans tree
+  // connect( ui_->stored_plans_tree, SIGNAL( clicked(const QModelIndex&) ), this,
+  //          SLOT( storedPlanTreeClicked(const QModelIndex&) ));
+  connect( ui_->stored_plans_tree, SIGNAL( itemClicked(QTreeWidgetItem*, int) ), this,
+           SLOT( storedPlanItemClicked(QTreeWidgetItem*, int) ));
+  connect( ui_->stored_plans_tree, SIGNAL( itemDoubleClicked(QTreeWidgetItem*, int) ), this,
+           SLOT( storedPlanItemDoubleClicked(QTreeWidgetItem*, int) ));
+  // stored plans options
+  connect( ui_->relative_to_object_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+  connect( ui_->relative_to_pose_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+  connect( ui_->eef_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+  connect( ui_->dense_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+  connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+  connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+  connect( ui_->cartesian_interpolate_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+
+
 
   connect( ui_->detect_objects_button, SIGNAL( clicked() ), this, SLOT( detectObjectsButtonClicked() ));
   connect( ui_->pick_button, SIGNAL( clicked() ), this, SLOT( pickObjectButtonClicked() ));

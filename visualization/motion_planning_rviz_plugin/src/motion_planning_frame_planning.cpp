@@ -52,10 +52,6 @@ namespace moveit_rviz_plugin
 
 void MotionPlanningFrame::planButtonClicked()
 {
-  // HACK Always have one thing in the plan.
-  if (ui_->active_goals_list->count() == 0)
-    pushButtonClicked();
-
   // Compute plan.
   planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computePlanButtonClicked, this), "compute plan");
 }
@@ -108,101 +104,26 @@ void MotionPlanningFrame::onClearOctomapClicked()
 
 void MotionPlanningFrame::computePlanButtonClicked()
 {
-  if (!move_group_)
-    return;
-
-  // Clear status
   ui_->result_label->setText("Planning...");
 
-  // Reset the current plan.
+  configureForPlanning();
+
   current_plan_.reset(new moveit::planning_interface::MoveGroup::Plan());
-
-  // Get the list of goals (waypoints) to follow.
-  QListWidget* goals_list = ui_->active_goals_list;
-
-  // Get the current start state.
-  robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-
-  // The target goal state will be initialized to the start state.
-  robot_state::RobotState goal_state = start_state;
-
-  // For each item in the active goals list, configure for planning and then
-  // append to the plan.
-  for (int i = 0; i < goals_list->count(); i++)
+  if (move_group_->plan(*current_plan_))
   {
-    // Get the goal robot state from user data.
-    getRobotStateFromUserData(goals_list->item(i)->data(Qt::UserRole),
-                              goal_state);
+     ui_->execute_button->setEnabled(true);
 
-    // Get the group from the user data.
-    apc_msgs::PrimitiveAction goal_msg =
-      getMessageFromUserData<apc_msgs::PrimitiveAction>(goals_list->item(i)->data(Qt::UserRole));
-
-    // HACK Reset move group so that I can plan with a different group... SMH. FIXME Was this necessary?
-    changePlanningGroupHelper(goal_msg.group_name);
-    planning_display_->waitForAllMainLoopJobs(); // I hope there are no cyclic main job loops.
-
-    // Set move group variables, like start and goal states, etc.
-    configureForPlanning(start_state, goal_state);
-
-    // Make a planning service call. This will append any plans to the input.
-    if (!move_group_->plan(*current_plan_))
-    {
-      ui_->result_label->setText("Failed");
-      current_plan_.reset();
-      return;
-    }
-
-    // Start the next plan from this goal.
-    start_state = goal_state;
+    // Success
+    ui_->result_label->setText(QString("Time: ").append(
+        QString::number(current_plan_->planning_time_,'f',3)));
   }
-
-  // Success
-  ui_->execute_button->setEnabled(true);
-  ui_->result_label->setText(QString("Time: ").append(
-                               QString::number(current_plan_->planning_time_,'f',3)));
-
-  // HACK Copy trajectory over to display.
+  else
   {
-    // Get a robot model.
-    const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
-    // Construct a new robot trajectory.
-    robot_trajectory::RobotTrajectoryPtr display_trajectory(new robot_trajectory::RobotTrajectory(robot_model, ""));
+    current_plan_.reset();
 
-
-    //Hack for simple linear movement.
-    //It calculates the distance between start and goal point and puts waypoints inbetween at equal intervals
-    // Note velocities and accelerations are unchanged
-    int num_of_points=current_plan_->trajectory_.joint_trajectory.points.size();
-    int num_of_pos=current_plan_->trajectory_.joint_trajectory.points[0].positions.size();
-    std::cout << "Number of points " << num_of_points << " Number of positions per point " << num_of_pos << std::endl;
-    trajectory_msgs::JointTrajectoryPoint temp_point,cur_point,start,end;
-    start=current_plan_->trajectory_.joint_trajectory.points[0];
-    end=current_plan_->trajectory_.joint_trajectory.points[num_of_points-1];
-
-    temp_point.positions.resize(num_of_pos);
-    temp_point.positions[0]=(end.positions[0]-start.positions[0])/(num_of_points-2);
-    temp_point.positions[1]=(end.positions[1]-start.positions[1])/(num_of_points-2);
-    temp_point.positions[2]=(end.positions[2]-start.positions[2])/(num_of_points-2);
-    cur_point=current_plan_->trajectory_.joint_trajectory.points[0];
-    for(int idx=1;idx<num_of_points-1;++idx)
-    {
-        current_plan_->trajectory_.joint_trajectory.points[idx].positions[0]=temp_point.positions[0]*idx;
-        current_plan_->trajectory_.joint_trajectory.points[idx].positions[1]=temp_point.positions[1]*idx;
-        current_plan_->trajectory_.joint_trajectory.points[idx].positions[2]=temp_point.positions[2]*idx;
-    }
-
-    // Copy current plan over to robot trajectory.
-    display_trajectory->setRobotTrajectoryMsg(planning_display_->getPlanningSceneRO()->getCurrentState(),
-                                              current_plan_->start_state_,
-                                              current_plan_->trajectory_);
-    // Swap the plan trajectory into our planning display.
-    planning_display_->setTrajectoryToDisplay(display_trajectory);
-
-    // Display trail. FIXME This doesn't accomplish anything actually.
-    previewButtonClicked();
-  }
-
+    // Failure
+    ui_->result_label->setText("Failed");
+   }
 }
 
 void MotionPlanningFrame::computeExecuteButtonClicked()

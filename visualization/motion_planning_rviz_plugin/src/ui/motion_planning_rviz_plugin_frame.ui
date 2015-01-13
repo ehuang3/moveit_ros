@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>643</width>
-    <height>665</height>
+    <width>631</width>
+    <height>664</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -311,7 +311,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>99</width>
-                   <height>71</height>
+                   <height>70</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -361,7 +361,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>195</width>
-                   <height>90</height>
+                   <height>70</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -702,10 +702,10 @@
        <string>Stored Plans</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_19">
-       <item row="0" column="0" rowspan="4">
+       <item row="0" column="0" rowspan="2">
         <layout class="QGridLayout" name="gridLayout_22">
          <property name="verticalSpacing">
-          <number>-1</number>
+          <number>6</number>
          </property>
          <item row="1" column="0">
           <widget class="QGroupBox" name="groupBox_18">
@@ -742,7 +742,7 @@
                </widget>
               </item>
               <item row="2" column="0">
-               <widget class="QPushButton" name="push_button">
+               <widget class="QPushButton" name="insert_goal_button">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -755,7 +755,7 @@
                </widget>
               </item>
               <item row="2" column="1">
-               <widget class="QPushButton" name="pop_button">
+               <widget class="QPushButton" name="delete_goal_button">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -862,7 +862,7 @@
                </widget>
               </item>
               <item row="4" column="0">
-               <widget class="QPushButton" name="execute_button_2">
+               <widget class="QPushButton" name="execute_goals_button">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -888,7 +888,7 @@
                </widget>
               </item>
               <item row="2" column="0">
-               <widget class="QPushButton" name="plan_button_2">
+               <widget class="QPushButton" name="plan_goals_button">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -972,18 +972,14 @@
            </layout>
           </widget>
          </item>
-        </layout>
-       </item>
-       <item row="0" column="1" rowspan="4" colspan="2">
-        <layout class="QGridLayout" name="gridLayout_23">
-         <item row="0" column="0">
+         <item row="0" column="2">
           <widget class="QGroupBox" name="groupBox_20">
            <property name="title">
             <string>Options</string>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_13">
             <property name="spacing">
-             <number>-1</number>
+             <number>6</number>
             </property>
             <property name="leftMargin">
              <number>9</number>
@@ -992,7 +988,7 @@
              <number>0</number>
             </property>
             <property name="bottomMargin">
-             <number>3</number>
+             <number>1</number>
             </property>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_19">
@@ -1015,19 +1011,31 @@
                  <string>Relative:</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QCheckBox" name="checkBox_5">
+               <widget class="QCheckBox" name="relative_to_object_checkbox">
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
                 <property name="text">
                  <string>Object</string>
                 </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="checked">
+                 <bool>false</bool>
+                </property>
+                <property name="tristate">
+                 <bool>true</bool>
+                </property>
                </widget>
               </item>
               <item>
-               <widget class="QCheckBox" name="checkBox">
+               <widget class="QCheckBox" name="relative_to_pose_checkbox">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -1036,6 +1044,9 @@
                 </property>
                 <property name="text">
                  <string>Pose</string>
+                </property>
+                <property name="tristate">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -1063,21 +1074,27 @@
                  <string>Trajectory:</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QCheckBox" name="checkBox_3">
+               <widget class="QCheckBox" name="eef_trajectory_checkbox">
                 <property name="text">
                  <string>Eef</string>
                 </property>
+                <property name="tristate">
+                 <bool>true</bool>
+                </property>
                </widget>
               </item>
               <item>
-               <widget class="QCheckBox" name="checkBox_2">
+               <widget class="QCheckBox" name="dense_trajectory_checkbox">
                 <property name="text">
                  <string>Dense</string>
+                </property>
+                <property name="tristate">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -1086,7 +1103,7 @@
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_16">
               <property name="spacing">
-               <number>-1</number>
+               <number>6</number>
               </property>
               <item>
                <widget class="QLabel" name="label_20">
@@ -1105,21 +1122,27 @@
                  <string>Monitor:</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QCheckBox" name="checkBox">
+               <widget class="QCheckBox" name="monitor_contact_checkbox">
                 <property name="text">
                  <string>Contact</string>
                 </property>
+                <property name="tristate">
+                 <bool>true</bool>
+                </property>
                </widget>
               </item>
               <item>
-               <widget class="QCheckBox" name="checkBox_4">
+               <widget class="QCheckBox" name="monitor_profile_checkbox">
                 <property name="text">
                  <string>Profile</string>
+                </property>
+                <property name="tristate">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -1129,6 +1152,12 @@
              <layout class="QHBoxLayout" name="horizontalLayout_21">
               <item>
                <widget class="QLabel" name="label_21">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
                 <property name="font">
                  <font>
                   <italic>false</italic>
@@ -1138,21 +1167,26 @@
                  <string>Interpolate:</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QRadioButton" name="radioButton_6">
+               <widget class="QCheckBox" name="cartesian_interpolate_checkbox">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
                 <property name="text">
                  <string>Cartesian</string>
                 </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QRadioButton" name="radioButton_7">
-                <property name="text">
-                 <string>Joint</string>
+                <property name="checked">
+                 <bool>false</bool>
+                </property>
+                <property name="tristate">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -1161,7 +1195,7 @@
            </layout>
           </widget>
          </item>
-         <item row="1" column="0">
+         <item row="1" column="2">
           <widget class="QGroupBox" name="groupBox_19">
            <property name="title">
             <string>Stored Plans</string>
@@ -1196,7 +1230,7 @@
                </widget>
               </item>
               <item>
-               <widget class="QComboBox" name="comboBox">
+               <widget class="QComboBox" name="plan_database_name_combobox">
                 <item>
                  <property name="text">
                   <string>calibration</string>
@@ -1228,7 +1262,7 @@
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="pushButton">
+               <widget class="QPushButton" name="delete_plan_button">
                 <property name="text">
                  <string>Delete</string>
                 </property>

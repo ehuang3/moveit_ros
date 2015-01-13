@@ -40,6 +40,7 @@
 #include <QWidget>
 #include <QTreeWidgetItem>
 #include <QListWidgetItem>
+#include <QCheckBox>
 
 #ifndef Q_MOC_RUN
 #include <moveit/move_group_interface/move_group.h>
@@ -154,22 +155,36 @@ private Q_SLOTS:
   void useGoalStateButtonClicked();
   void onClearOctomapClicked();
 
-  //Stored plans tab
-  void pushButtonClicked();
-  void popButtonClicked();
-  void activeGoalItemDoubleClicked(QListWidgetItem* item);
+  // Stored plans tab
+  // Stored plans commands
+  void planGoalsButtonClicked();
   void previewButtonClicked();
-  void savePlansButtonClicked();
-  void loadPlansButtonClicked();
-  void activeToStoredPlansButtonClicked();
-  void storedToActiveGoalsButtonClicked();
-  void bumpUpButtonClicked();
-  void bumpDownButtonClicked();
-  void planPlansButtonClicked();
-  void stopExecutionButtonClicked();
   void executePlansButtonClicked();
+  void stopExecutionButtonClicked();
+  // Stored plans active goals commands
   void setStartToCurrentButtonClicked();
   void setGoalToCurrentButtonClicked();
+  void insertGoalButtonClicked();
+  void deleteGoalButtonClicked();
+  // Stored plans active goals list
+  void activeGoalSelectionChanged();
+  void activeGoalListClicked(const QModelIndex& index);
+  void activeGoalItemClicked(QListWidgetItem* item);
+  void activeGoalItemDoubleClicked(QListWidgetItem* item);
+  // Stored plans stored plans tree
+  void storedPlanTreeClicked(const QModelIndex& index);
+  void storedPlanItemClicked(QTreeWidgetItem* item, int col);
+  void storedPlanItemDoubleClicked(QTreeWidgetItem* item, int col);
+  // Stored plans active <-> stored commands
+  void activeToStoredPlansButtonClicked();
+  void storedToActiveGoalsButtonClicked();
+  // Stored plans stored plans database commands
+  void planDatabaseComboBoxChanged();
+  void savePlansButtonClicked();
+  void loadPlansButtonClicked();
+  void deleteStoredPlanButtonClicked();
+  // Stored plans options
+  void optionsCheckBoxClicked();
 
   //Scene Objects tab
   void importFileButtonClicked();
@@ -238,6 +253,7 @@ private:
   void updateQueryStateHelper(robot_state::RobotState &state, const std::string &v);
   void fillStateSelectionOptions();
 
+
   //Stored plans tab
   boost::shared_ptr<actionlib::SimpleActionClient<apc_msgs::FollowPrimitivePlanAction> > execute_client_;
   template< typename Message > static QByteArray serializeMessage(const Message& msg);
@@ -245,17 +261,30 @@ private:
   template< typename Message > static Message getMessageFromUserData(const QVariant& data);
   template< typename Message > static void setMessageToUserData(QVariant& data, const Message& msg);
   void getRobotStateFromUserData(const QVariant& data, robot_state::RobotState& robot);
-  void saveGoalAsItem(const robot_state::RobotState& state, QListWidgetItem* item);
-  void saveGoalAsItem(QListWidgetItem* item);
+  void getStateFromAction(robot_state::RobotState& robot, const apc_msgs::PrimitiveAction& action);
+  void saveGoalToItem(QListWidgetItem* item);
+  void saveGoalToItem(const robot_state::RobotState& state, QListWidgetItem* item);
   void loadGoalFromItem(QListWidgetItem* item);
-  void updateDisplayWaypoints(QListWidget* list);
-  void updateDisplayWaypoints(QTreeWidget* tree);
-  void updateDisplayWaypoints(std::vector<QVariant>& data);
+  void loadGoalFromItem(QTreeWidgetItem* item);
+  void loadGoalFromData(const QVariant& data);
+  // displaying waypoints
+  void loadWaypointsToDisplay(QList<QListWidgetItem*> items);
+  void loadWaypointsToDisplay(QList<QTreeWidgetItem*> items);
+  void loadWaypointsToDisplay(std::vector<QVariant>& data);
+  // plan options
+  void loadOptionsToView(QList<QListWidgetItem*> items, bool enable = true);
+  void loadOptionsToView(QList<QTreeWidgetItem*> items, bool enable = true);
+  void loadOptionsToView(std::vector<QVariant>& data, bool enable=true);
+  void setTristateCheckBox(QCheckBox* checkbox, bool b, bool init);
+  void saveOptionsFromView(QList<QListWidgetItem*> items);
+  void saveOptionsFromView(std::vector<QVariant>& data);
+  // plan database
   void computeSavePlansButtonClicked();
   void computeLoadPlansButtonClicked();
-  void computePlanPlansButtonClicked();
+  // primitive planning
+  void computePlanGoalsButtonClicked();
   void computeLinearInterpPlan(const robot_state::RobotState& start, apc_msgs::PrimitiveAction& goal);
-  // Execution
+  // execution
   void initExecutePlans();
   void computeExecutePlansButtonClicked();
   void executeActiveCallback();

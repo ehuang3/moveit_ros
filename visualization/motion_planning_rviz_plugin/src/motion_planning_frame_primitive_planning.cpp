@@ -54,134 +54,149 @@
 namespace moveit_rviz_plugin
 {
 
-void MotionPlanningFrame::planPlansButtonClicked()
-{
-    planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computePlanPlansButtonClicked, this), "execute plans");
-}
-
-void MotionPlanningFrame::computeLinearInterpPlan(const robot_state::RobotState& start,
-                                                  apc_msgs::PrimitiveAction& goal)
-{
-    std::string group = goal.group_name;
-    const moveit::core::JointModelGroup* joint_group = start.getJointModelGroup(group);
-    trajectory_msgs::JointTrajectoryPoint s, c, e;
-    const std::vector<std::string>& joint_names = goal.joint_trajectory.joint_names;
-    s = goal.joint_trajectory.points.front();
-    for (int i = 0; i < joint_names.size(); i++)
-        s.positions[i] = (start.getVariablePosition(joint_names[i]));
-    e = goal.joint_trajectory.points.back();
-    goal.joint_trajectory.points.clear();
-    trajectory_msgs::JointTrajectory& T = goal.joint_trajectory;
-    const int n = 15;
-    c = s;
-    for (int i = 0; i <= n; i++)
+    void MotionPlanningFrame::planGoalsButtonClicked()
     {
-        for (int j=0; j < c.positions.size(); j++)
-            c.positions[j] = s.positions[j] + i * (e.positions[j] - s.positions[j]) / n;
-        T.points.push_back(c);
-    }
-}
-
-void MotionPlanningFrame::computePlanPlansButtonClicked()
-{
-  if (!move_group_)
-    return;
-
-  // Clear status
-  ui_->result_label->setText("Planning...");
-
-  // Reset the current plan.
-  current_plan_.reset(new moveit::planning_interface::MoveGroup::Plan());
-
-  // The primitive plan is used for actual execution on the robot. HACK
-  // We reset it here.
-  primitive_plan_.reset(new apc_msgs::PrimitivePlan);
-
-  // Get the list of goals (waypoints) to follow.
-  QListWidget* goals_list = ui_->active_goals_list;
-
-  // Get the current start state.
-  robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-
-  // The target goal state will be initialized to the start state.
-  robot_state::RobotState goal_state = start_state;
-
-  // For each item in the active goals list, configure for planning and then
-  // append to the plan.
-  for (int i = 0; i < goals_list->count(); i++)
-  {
-    // Get the goal robot state from user data.
-    getRobotStateFromUserData(goals_list->item(i)->data(Qt::UserRole),
-                              goal_state);
-
-    // Get the group from the user data.
-    apc_msgs::PrimitiveAction action =
-      getMessageFromUserData<apc_msgs::PrimitiveAction>(goals_list->item(i)->data(Qt::UserRole));
-
-    // HACK Reset move group so that I can plan with a different group... SMH. FIXME Was this necessary?
-    changePlanningGroupHelper(action.group_name);
-    planning_display_->waitForAllMainLoopJobs(); // I hope there are no cyclic main job loops.
-
-    // Set move group variables, like start and goal states, etc.
-    configureForPlanning(start_state, goal_state);
-
-    // Compute plan specific to the current primitive action.
-    moveit::planning_interface::MoveGroup::Plan plan;
-
-    // Make a planning service call. This will append any plans to the input.
-    if (!move_group_->plan(plan))
-    {
-        ui_->result_label->setText("Failed");
-        current_plan_.reset();
-        return;
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computePlanGoalsButtonClicked, this), "plan goals");
     }
 
-    // Copy plan over to primitive action.
-    action.joint_trajectory = plan.trajectory_.joint_trajectory;
-    action.duration = plan.planning_time_;
-
-    // If we are planning for the hands, overwrite plan with linear interpolation.
-    if (action.group_name == "crichton_left_hand" ||
-        action.group_name == "crichton_right_hand")
+    void MotionPlanningFrame::previewButtonClicked()
     {
-        computeLinearInterpPlan(start_state, action);
-        plan.trajectory_.joint_trajectory = action.joint_trajectory;
+        planning_display_->previewTrail();
     }
 
-    // Append plan onto the current plan.
-    move_group_->appendPlan(*current_plan_, plan);
+    void MotionPlanningFrame::computeLinearInterpPlan(const robot_state::RobotState& start,
+                                                      apc_msgs::PrimitiveAction& goal)
+    {
+        std::string group = goal.group_name;
+        const moveit::core::JointModelGroup* joint_group = start.getJointModelGroup(group);
+        trajectory_msgs::JointTrajectoryPoint s, c, e;
+        const std::vector<std::string>& joint_names = goal.joint_trajectory.joint_names;
+        s = goal.joint_trajectory.points.front();
+        for (int i = 0; i < joint_names.size(); i++)
+            s.positions[i] = (start.getVariablePosition(joint_names[i]));
+        e = goal.joint_trajectory.points.back();
+        goal.joint_trajectory.points.clear();
+        trajectory_msgs::JointTrajectory& T = goal.joint_trajectory;
+        const int n = 15;
+        c = s;
+        for (int i = 0; i <= n; i++)
+        {
+            for (int j=0; j < c.positions.size(); j++)
+                c.positions[j] = s.positions[j] + i * (e.positions[j] - s.positions[j]) / n;
+            T.points.push_back(c);
+        }
+    }
 
-    // Append action onto primitive plan.
-    primitive_plan_->actions.push_back(action);
+    void MotionPlanningFrame::computePlanGoalsButtonClicked()
+    {
+        if (!move_group_)
+            return;
 
-    // Start the next plan from this goal.
-    start_state = goal_state;
-  }
+        // Clear status
+        ui_->result_label->setText("Planning...");
 
-  // Success
-  ui_->execute_button->setEnabled(true);
-  ui_->result_label->setText(QString("Time: ").append(
-                               QString::number(current_plan_->planning_time_,'f',3)));
+        // Reset the current plan.
+        current_plan_.reset(new moveit::planning_interface::MoveGroup::Plan());
 
-  // Copy trajectory over to display.
-  {
-    // Get a robot model.
-    const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
+        // The primitive plan is used for actual execution on the robot. HACK
+        // We reset it here.
+        primitive_plan_.reset(new apc_msgs::PrimitivePlan);
 
-    // Construct a new robot trajectory.
-    robot_trajectory::RobotTrajectoryPtr display_trajectory(new robot_trajectory::RobotTrajectory(robot_model, ""));
+        // Get the list of goals (waypoints) to follow.
+        QListWidget* goals_list = ui_->active_goals_list;
 
-    // Copy current plan over to robot trajectory.
-    display_trajectory->setRobotTrajectoryMsg(planning_display_->getPlanningSceneRO()->getCurrentState(),
-                                              current_plan_->start_state_,
-                                              current_plan_->trajectory_);
-    // Swap the plan trajectory into our planning display.
-    planning_display_->setTrajectoryToDisplay(display_trajectory);
+        // Get the current start state.
+        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
 
-    // Display trail. FIXME This doesn't accomplish anything actually.
-    previewButtonClicked();
-  }
+        // The target goal state will be initialized to the start state.
+        robot_state::RobotState goal_state = start_state;
 
-}
+        // For each item in the active goals list, configure for planning and then
+        // append to the plan.
+        for (int i = 0; i < goals_list->count(); i++)
+        {
+            // First get the plan represented by the item.
+            apc_msgs::PrimitivePlan plan =
+                getMessageFromUserData<apc_msgs::PrimitivePlan>(goals_list->item(i)->data(Qt::UserRole));
+
+            // Loop through the actions in the plan.
+            for (int j = 0; j < plan.actions.size(); j++)
+            {
+                // Get the last action from the user data because it is the goal state.
+                apc_msgs::PrimitiveAction action = plan.actions.back();
+
+                // Get the goal robot state from user data.
+                getStateFromAction(goal_state, action);
+
+                // HACK Reset move group so that I can plan with a different group... SMH.
+                changePlanningGroupHelper(action.group_name);
+                planning_display_->waitForAllMainLoopJobs(); // I hope there are no cyclic main job loops.
+
+                // Set move group variables, like start and goal states, etc.
+                configureForPlanning(start_state, goal_state);
+
+                // Compute plan specific to the current primitive action.
+                moveit::planning_interface::MoveGroup::Plan move_group_plan;
+
+                // Make a planning service call. This will append any plans to the input.
+                if (!move_group_->plan(move_group_plan))
+                {
+                    ui_->result_label->setText("Failed");
+                    current_plan_.reset();
+                    return;
+                }
+
+                // Copy plan over to primitive action.
+                action.joint_trajectory = move_group_plan.trajectory_.joint_trajectory;
+                action.duration = move_group_plan.planning_time_;
+
+                // TODO Eef trajectory support.
+
+                // TODO Dense trajectory support.
+
+                // HACK If we are planning for the hands, overwrite plan with linear interpolation.
+                if (action.group_name == "crichton_left_hand" ||
+                    action.group_name == "crichton_right_hand")
+                {
+                    computeLinearInterpPlan(start_state, action);
+                    move_group_plan.trajectory_.joint_trajectory = action.joint_trajectory;
+                }
+
+                // Append plan onto the current plan.
+                move_group_->appendPlan(*current_plan_, move_group_plan);
+
+                // Append action onto primitive plan.
+                primitive_plan_->actions.push_back(action);
+
+                // Start the next plan from this goal.
+                start_state = goal_state;
+            }
+        }
+
+        // Success
+        ui_->execute_button->setEnabled(true);
+        ui_->result_label->setText(QString("Time: ").append(
+                                       QString::number(current_plan_->planning_time_,'f',3)));
+
+        // Copy trajectory over to display.
+        {
+            // Get a robot model.
+            const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
+
+            // Construct a new robot trajectory.
+            robot_trajectory::RobotTrajectoryPtr display_trajectory(new robot_trajectory::RobotTrajectory(robot_model, ""));
+
+            // Copy current plan over to robot trajectory.
+            display_trajectory->setRobotTrajectoryMsg(planning_display_->getPlanningSceneRO()->getCurrentState(),
+                                                      current_plan_->start_state_,
+                                                      current_plan_->trajectory_);
+            // Swap the plan trajectory into our planning display.
+            planning_display_->setTrajectoryToDisplay(display_trajectory);
+
+            // Display trail. FIXME This doesn't accomplish anything actually.
+            previewButtonClicked();
+        }
+
+    }
 
 }
