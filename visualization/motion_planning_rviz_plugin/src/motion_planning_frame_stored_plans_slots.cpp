@@ -74,6 +74,7 @@ namespace moveit_rviz_plugin
 
         // Save the current goal to a new item.
         QListWidgetItem* item = new QListWidgetItem;
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
         saveGoalToItem(item);
 
         // Get the currently selected row.
@@ -187,8 +188,9 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::storedPlanItemDoubleClicked(QTreeWidgetItem* item, int col)
     {
-        // Load robot into goal state.
-        loadGoalFromItem(item);
+        // If the clicked item is not a toplevel item, load robot into goal state,
+        if (ui_->stored_plans_tree->indexOfTopLevelItem(item) < 0)
+            loadGoalFromItem(item);
 
         // Do nothing special.
         storedPlanItemClicked(item, col);
@@ -211,9 +213,11 @@ namespace moveit_rviz_plugin
 
         // Construct a top level tree item.
         QTreeWidgetItem* root = new QTreeWidgetItem;
+        root->setFlags(root->flags() | Qt::ItemIsEditable);
         for (int i = 0; i < items.count(); i++)
         {
             QTreeWidgetItem* child = new QTreeWidgetItem;
+            child->setFlags(child->flags() | Qt::ItemIsEditable);
             child->setData(0, Qt::UserRole, items[i]->data(Qt::UserRole));
             child->setText(0, items[i]->text());
             root->addChild(child);
@@ -280,6 +284,7 @@ namespace moveit_rviz_plugin
             {
                 // Create a new list item.
                 QListWidgetItem* item = new QListWidgetItem;
+                item->setFlags(item->flags() | Qt::ItemIsEditable);
 
                 // Get the plan message from the stored data.
                 apc_msgs::PrimitivePlan plan = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[j]);

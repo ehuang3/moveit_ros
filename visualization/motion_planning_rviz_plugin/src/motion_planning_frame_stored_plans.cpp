@@ -499,12 +499,14 @@ namespace moveit_rviz_plugin
 
             // Create tree widget item to hold the plan.
             QTreeWidgetItem* root = new QTreeWidgetItem;
+            root->setFlags(root->flags() | Qt::ItemIsEditable);
 
             root->setText(0, QString(plan->plan_name.c_str()));
 
             for (int j = 0; j < plan->actions.size(); j++)
             {
                 QTreeWidgetItem* child = new QTreeWidgetItem;
+                child->setFlags(child->flags() | Qt::ItemIsEditable);
 
                 // Set the child's name.
                 child->setText(0, QString(plan->actions[j].action_name.c_str()));
