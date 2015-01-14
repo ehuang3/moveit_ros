@@ -144,16 +144,17 @@ double RobotInteraction::computeGroupMarkerSize(const std::string &group)
     const Eigen::Vector3d &ext = lm->getShapeExtentsAtOrigin();
 
     Eigen::Vector3d corner1 = ext/2.0;
-    corner1 = default_state.getGlobalLinkTransform(lm) * corner1;
+    corner1 = default_state.getGlobalLinkTransform(lm).linear() * corner1;
     Eigen::Vector3d corner2 = ext/-2.0;
-    corner2 = default_state.getGlobalLinkTransform(lm) * corner2;
+    corner2 = default_state.getGlobalLinkTransform(lm).linear() * corner2;
     lo = lo.cwiseMin(corner1);
     hi = hi.cwiseMax(corner2);
   }
 
   // slightly bigger than the size of the largest end effector dimension
   double s = std::max(std::max(hi.x() - lo.x(), hi.y() - lo.y()), hi.z() - lo.z());
-  s *= 1.73205081; // sqrt(3)
+  // s *= 1.73205081; // sqrt(3)
+  s *= 2.50;
 
   // if the scale is less than 5cm, set it to default
   if (s < 0.05)
@@ -231,16 +232,16 @@ void RobotInteraction::decideActiveJoints(const std::string &group)
         v.dof = 6;
       else if (joints[i]->getType() == robot_model::JointModel::REVOLUTE)
       {
-	      using namespace Eigen;
-	      
-	      // Get bounding boxes of child link.
-	      Vector3d post_aabb = robot_model_->getLinkModel(v.connecting_link)->getShapeExtentsAtOrigin();
+        using namespace Eigen;
+
+        // Get bounding boxes of child link.
+        Vector3d post_aabb = robot_model_->getLinkModel(v.connecting_link)->getShapeExtentsAtOrigin();
 
         // Set size based on minimum link size perpendicular to the axis.
-	      v.size = 1.80 * post_aabb.minCoeff();
+        v.size = 1.80 * post_aabb.minCoeff();
 
-	      // Set number of degrees of freedom of the interaction.
-	      v.dof = 1;
+        // Set number of degrees of freedom of the interaction.
+        v.dof = 1;
       }
       active_vj_.push_back(v);
     }
