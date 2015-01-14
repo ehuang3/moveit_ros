@@ -90,7 +90,8 @@ void MotionPlanningFrame::resetDbButtonClicked()
   dbs.append("Planning Scenes");
   dbs.append("Constraints");
   dbs.append("Robot States");
-  dbs.append("Primitive Plans");
+  QString database_name = QString("Primitive Plans: %1").arg(primitive_plan_storage_->getDatabaseSuffix().c_str());
+  dbs.append(database_name);
 
   bool ok = false;
   QString response = QInputDialog::getItem(this, tr("Select Database"), tr("Choose the database to reset:"),
@@ -126,8 +127,12 @@ void MotionPlanningFrame::computeDatabaseConnectButtonClicked()
                                                                          ui_->database_port->value(), 5.0));
       constraints_storage_.reset(new moveit_warehouse::ConstraintsStorage(ui_->database_host->text().toStdString(),
                                                                           ui_->database_port->value(), 5.0));
+      // Create storage for primitive plans.
       primitive_plan_storage_.reset(new moveit_warehouse::PrimitivePlanStorage(ui_->database_host->text().toStdString(),
                                                                                ui_->database_port->value(), 5.0));
+      primitive_plan_storage_->setDatabaseSuffix(ui_->plan_database_name_combobox->currentText().toStdString());
+      primitive_plan_storage_->loadDatabase();
+
     }
     catch(std::runtime_error &ex)
     {
@@ -211,7 +216,7 @@ void MotionPlanningFrame::computeResetDbButtonClicked(const std::string &db)
     else
       if (db == "Planning Scenes")
         planning_scene_storage_->reset();
-      else if (db == "Primitive Plans")
+      else if (db == QString("Primitive Plans: %1").arg(primitive_plan_storage_->getDatabaseSuffix().c_str()).toStdString())
         primitive_plan_storage_->reset();
 }
 }

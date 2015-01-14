@@ -62,6 +62,18 @@ public:
       If \e wait_seconds is above 0, then a maximum number of seconds can elapse until connection is successful, or a runtime exception is thrown. */
   PrimitivePlanStorage(const std::string &host = "", const unsigned int port = 0, double wait_seconds = 5.0);
 
+  // Call this to load the database!
+  void loadDatabase();
+
+  // Set an optional suffix to use when openning a database. Allows for specializations.
+  void setDatabaseSuffix(const std::string& suffix);
+
+  // Get the suffix of the database we are connected to.
+  std::string getDatabaseSuffix();
+
+  // Get the name of the database we are connected to.
+  std::string getDatabaseName();
+
   void addPrimitivePlan(const apc_msgs::PrimitivePlan &msg, const std::string &name);
   bool hasPrimitivePlan(const std::string &name) const;
   void getKnownPrimitivePlans(std::vector<std::string> &names) const;
@@ -77,6 +89,7 @@ public:
   void reset();
 
 private:
+  std::string suffix_;
 
   void createCollections();
 

@@ -42,19 +42,42 @@ const std::string moveit_warehouse::PrimitivePlanStorage::PRIMITIVE_PLAN_ID_NAME
 moveit_warehouse::PrimitivePlanStorage::PrimitivePlanStorage(const std::string &host, const unsigned int port, double wait_seconds) :
   MoveItMessageStorage(host, port, wait_seconds)
 {
+}
+
+void moveit_warehouse::PrimitivePlanStorage::setDatabaseSuffix(const std::string& suffix)
+{
+  suffix_ = suffix;
+}
+
+void moveit_warehouse::PrimitivePlanStorage::loadDatabase()
+{
   createCollections();
   ROS_DEBUG("Connected to MongoDB '%s' on host '%s' port '%u'.", DATABASE_NAME.c_str(), db_host_.c_str(), db_port_);
 }
 
+std::string moveit_warehouse::PrimitivePlanStorage::getDatabaseSuffix()
+{
+  return suffix_;
+}
+
+std::string moveit_warehouse::PrimitivePlanStorage::getDatabaseName()
+{
+  return DATABASE_NAME + "_" + suffix_;
+}
+
 void moveit_warehouse::PrimitivePlanStorage::createCollections()
 {
-  primitive_plan_collection_.reset(new PrimitivePlanCollection::element_type(DATABASE_NAME, "primitive_plans", db_host_, db_port_, timeout_));
+  primitive_plan_collection_.reset(new PrimitivePlanCollection::element_type(getDatabaseName(),
+                                                                             "primitive_plans",
+                                                                             db_host_,
+                                                                             db_port_,
+                                                                             timeout_));
 }
 
 void moveit_warehouse::PrimitivePlanStorage::reset()
 {
   primitive_plan_collection_.reset();
-  MoveItMessageStorage::drop(DATABASE_NAME);
+  MoveItMessageStorage::drop(getDatabaseName());
   createCollections();
 }
 

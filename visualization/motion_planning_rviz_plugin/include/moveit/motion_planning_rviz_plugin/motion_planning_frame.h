@@ -128,6 +128,9 @@ protected:
   boost::shared_ptr<moveit_warehouse::RobotStateStorage> robot_state_storage_;
   boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> primitive_plan_storage_;
 
+  typedef std::map<std::string, boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> > PlanDatabaseMap;
+  PlanDatabaseMap plan_databases_;
+
   boost::shared_ptr<rviz::InteractiveMarker> scene_marker_;
 
   typedef std::map<std::string, moveit_msgs::RobotState> RobotStateMap;
@@ -183,6 +186,7 @@ private Q_SLOTS:
   void savePlansButtonClicked();
   void loadPlansButtonClicked();
   void deleteStoredPlanButtonClicked();
+  void planDatabaseNameChanged(const QString& text);
   // Stored plans options
   void optionsCheckBoxClicked();
 

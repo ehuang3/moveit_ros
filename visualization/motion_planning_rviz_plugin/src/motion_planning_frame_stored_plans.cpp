@@ -417,11 +417,26 @@ namespace moveit_rviz_plugin
     {
         if (primitive_plan_storage_)
         {
-            // TODO
+            // The stored plans in the view.
             QTreeWidget* stored_plans = ui_->stored_plans_tree;
 
             // A primitive plan message.
             apc_msgs::PrimitivePlan msg;
+
+            // List of plans in the database.
+            std::vector<std::string> database_names;
+            primitive_plan_storage_->getKnownPrimitivePlans(database_names);
+
+            // Drop all old plans from the database. FIXME This might be very inefficient?
+            for (int i = 0; i < database_names.size(); i++)
+                try
+                {
+                    primitive_plan_storage_->removePrimitivePlan(database_names[i]);
+                }
+                catch (std::runtime_error &ex)
+                {
+                    ROS_ERROR("%s", ex.what());
+                }
 
             // Construct primitive plans.
             for (int i = 0; i < stored_plans->topLevelItemCount(); i++)
@@ -448,7 +463,6 @@ namespace moveit_rviz_plugin
                 // Store message in database.
                 try
                 {
-                    primitive_plan_storage_->removePrimitivePlan(msg.plan_name);
                     primitive_plan_storage_->addPrimitivePlan(msg, msg.plan_name);
                 }
                 catch (std::runtime_error &ex)

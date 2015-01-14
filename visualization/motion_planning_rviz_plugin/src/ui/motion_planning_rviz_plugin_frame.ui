@@ -1236,6 +1236,11 @@
                <widget class="QComboBox" name="plan_database_name_combobox">
                 <item>
                  <property name="text">
+                  <string>default</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
                   <string>calibration</string>
                  </property>
                 </item>

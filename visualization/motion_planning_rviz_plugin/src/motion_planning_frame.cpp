@@ -139,6 +139,8 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
   connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
   connect( ui_->delete_plan_button, SIGNAL( clicked() ), this, SLOT( deleteStoredPlanButtonClicked() ));
+  connect( ui_->plan_database_name_combobox, SIGNAL( currentIndexChanged(const QString&) ), this,
+           SLOT( planDatabaseNameChanged(const QString&) ));
   // stored plans tree
   // connect( ui_->stored_plans_tree, SIGNAL( clicked(const QModelIndex&) ), this,
   //          SLOT( storedPlanTreeClicked(const QModelIndex&) ));

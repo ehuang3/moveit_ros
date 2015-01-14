@@ -335,6 +335,18 @@ namespace moveit_rviz_plugin
             delete stored_plans->takeTopLevelItem(index);
     }
 
+    void MotionPlanningFrame::planDatabaseNameChanged(const QString& text)
+    {
+        ROS_INFO_STREAM("Loading plan database: " << text.toStdString());
+
+        // Load the database.
+        primitive_plan_storage_->setDatabaseSuffix(text.toStdString());
+        primitive_plan_storage_->loadDatabase();
+
+        // Load the stored plans into the tree view.
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeLoadPlansButtonClicked, this), "load plans");
+    }
+
     void MotionPlanningFrame::optionsCheckBoxClicked()
     {
         // Save the clicked options.
