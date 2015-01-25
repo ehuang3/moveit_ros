@@ -864,7 +864,7 @@ public:
 
   void setPlanningTime(double seconds)
   {
-    if (seconds > 0.0)
+    if (seconds >= 0.0)
       planning_time_ = seconds;
   }
 

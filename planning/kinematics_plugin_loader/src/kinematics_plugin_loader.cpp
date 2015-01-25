@@ -205,6 +205,10 @@ public:
         }
     }
 
+    {
+      boost::mutex::scoped_lock slock(lock_);
+    }
+
     boost::shared_ptr<kinematics::KinematicsBase> res = allocKinematicsSolver(jmg);
 
     {
