@@ -160,6 +160,7 @@ private Q_SLOTS:
 
   // Stored plans tab
   // Stored plans commands
+  void pickAndPlaceButtonClicked();
   void planGoalsButtonClicked();
   void previewButtonClicked();
   void executePlansButtonClicked();
@@ -286,8 +287,11 @@ private:
   void computeSavePlansButtonClicked();
   void computeLoadPlansButtonClicked();
   // primitive planning
+  void computePickAndPlaceButtonClicked();
   void computePlanGoalsButtonClicked();
   void computeLinearInterpPlan(const robot_state::RobotState& start, apc_msgs::PrimitiveAction& goal);
+  void copyTrajectoryToDisplay(const moveit_msgs::RobotState& start_state, const apc_msgs::PrimitivePlan& plan);
+  void appendToTrajectory(trajectory_msgs::JointTrajectory& first, const trajectory_msgs::JointTrajectory& second);
   // execution
   void initExecutePlans();
   void computeExecutePlansButtonClicked();
@@ -378,6 +382,8 @@ private:
   long unsigned int known_collision_objects_version_;
   bool first_time_;
   ros::ServiceClient clear_octomap_service_client_;
+
+  ros::ServiceClient motion_plan_client_;
 };
 
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame_impl.hpp>

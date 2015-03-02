@@ -47,12 +47,18 @@
 #include <apc_msgs/FollowPrimitivePlanAction.h>
 #include <actionlib/client/simple_action_client.h>
 
+#include <apc_msgs/GetMotionPlan.h>
+
 #include "ui_motion_planning_rviz_plugin_frame.h"
 
 
 
 namespace moveit_rviz_plugin
 {
+    void MotionPlanningFrame::pickAndPlaceButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computePickAndPlaceButtonClicked, this), "motion plan");
+    }
 
     void MotionPlanningFrame::planGoalsButtonClicked()
     {
@@ -62,6 +68,121 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::previewButtonClicked()
     {
         planning_display_->previewTrail();
+    }
+
+    void MotionPlanningFrame::copyTrajectoryToDisplay(const moveit_msgs::RobotState& start_state,
+                                                      const apc_msgs::PrimitivePlan& plan)
+    {
+        // Get a robot model.
+        const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
+
+        // Construct a new robot trajectory.
+        robot_trajectory::RobotTrajectoryPtr display_trajectory(new robot_trajectory::RobotTrajectory(robot_model, ""));
+
+        // Accumulate joint trajectory over entire plan.
+        trajectory_msgs::JointTrajectory trajectory = trajectory_msgs::JointTrajectory();
+        for (int i = 0; i < plan.actions.size(); i++)
+            appendToTrajectory(trajectory, plan.actions[i].joint_trajectory);
+
+        // Copy current plan over to robot trajectory.
+        display_trajectory->setRobotTrajectoryMsg(planning_display_->getPlanningSceneRO()->getCurrentState(),
+                                                  // FIXME start_state,
+                                                  trajectory);
+
+        // Swap the plan trajectory into our planning display.
+        planning_display_->setTrajectoryToDisplay(display_trajectory);
+
+        // Display trail. FIXME This doesn't accomplish anything actually.
+        previewButtonClicked();
+    }
+
+    void MotionPlanningFrame::appendToTrajectory(trajectory_msgs::JointTrajectory& first,
+                                                 const trajectory_msgs::JointTrajectory& second)
+    {
+        // If the first plan is empty, copy the second over to the
+        // first.
+        if (first.joint_names.size() == 0)
+        {
+            first = second;
+            return;
+        }
+        // Build a map from joint names to joint indexes and of
+        // uniqueness of joint names between the two trajectory.
+        int j_index = 0;                       // New joint index.
+        std::map<std::string, int>  j_map;     // Map from joint name to new index.
+        std::map<std::string, bool> j1_unique; // Uniqueness of joint to first trajectory.
+        std::map<std::string, bool> j2_unique; // Uniqueness of joint to second trajectory.
+        std::vector<std::string>    j_names;   // New order of joint names.
+        const std::vector<std::string>& j1 = first.joint_names;
+        for (int j = 0; j < j1.size(); j++)
+        {
+            if (j_map.count(j1[j]) == 0)
+                j_map[j1[j]] = j_index++;
+            j1_unique[j1[j]] = true;
+            j2_unique[j1[j]] = false;
+            j_names.push_back(j1[j]);
+        }
+        const std::vector<std::string>& j2 = second.joint_names;
+        for (int j = 0; j < j2.size(); j++)
+        {
+            if (j_map.count(j2[j]) == 0)
+            {
+                j_map[j2[j]] = j_index++;
+                j2_unique[j2[j]] = true;
+                j_names.push_back(j2[j]);
+            }
+            j1_unique[j2[j]] = false;
+        }
+        // If velocities and forces are unset, fill them in for the first trajectory.
+        int n_dof_first = first.joint_names.size();
+        for (int i = 0; i < first.points.size(); i++)
+        {
+            if (!first.points[i].velocities.size())
+                first.points[i].velocities.resize(n_dof_first);
+            if (!first.points[i].accelerations.size())
+                first.points[i].accelerations.resize(n_dof_first);
+        }
+        std::map<std::string, int> j2_map; // Map from joint name to joint index in second start state.
+        const trajectory_msgs::JointTrajectoryPoint& j2_start = second.points[0];
+        for (int i = 0; i < second.joint_names.size(); i++)
+            j2_map[second.joint_names[i]] = i;
+        // Append the new joint names to the first plan.
+        first.joint_names = j_names;
+        // Fill in missing joints from the second plan to the first plan.
+        typedef std::map<std::string, bool>::const_iterator UniqueJointIterator;
+        std::vector<trajectory_msgs::JointTrajectoryPoint>& p1 = first.points;
+        if (j2_unique.size() > 0)
+            for (int i = 0; i < p1.size(); i++)
+                for (UniqueJointIterator iter = j2_unique.begin(); iter != j2_unique.end(); ++iter)
+                    if (iter->second)
+                    {
+                        p1[i].positions.push_back(j2_start.positions[j2_map[iter->first]]);
+                        p1[i].velocities.push_back(0);
+                        p1[i].accelerations.push_back(0);
+                        // p1[i].effort.push_back(0); // The planner does not return effort!
+                    }
+        // Append the second plan to the first plan.
+        const std::vector<trajectory_msgs::JointTrajectoryPoint>& p2 = second.points;
+        trajectory_msgs::JointTrajectoryPoint point = p1.back();
+        const ros::Duration p1_time = point.time_from_start;
+        for (int i = 0; i < p2.size(); i++)
+        {
+            for (int j = 0; j < j2.size(); j++)
+            {
+                point.positions[j_map[j2[j]]] = p2[i].positions[j];
+                if (p2[i].velocities.size() > 0)
+                    point.velocities[j_map[j2[j]]] = p2[i].velocities[j];
+                else
+                    point.velocities[j_map[j2[j]]] = 0;
+                if (p2[i].accelerations.size() > 0)
+                    point.accelerations[j_map[j2[j]]] = p2[i].accelerations[j];
+                else
+                    point.accelerations[j_map[j2[j]]] = 0;
+                // point.effort[j_map[j2[j]]] = p2[i].effort[j]; // The planner does not return effort!
+            }
+            point.time_from_start = p1_time + p2[i].time_from_start;
+            p1.push_back(point);
+        }
     }
 
     void MotionPlanningFrame::computeLinearInterpPlan(const robot_state::RobotState& start,
@@ -197,6 +318,45 @@ namespace moveit_rviz_plugin
             previewButtonClicked();
         }
 
+    }
+
+    void MotionPlanningFrame::computePickAndPlaceButtonClicked()
+    {
+        // Create a motion plan service object.
+        apc_msgs::GetMotionPlan srv;
+
+        // Get the planning scene message.
+        const planning_scene_monitor::LockedPlanningSceneRO& locked_scene = planning_display_->getPlanningSceneRO();
+        if (!locked_scene)
+        {
+            ROS_ERROR("Failed to acquire locked planning scene");
+            return;
+        }
+        locked_scene->getPlanningSceneMsg(srv.request.scene);
+
+        // Get the robot start state.
+        robot_state::robotStateToRobotStateMsg(*planning_display_->getQueryStartState(), srv.request.start_state);
+
+        // Get the robot goal state.
+        robot_state::robotStateToRobotStateMsg(*planning_display_->getQueryGoalState(), srv.request.goal_state);
+
+        // TODO Get the object goal states.
+
+        // Call motion planning service and wait.
+        if(motion_plan_client_.call(srv))
+        {
+            // ROS_INFO_STREAM("Response: " << srv.response);
+        }
+        else
+        {
+            ROS_ERROR("Failed to call service GetMotionPlan");
+            return;
+        }
+
+        // Copy trajectory over to display.
+        copyTrajectoryToDisplay(srv.request.start_state, srv.response.plan);
+
+        // Copy trajectory into active goals list.
     }
 
 }

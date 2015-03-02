@@ -44,6 +44,7 @@
 #include <rviz/frame_manager.h>
 
 #include <std_srvs/Empty.h>
+#include <apc_msgs/GetMotionPlan.h>
 
 #include <QMessageBox>
 #include <QInputDialog>
@@ -115,11 +116,13 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->clear_states_button, SIGNAL( clicked() ), this, SLOT( clearStatesButtonClicked() ));
   connect( ui_->approximate_ik, SIGNAL( stateChanged(int) ), this, SLOT( approximateIKChanged(int) ));
   // Stored plans tab
-  // commands
+  // teleop commands
   connect( ui_->plan_goals_button, SIGNAL( clicked() ), this, SLOT( planGoalsButtonClicked() ));
   connect( ui_->execute_goals_button, SIGNAL( clicked() ), this, SLOT( executePlansButtonClicked() ));
   connect( ui_->preview_button, SIGNAL( clicked() ), this, SLOT( previewButtonClicked() ));
   connect( ui_->stop_button, SIGNAL( clicked() ), this, SLOT( stopExecutionButtonClicked() ));
+  // pick and place commands
+  connect( ui_->pick_and_place_button, SIGNAL( clicked() ), this, SLOT( pickAndPlaceButtonClicked() ));
   // active goals commands
   connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
   connect( ui_->goal_to_current_button, SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
@@ -184,6 +187,9 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   //  object_recognition_trigger_publisher_ = nh_.advertise<std_msgs::Bool>("recognize_objects_switch", 1);
   object_recognition_client_.reset(new actionlib::SimpleActionClient<object_recognition_msgs::ObjectRecognitionAction>(OBJECT_RECOGNITION_ACTION, false));
   object_recognition_subscriber_ = nh_.subscribe("recognized_object_array", 1, &MotionPlanningFrame::listenDetectedObjects, this);
+
+  // Setup primitive planning service client.
+  motion_plan_client_ = nh_.serviceClient<apc_msgs::GetMotionPlan>("motion_planning_service");
 
   if(object_recognition_client_)
   {
