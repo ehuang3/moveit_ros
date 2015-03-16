@@ -319,7 +319,12 @@ private:
                                   const std::vector<geometry_msgs::Pose>& poses);
   void computeDetachObjectFromState(robot_state::RobotState& state, const std::string& object_name);
   void computeAttachObjectToPlan(apc_msgs::PrimitivePlan& plan, const robot_state::RobotState& state);
+  void computeAttachObjectToAction(const robot_state::RobotState& state, apc_msgs::PrimitiveAction& action);
   void computeDetachObjectFromPlan(apc_msgs::PrimitivePlan& plan);
+  void computeDetachObjectFromAction(apc_msgs::PrimitiveAction& action);
+  // trajopt
+  void loadStateFromAction(robot_state::RobotState& state, const apc_msgs::PrimitiveAction& action);
+  void saveStateToAction(const robot_state::RobotState& state, apc_msgs::PrimitiveAction& action);
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

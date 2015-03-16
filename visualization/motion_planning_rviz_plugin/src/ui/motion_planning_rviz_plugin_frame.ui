@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>631</width>
+    <width>641</width>
     <height>758</height>
    </rect>
   </property>
@@ -360,7 +360,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>195</width>
+                   <width>205</width>
                    <height>70</height>
                   </rect>
                  </property>
@@ -828,21 +828,8 @@
             <enum>QLayout::SetDefaultConstraint</enum>
            </property>
            <item row="1" column="0">
-            <layout class="QVBoxLayout" name="verticalLayout_20">
-             <item>
-              <widget class="QToolButton" name="stored_to_active_button">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string>◀</string>
-               </property>
-              </widget>
-             </item>
-             <item>
+            <layout class="QGridLayout" name="gridLayout_25">
+             <item row="1" column="0">
               <widget class="QToolButton" name="active_to_stored_button">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -861,18 +848,31 @@
                </property>
               </widget>
              </item>
+             <item row="0" column="0">
+              <widget class="QToolButton" name="stored_to_active_button">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>◀</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </item>
            <item row="0" column="0">
-            <layout class="QVBoxLayout" name="verticalLayout_21">
-             <item>
+            <layout class="QGridLayout" name="gridLayout_24">
+             <item row="0" column="0">
               <widget class="QToolButton" name="object_to_goals_button">
                <property name="text">
                 <string>◀</string>
                </property>
               </widget>
              </item>
-             <item>
+             <item row="1" column="0">
               <widget class="QToolButton" name="goal_to_objects_button">
                <property name="text">
                 <string>▶</string>
@@ -1769,6 +1769,9 @@
             </item>
             <item>
              <widget class="QDoubleSpinBox" name="object_x">
+              <property name="decimals">
+               <number>4</number>
+              </property>
               <property name="minimum">
                <double>-1000.000000000000000</double>
               </property>
@@ -1779,6 +1782,9 @@
             </item>
             <item>
              <widget class="QDoubleSpinBox" name="object_y">
+              <property name="decimals">
+               <number>4</number>
+              </property>
               <property name="minimum">
                <double>-1000.000000000000000</double>
               </property>
@@ -1789,6 +1795,9 @@
             </item>
             <item>
              <widget class="QDoubleSpinBox" name="object_z">
+              <property name="decimals">
+               <number>4</number>
+              </property>
               <property name="minimum">
                <double>-1000.000000000000000</double>
               </property>
@@ -1810,6 +1819,9 @@
             </item>
             <item>
              <widget class="QDoubleSpinBox" name="object_rx">
+              <property name="decimals">
+               <number>4</number>
+              </property>
               <property name="minimum">
                <double>-3.140000000000000</double>
               </property>
@@ -1823,6 +1835,9 @@
             </item>
             <item>
              <widget class="QDoubleSpinBox" name="object_ry">
+              <property name="decimals">
+               <number>4</number>
+              </property>
               <property name="minimum">
                <double>-3.140000000000000</double>
               </property>
@@ -1836,6 +1851,9 @@
             </item>
             <item>
              <widget class="QDoubleSpinBox" name="object_rz">
+              <property name="decimals">
+               <number>4</number>
+              </property>
               <property name="minimum">
                <double>-3.140000000000000</double>
               </property>

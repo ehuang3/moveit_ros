@@ -120,21 +120,8 @@ namespace moveit_rviz_plugin
         // Set the goal group name.
         goal.actions[0].group_name = group;
 
-        // Construct goal constraints only for the joint model group.
-        moveit_msgs::Constraints constraints = kinematic_constraints::constructGoalConstraints(state,
-                                                                                               joint_model_group,
-                                                                                               goal_joint_tolerance);
-
-        // Copy constraints to goal.
-        goal.actions[0].joint_trajectory.points.resize(1);
-        for (int i = 0; i < constraints.joint_constraints.size(); i++)
-        {
-            goal.actions[0].joint_trajectory.joint_names.push_back(constraints.joint_constraints[i].joint_name);
-            goal.actions[0].joint_trajectory.points[0].positions.push_back(constraints.joint_constraints[i].position);
-        }
-
-        // Save attached objects to the plan.
-        computeAttachObjectToPlan(goal, state);
+        // Save state information to goal.
+        saveStateToAction(state, goal.actions[0]);
 
         // TODO Build a descriptive name.
         static int count = 0;
@@ -193,21 +180,8 @@ namespace moveit_rviz_plugin
         // Get the current goal state.
         robot_state::RobotState current_state = *planning_display_->getQueryGoalState();
 
-        // Get the saved joint constraints.
-        const trajectory_msgs::JointTrajectory& joint_trajectory = goal.actions[0].joint_trajectory;
-
-        // Copy the joints in the goal to the current state.
-        for (int i = 0; i < joint_trajectory.joint_names.size(); i++)
-        {
-            current_state.setJointPositions(joint_trajectory.joint_names[i],
-                                            &joint_trajectory.points[0].positions[i]);
-        }
-
-        // Add attached objects if they exist.
-        computeAttachObjectToState(current_state,
-                                   goal.actions[0].object_name,
-                                   goal.actions[0].link_name,
-                                   goal.actions[0].object_poses);
+        // Load state from the first action.
+        loadStateFromAction(current_state, goal.actions[0]);
 
         // Set the joints related to the current group.
         planning_display_->setQueryGoalState(current_state);
@@ -259,25 +233,8 @@ namespace moveit_rviz_plugin
             // Get the group name.
             group = goal.actions[0].group_name;
 
-            // Get the joint trajectory. Note we only extract the first one!
-            const trajectory_msgs::JointTrajectory& joint_trajectory = goal.actions[0].joint_trajectory;
-
-            // Convert goal message into joint state message.
-            sensor_msgs::JointState state;
-            for (int j = 0; j < joint_trajectory.joint_names.size(); j++)
-            {
-                state.name.push_back(joint_trajectory.joint_names[j]);
-                state.position.push_back(joint_trajectory.points[0].positions[j]);
-            }
-
-            // Attach object to state, if applicable.
-            computeAttachObjectToState(waypoint,
-                                       goal.actions[0].object_name,
-                                       goal.actions[0].link_name,
-                                       goal.actions[0].object_poses);
-
-            // Merge the goal message into the robot state. This keeps the previous values.
-            waypoint.setVariableValues(state);
+            // Load action into state.
+            loadStateFromAction(waypoint, goal.actions[0]);
 
             // Update the dirty transforms, etc.
             waypoint.update();

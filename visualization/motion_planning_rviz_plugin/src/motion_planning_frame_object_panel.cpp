@@ -415,12 +415,19 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::computeAttachObjectToPlan(apc_msgs::PrimitivePlan& plan,
                                                         const robot_state::RobotState& state)
     {
+        for (int i = 0; i < plan.actions.size(); i++)
+            computeAttachObjectToAction(state, plan.actions[i]);
+    }
+
+    void MotionPlanningFrame::computeAttachObjectToAction(const robot_state::RobotState& state,
+                                                          apc_msgs::PrimitiveAction& action)
+    {
         std::vector<const robot_state::AttachedBody*> attached_bodies;
         state.getAttachedBodies(attached_bodies);
         // Should only be one attached body.
         if (attached_bodies.size() != 1)
         {
-            ROS_ERROR("Error: multiple attached bodies");
+            ROS_WARN("Failed to attach %ld bodies", attached_bodies.size());
             return;
         }
         // Set the attached body into the action.
@@ -429,27 +436,25 @@ namespace moveit_rviz_plugin
             std::string object_name = attached_bodies[i]->getName();
             std::string link_name   = attached_bodies[i]->getAttachedLinkName();
             EigenSTL::vector_Affine3d poses = attached_bodies[i]->getFixedTransforms();
-            for (int j = 0; j < plan.actions.size(); j++)
-            {
-                apc_msgs::PrimitiveAction& action = plan.actions[j];
-                action.object_name = object_name;
-                action.link_name = link_name;
-                action.object_poses.resize(poses.size());
-                for (int k = 0; k < poses.size(); k++)
-                    tf::poseEigenToMsg(poses[k], action.object_poses[k]);
-            }
+            action.object_name = object_name;
+            action.link_name = link_name;
+            action.object_poses.resize(poses.size());
+            for (int k = 0; k < poses.size(); k++)
+                tf::poseEigenToMsg(poses[k], action.object_poses[k]);
         }
     }
 
     void MotionPlanningFrame::computeDetachObjectFromPlan(apc_msgs::PrimitivePlan& plan)
     {
         for (int i = 0; i < plan.actions.size(); i++)
-        {
-            apc_msgs::PrimitiveAction& action = plan.actions[i];
-            action.object_name = "";
-            action.link_name = "";
-            action.object_poses.clear();
-        }
+            computeDetachObjectFromAction(plan.actions[i]);
+    }
+
+    void MotionPlanningFrame::computeDetachObjectFromAction(apc_msgs::PrimitiveAction& action)
+    {
+        action.object_name = "";
+        action.link_name = "";
+        action.object_poses.clear();
     }
 
 }
