@@ -142,6 +142,7 @@ namespace moveit_rviz_plugin
         loadWaypointsToDisplay(goals);
     }
 
+
     void MotionPlanningFrame::activeGoalItemClicked(QListWidgetItem* item)
     {
         // Load the options from selected items.
@@ -337,6 +338,12 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::planDatabaseNameChanged(const QString& text)
     {
+        if (!primitive_plan_storage_)
+        {
+            ROS_ERROR("No planning database loaded!");
+            return;
+        }
+
         ROS_INFO_STREAM("Loading plan database: " << text.toStdString());
 
         // Load the database.

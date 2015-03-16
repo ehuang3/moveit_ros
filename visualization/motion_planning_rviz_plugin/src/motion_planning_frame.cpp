@@ -159,7 +159,11 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
   connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
   connect( ui_->cartesian_interpolate_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-
+  // object panel
+  connect( ui_->load_objects_button, SIGNAL( clicked() ), this, SLOT( loadObjectsButtonClicked() ));
+  connect( ui_->save_objects_button, SIGNAL( clicked() ), this, SLOT( saveObjectsButtonClicked() ));
+  connect( ui_->object_list_widget, SIGNAL( itemClicked( QListWidgetItem * ) ), this, SLOT( objectClicked( QListWidgetItem * ) ));
+  connect( ui_->object_list_widget, SIGNAL( itemSelectionChanged() ), this, SLOT( objectSelectionChanged() ));
 
 
   connect( ui_->detect_objects_button, SIGNAL( clicked() ), this, SLOT( detectObjectsButtonClicked() ));
@@ -380,7 +384,7 @@ void MotionPlanningFrame::sceneUpdate(planning_scene_monitor::PlanningSceneMonit
     planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::populateCollisionObjectsList, this));
 }
 
-void MotionPlanningFrame::importResource(const std::string &path)
+void MotionPlanningFrame::importResource(const std::string &path, std::string name, Eigen::Affine3d pose)
 {
   if (planning_display_->getPlanningSceneMonitor())
   {
@@ -388,10 +392,11 @@ void MotionPlanningFrame::importResource(const std::string &path)
     if (mesh)
     {
       std::size_t slash = path.find_last_of("/\\");
-      std::string name = path.substr(slash + 1);
+      if (name.empty())
+        name = path.substr(slash + 1);
       shapes::ShapeConstPtr shape(mesh);
-      Eigen::Affine3d pose;
-      pose.setIdentity();
+      // Eigen::Affine3d pose;
+      // pose.setIdentity();
 
       if (planning_display_->getPlanningSceneRO()->getCurrentState().hasAttachedBody(name))
       {
@@ -462,6 +467,9 @@ void MotionPlanningFrame::importResource(const std::string &path)
         if (ps)
           addObject(ps->getWorldNonConst(), name, shape, pose);
       }
+
+      // Store path for saving later.
+      object_paths_[name] = path;
     }
     else
     {

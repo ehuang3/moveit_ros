@@ -1126,9 +1126,6 @@ void MotionPlanningDisplay::addDisplayWaypoint(const robot_state::RobotState& wa
   if (getRobotModel() && getRobotModel()->getURDF())
     robot->load(*getRobotModel()->getURDF());
 
-  // Copy state over to the visualization.
-  robot->update(waypoint);
-
   // Set visibility constraints.
   robot->setCollisionVisible(false);
   robot->setVisualVisible(true);
@@ -1140,19 +1137,20 @@ void MotionPlanningDisplay::addDisplayWaypoint(const robot_state::RobotState& wa
 
   // Set default attached object color.
   std_msgs::ColorRGBA color;
-  color.r = qcolor.redF(); color.g = qcolor.greenF(); color.b = qcolor.blueF(); color.a = 1.0f;
+  color.r = qcolor.redF(); color.g = qcolor.greenF(); color.b = qcolor.blueF(); color.a = qcolor.alphaF();
   robot->setDefaultAttachedObjectColor(color);
 
   // TODO Set alpha according to the waypoint's distance from focus.
   robot->setAlpha(display_waypoints_alpha_property_->getFloat());
+
+  // Copy state over to the visualization.
+  robot->update(waypoint);
 
   // Disable link selection, so we can move things behind the link.
   std::map<std::string, rviz::RobotLink*> links = robot->getRobot().getLinks();
   typedef std::map<std::string, rviz::RobotLink*>::iterator LinkIterator;
   for (LinkIterator iter = links.begin(); iter != links.end(); ++iter)
     iter->second->setSelectable(false);
-
-  // TODO Only display the group and link names.
 
   // Store robot visualization internally.
   display_waypoints_.push_back(robot);

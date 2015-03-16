@@ -190,6 +190,11 @@ private Q_SLOTS:
   void planDatabaseNameChanged(const QString& text);
   // Stored plans options
   void optionsCheckBoxClicked();
+  // Object panel group
+  void loadObjectsButtonClicked();
+  void saveObjectsButtonClicked();
+  void objectClicked(QListWidgetItem* item);
+  void objectSelectionChanged();
 
   //Scene Objects tab
   void importFileButtonClicked();
@@ -301,6 +306,20 @@ private:
   void updateExecuteActive();
   void updateExecuteFeedback(const apc_msgs::FollowPrimitivePlanFeedback &feedback);
   void updateExecuteDone(const actionlib::SimpleClientGoalState& state, const apc_msgs::FollowPrimitivePlanResult& result);
+  // objects
+  std::string computeObjectScenePath();
+  void computeLoadObjectsButtonClicked();
+  void computeSaveObjectsButtonClicked();
+  void computePopulateObjects();
+  void computeAttachObjectToState(robot_state::RobotState& state, const std::string& object_name, const std::string& link_name);
+  void computeAttachObjectToState(robot_state::RobotState& state, const std::string& object_name, const std::string& link_name, const EigenSTL::vector_Affine3d& poses);
+  void computeAttachObjectToState(robot_state::RobotState& state,
+                                  const std::string& object_name,
+                                  const std::string& link_name,
+                                  const std::vector<geometry_msgs::Pose>& poses);
+  void computeDetachObjectFromState(robot_state::RobotState& state, const std::string& object_name);
+  void computeAttachObjectToPlan(apc_msgs::PrimitivePlan& plan, const robot_state::RobotState& state);
+  void computeDetachObjectFromPlan(apc_msgs::PrimitivePlan& plan);
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,
@@ -361,7 +380,7 @@ private:
   //General
   void changePlanningGroupHelper();
   void changePlanningGroupHelper(const std::string& group);
-  void importResource(const std::string &path);
+  void importResource(const std::string &path, std::string name = "", Eigen::Affine3d pose = Eigen::Affine3d::Identity());
   void loadStoredStates(const std::string& pattern);
 
   void remotePlanCallback(const std_msgs::EmptyConstPtr& msg);
@@ -378,12 +397,24 @@ private:
 
   collision_detection::CollisionWorld::ObjectConstPtr scaled_object_;
 
+
+
   std::vector< std::pair<std::string, bool> > known_collision_objects_;
   long unsigned int known_collision_objects_version_;
   bool first_time_;
   ros::ServiceClient clear_octomap_service_client_;
 
   ros::ServiceClient motion_plan_client_;
+
+  // Convenience typdef for attached objects.
+  typedef std::vector<std::pair<std::string, bool> > AttachedObjects;
+
+  // List of attached objects.
+  AttachedObjects attached_objects_;
+
+  // List of file paths to the loaded objects.
+  typedef std::map<std::string, std::string> ObjectPathMap;
+  ObjectPathMap object_paths_;
 };
 
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame_impl.hpp>

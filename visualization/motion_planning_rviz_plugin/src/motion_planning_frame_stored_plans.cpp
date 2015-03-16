@@ -133,6 +133,9 @@ namespace moveit_rviz_plugin
             goal.actions[0].joint_trajectory.points[0].positions.push_back(constraints.joint_constraints[i].position);
         }
 
+        // Save attached objects to the plan.
+        computeAttachObjectToPlan(goal, state);
+
         // TODO Build a descriptive name.
         static int count = 0;
         QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
@@ -200,6 +203,12 @@ namespace moveit_rviz_plugin
                                             &joint_trajectory.points[0].positions[i]);
         }
 
+        // Add attached objects if they exist.
+        computeAttachObjectToState(current_state,
+                                   goal.actions[0].object_name,
+                                   goal.actions[0].link_name,
+                                   goal.actions[0].object_poses);
+
         // Set the joints related to the current group.
         planning_display_->setQueryGoalState(current_state);
     }
@@ -260,6 +269,12 @@ namespace moveit_rviz_plugin
                 state.name.push_back(joint_trajectory.joint_names[j]);
                 state.position.push_back(joint_trajectory.points[0].positions[j]);
             }
+
+            // Attach object to state, if applicable.
+            computeAttachObjectToState(waypoint,
+                                       goal.actions[0].object_name,
+                                       goal.actions[0].link_name,
+                                       goal.actions[0].object_poses);
 
             // Merge the goal message into the robot state. This keeps the previous values.
             waypoint.setVariableValues(state);
