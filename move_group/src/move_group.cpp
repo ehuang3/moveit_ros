@@ -172,7 +172,7 @@ int main(int argc, char **argv)
 
     printf(MOVEIT_CONSOLE_COLOR_CYAN "Starting context monitors...\n" MOVEIT_CONSOLE_COLOR_RESET);
     planning_scene_monitor->startSceneMonitor();
-    planning_scene_monitor->startWorldGeometryMonitor();
+    planning_scene_monitor->startWorldGeometryMonitor(planning_scene_monitor::PlanningSceneMonitor::DEFAULT_COLLISION_OBJECT_TOPIC, planning_scene_monitor::PlanningSceneMonitor::DEFAULT_PLANNING_SCENE_WORLD_TOPIC, false);
     planning_scene_monitor->startStateMonitor();
     printf(MOVEIT_CONSOLE_COLOR_CYAN "Context monitors started.\n" MOVEIT_CONSOLE_COLOR_RESET);
 
