@@ -20,17 +20,56 @@ set(SOURCE_FILES
   src/motion_planning_frame.cpp
   src/motion_planning_frame_context.cpp
   src/motion_planning_frame_planning.cpp
-  src/motion_planning_frame_primitive_planning.cpp
-  src/motion_planning_frame_stored_plans.cpp
-  src/motion_planning_frame_stored_plans_slots.cpp
-  src/motion_planning_frame_trajopt.cpp
-  src/motion_planning_frame_execution.cpp
-  src/motion_planning_frame_object_panel.cpp
   src/motion_planning_frame_objects.cpp
   src/motion_planning_frame_scenes.cpp
   src/motion_planning_frame_states.cpp
   src/motion_planning_display.cpp
   src/motion_planning_frame_manipulation.cpp
+
+  # Old.
+  # src/motion_planning_frame_execution.cpp
+  # src/motion_planning_frame_primitive_planning.cpp
+  # src/motion_planning_frame_stored_plans.cpp
+  # src/motion_planning_frame_stored_plans_slots.cpp
+  # src/motion_planning_frame_trajopt.cpp
+  # src/motion_planning_frame_object_panel.cpp
+
+  # Pick and place widget.
+  src/motion_planning_widget_pick_and_place.cpp
+  src/motion_planning_widget_pick_and_place_slots.cpp
+  src/motion_planning_widget_pick_and_place_helper.cpp
+  src/motion_planning_widget_pick_and_place_helper_slots.cpp
+
+  # Teleoperation widget.
+  src/motion_planning_widget_teleop.cpp
+  src/motion_planning_widget_teleop_slots.cpp
+  src/motion_planning_widget_teleop_helper.cpp
+  src/motion_planning_widget_teleop_helper_slots.cpp
+
+  # Vision widget.
+  src/motion_planning_widget_vision.cpp
+  src/motion_planning_widget_vision_slots.cpp
+  src/motion_planning_widget_vision_helper.cpp
+  src/motion_planning_widget_vision_helper_slots.cpp
+
+  # Calibration widget.
+  src/motion_planning_widget_calibration.cpp
+  src/motion_planning_widget_calibration_slots.cpp
+  src/motion_planning_widget_calibration_helper.cpp
+  src/motion_planning_widget_calibration_helper_slots.cpp
+
+  # Active actions widget.
+  src/motion_planning_widget_active_actions.cpp
+  src/motion_planning_widget_active_actions_slots.cpp
+
+  # Stored plans widget.
+  src/motion_planning_widget_stored_plans.cpp
+  src/motion_planning_widget_stored_plans_slots.cpp
+
+  # Stored objects widget.
+  src/motion_planning_widget_stored_objects.cpp
+  src/motion_planning_widget_stored_objects_slots.cpp
+
 )
 
 set(MOVEIT_LIB_NAME moveit_motion_planning_rviz_plugin)

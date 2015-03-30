@@ -160,6 +160,7 @@ private Q_SLOTS:
 
   // Stored plans tab
   // Stored plans commands
+  void planActiveGoalsButtonClicked();
   void pickAndPlaceButtonClicked();
   void planGoalsButtonClicked();
   void previewButtonClicked();
@@ -325,6 +326,9 @@ private:
   // trajopt
   void loadStateFromAction(robot_state::RobotState& state, const apc_msgs::PrimitiveAction& action);
   void saveStateToAction(const robot_state::RobotState& state, apc_msgs::PrimitiveAction& action);
+  bool computeTrajectoryFromActiveGoals();
+  bool computeTrajectoryOptimizationSequence(apc_msgs::PrimitivePlan& plan);
+  void computeTrajectoryOptimizationPlan();
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

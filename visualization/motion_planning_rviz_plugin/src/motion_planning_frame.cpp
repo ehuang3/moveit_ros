@@ -68,8 +68,9 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
 
   // connect bottons to actions; each action usually registers the function pointer for the actual computation,
   // to keep the GUI more responsive (using the background job processing)
-  connect( ui_->plan_button, SIGNAL( clicked() ), this, SLOT( planButtonClicked() ));
-  connect( ui_->execute_button, SIGNAL( clicked() ), this, SLOT( executeButtonClicked() ));
+  // FIXME Disabled plan and execute buttons.
+  // connect( ui_->plan_button, SIGNAL( clicked() ), this, SLOT( planButtonClicked() ));
+  // connect( ui_->execute_button, SIGNAL( clicked() ), this, SLOT( executeButtonClicked() ));
   connect( ui_->plan_and_execute_button, SIGNAL( clicked() ), this, SLOT( planAndExecuteButtonClicked() ));
   connect( ui_->use_start_state_button, SIGNAL( clicked() ), this, SLOT( useStartStateButtonClicked() ));
   connect( ui_->use_goal_state_button, SIGNAL( clicked() ), this, SLOT( useGoalStateButtonClicked() ));
@@ -115,9 +116,16 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->remove_state_button, SIGNAL( clicked() ), this, SLOT( removeStateButtonClicked() ));
   connect( ui_->clear_states_button, SIGNAL( clicked() ), this, SLOT( clearStatesButtonClicked() ));
   connect( ui_->approximate_ik, SIGNAL( stateChanged(int) ), this, SLOT( approximateIKChanged(int) ));
+
   // Stored plans tab
-  // teleop commands
-  connect( ui_->plan_goals_button, SIGNAL( clicked() ), this, SLOT( planGoalsButtonClicked() ));
+
+  // Connect teleoperation slots.
+  connectTeleopSlots();
+
+  // Connect pick and place slots.
+  connectPickAndPlaceSlots();
+
+  connect( ui_->plan_goals_button, SIGNAL( clicked() ), this, SLOT( planActiveGoalsButtonClicked() ));
   connect( ui_->execute_goals_button, SIGNAL( clicked() ), this, SLOT( executePlansButtonClicked() ));
   connect( ui_->preview_button, SIGNAL( clicked() ), this, SLOT( previewButtonClicked() ));
   connect( ui_->stop_button, SIGNAL( clicked() ), this, SLOT( stopExecutionButtonClicked() ));

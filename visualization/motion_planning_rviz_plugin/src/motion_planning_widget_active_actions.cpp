@@ -5,7 +5,7 @@
  *  All rights reserved.
  *
  *  Author(s): Eric Huang <ehuang@gatech.edu>
- *  Georgia Tech Humanoid Robotics Lab
+ *  Georgia Tech Socially Intelligent Machines Lab
  *  Under Direction of Prof. Andrea Thomaz <athomaz@cc.gatech.edu>
  *
  *
@@ -36,29 +36,26 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#include <ros/package.h>
-#include <rviz/display_context.h>
-#include <rviz/frame_manager.h>
-#include <rviz/window_manager_interface.h>
-#include <geometric_shapes/shape_operations.h>
-#include <interactive_markers/tools.h>
-#include <eigen_conversions/eigen_msg.h>
-#include <boost/algorithm/string.hpp>
-#include <QMessageBox>
-#include <QInputDialog>
-#include <QFileDialog>
-#include <moveit/warehouse/planning_scene_storage.h>
-#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
-#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
-#include <moveit/kinematic_constraints/utils.h>
-#include <moveit/robot_state/conversions.h>
-#include <moveit/robot_interaction/interactive_marker_helpers.h>
-#include <apc_msgs/StoredScene.h>
-#include <apc_msgs/GetMotionPlan.h>
-#include "ui_motion_planning_rviz_plugin_frame.h"
 
 namespace moveit_rviz_plugin
 {
+
+    QString toDebug(const QByteArray & line) {
+
+        QString s;
+        uchar c;
+
+        for ( int i=0 ; i < line.size() ; i++ ){
+            c = line[i];
+            if ( c >= 0x20 and c <= 126 ) {
+                s.append(c);
+            } else {
+                s.append(QString("<%1>").arg(c, 2, 16, QChar('0')));
+            }
+        }
+        return s;
+    }
+
     void MotionPlanningFrame::loadStateFromAction(robot_state::RobotState& state,
                                                   const apc_msgs::PrimitiveAction& action)
     {
@@ -148,111 +145,178 @@ namespace moveit_rviz_plugin
         computeAttachObjectToAction(state, action);
     }
 
-    void MotionPlanningFrame::planActiveGoalsButtonClicked()
+    void MotionPlanningFrame::getStateFromAction(robot_state::RobotState& robot,
+                                                 const apc_msgs::PrimitiveAction& action)
     {
-        ui_->result_label->setText("Planning...");
+        // Get the group name.
+        std::string group = action.group_name;
 
-        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTrajectoryFromActiveGoals, this), "plan goals");
+        // Convert goal message into joint state message.
+        sensor_msgs::JointState state;
+        state.name = action.joint_trajectory.joint_names;
+
+        // Get the joint constraints. Note we only extract the first one!
+        state.position = action.joint_trajectory.points[0].positions;
+
+        // Merge the goal message into the robot state. This keeps the previous values.
+        robot.setVariableValues(state);
+
+        // Update the dirty transforms, etc.
+        robot.update();
     }
 
-    bool MotionPlanningFrame::computeTrajectoryFromActiveGoals()
+    void MotionPlanningFrame::saveGoalToItem(QListWidgetItem* item)
     {
-        // Reset last computed plan.
-        primitive_plan_.reset(new apc_msgs::PrimitivePlan);
-
-        // Get the list of active goals (waypoints) to follow.
-        QListWidget* active_goals = ui_->active_goals_list;
-
-        // Create an empty plan.
-        apc_msgs::PrimitivePlan plan;
-
-        // Appeach each active goal to the plan.
-        for (int i = 0; i < active_goals->count(); i++)
-        {
-            // Get the plan stored in the active goal item.
-            apc_msgs::PrimitivePlan stored_plan =
-                getMessageFromUserData<apc_msgs::PrimitivePlan>(active_goals->item(i)->data(Qt::UserRole));
-
-            // Append each action stored in the active goal item.
-            for (int j = 0; j < stored_plan.actions.size(); j++)
-                plan.actions.push_back(stored_plan.actions[j]);
-        }
-
-        // Compute trajectory and save on success.
-        if (computeTrajectoryOptimizationSequence(plan))
-            *primitive_plan_ = plan;
-        else
-        {
-            ROS_ERROR("Failed to compute TRAJOPT plan for active goals");
-        }
-
-        // Copy trajectory over to display.
-        {
-            moveit_msgs::RobotState start_state;
-            robot_state::robotStateToRobotStateMsg(*planning_display_->getQueryStartState(), start_state);
-            copyTrajectoryToDisplay(start_state, plan);
-        }
+        const robot_state::RobotState& state = *planning_display_->getQueryGoalState();
+        saveGoalToItem(state, item);
     }
 
-    bool MotionPlanningFrame::computeTrajectoryOptimizationSequence(apc_msgs::PrimitivePlan& plan)
+    void MotionPlanningFrame::saveGoalToItem(const robot_state::RobotState& state,
+                                             QListWidgetItem* item)
     {
-        // Create a motion plan service object.
-        apc_msgs::GetMotionPlan srv;
+        if (!item)
+            return;
 
-        ROS_INFO("Computing trajectory optimization for planning");
+        // TODO Save the end-effector relative poses and the joint angles.
 
-        // Get the planning scene message.
-        {
-            const planning_scene_monitor::LockedPlanningSceneRO& locked_scene = planning_display_->getPlanningSceneRO();
-            locked_scene->getPlanningSceneMsg(srv.request.scene);
-        }
+        // Get current planning group (set of active joints).
+        std::string group = planning_display_->getCurrentPlanningGroup();
 
-        // Set start state to the current state.
-        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-        {
-            const planning_scene_monitor::LockedPlanningSceneRO &ps = planning_display_->getPlanningSceneRO();
-            start_state = ps->getCurrentState();
-        }
-        planning_display_->setQueryStartState(start_state);
+        // Get the active joint models in that group.
+        const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(group);
 
-        // Create goal state.
-        robot_state::RobotState goal_state = *planning_display_->getQueryGoalState();
+        // Get the goal joint tolerance.
+        double goal_joint_tolerance = move_group_->getGoalJointTolerance();
 
-        // Run plan through trajectory optimization.
-        for (int i = 0; i < plan.actions.size(); i++)
-        {
-            // Construct robot goal state.
-            loadStateFromAction(goal_state, plan.actions[i]);
+        // Create a move group goal message.
+        apc_msgs::PrimitivePlan goal;
+        goal.actions.resize(1);
 
-            // Write planning arguments into service message.
-            robot_state::robotStateToRobotStateMsg(start_state, srv.request.start_state);
-            robot_state::robotStateToRobotStateMsg(goal_state,  srv.request.goal_state);
+        // Set the goal group name.
+        goal.actions[0].group_name = group;
 
-            // Call motion planning service and wait.
-            if(!motion_plan_client_.call(srv))
-            {
-                ROS_ERROR("Failed to call service GetMotionPlan");
-                return false;
-            }
+        // Save state information to goal.
+        saveStateToAction(state, goal.actions[0]);
 
-            if (!srv.response.valid)
-            {
-                ROS_ERROR("Failed to compute valid TRAJOPT plan");
-                return false;
-            }
+        // TODO Build a descriptive name.
+        static int count = 0;
+        QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
 
-            // Write plan to output.
-            plan.actions[i].joint_trajectory = srv.response.plan.actions[0].joint_trajectory;
+        goal.actions[0].action_name = display_name.toStdString();
 
-            // Set next start state to this goal state.
-            start_state = goal_state;
-        }
+        // Get the data in the item.
+        QVariant data = item->data(Qt::UserRole);
 
-        return true;
+        // Store the goal into the data.
+        setMessageToUserData<apc_msgs::PrimitivePlan>(data, goal);
+
+        // Save the serialized data back into the item.
+        item->setData(Qt::UserRole, data);
+
+        // Set the display name of the item.
+        item->setText(display_name);
     }
 
-    void MotionPlanningFrame::computeTrajectoryOptimizationPlan()
+    void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
     {
+        if (!item)
+            return;
+
+        // Get the saved binary data.
+        QVariant data = item->data(Qt::UserRole);
+
+        // Load goal from data.
+        loadGoalFromData(data);
+    }
+
+    void MotionPlanningFrame::loadGoalFromItem(QTreeWidgetItem* item)
+    {
+        if (!item)
+            return;
+
+        // Get the saved binary data.
+        QVariant data = item->data(0, Qt::UserRole);
+
+        // Load goal from data.
+        loadGoalFromData(data);
+    }
+
+    void MotionPlanningFrame::loadGoalFromData(const QVariant& data)
+    {
+        // Deserialize byte array into move group goal.
+        apc_msgs::PrimitivePlan goal = getMessageFromUserData<apc_msgs::PrimitivePlan>(data);
+
+        // Get the new planning group.
+        std::string group = goal.actions[0].group_name;
+
+        // Update the planning group.
+        planning_display_->changePlanningGroup(group);
+
+        // Get the current goal state.
+        robot_state::RobotState current_state = *planning_display_->getQueryGoalState();
+
+        // Load state from the first action.
+        loadStateFromAction(current_state, goal.actions[0]);
+
+        // Set the joints related to the current group.
+        planning_display_->setQueryGoalState(current_state);
+    }
+
+    void MotionPlanningFrame::loadWaypointsToDisplay(QList<QListWidgetItem*> items)
+    {
+        std::vector<QVariant> data;
+        for (int i = 0; i < items.count(); i++)
+            data.push_back(items[i]->data(Qt::UserRole));
+
+        loadWaypointsToDisplay(data);
+    }
+
+    void MotionPlanningFrame::loadWaypointsToDisplay(QList<QTreeWidgetItem*> items)
+    {
+        std::vector<QVariant> data;
+        for (int i = 0; i < items.count(); i++)
+            if (items[i]->childCount() > 0)
+                for (int j = 0; j < items[i]->childCount(); j++)
+                    data.push_back(items[i]->child(j)->data(0, Qt::UserRole));
+            else
+                data.push_back(items[i]->data(0, Qt::UserRole));
+
+        loadWaypointsToDisplay(data);
+    }
+
+    void MotionPlanningFrame::loadWaypointsToDisplay(std::vector<QVariant>& data)
+    {
+        // Delete all existing waypoints!
+        planning_display_->clearDisplayWaypoints();
+
+        // TODO Construct the group name.
+        std::string group;
+
+        // TODO Construct the link names.
+        std::vector<std::string> link_names;
+
+        // TODO Set the focus.
+        int focus = 0;
+
+        // Construct a list of new waypoints.
+        robot_state::RobotState waypoint(planning_display_->getPlanningSceneRO()->getCurrentState());
+        for (int i = 0; i < data.size(); i++)
+        {
+            // Get the ith goal message in the data vector.
+            apc_msgs::PrimitivePlan goal = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[i]);
+
+            // Get the group name.
+            group = goal.actions[0].group_name;
+
+            // Load action into state.
+            loadStateFromAction(waypoint, goal.actions[0]);
+
+            // Update the dirty transforms, etc.
+            waypoint.update();
+
+            // Add waypoint.
+            planning_display_->addDisplayWaypoint(waypoint, group, link_names, focus);
+        }
     }
 
 }
