@@ -137,6 +137,167 @@ protected:
   typedef std::pair<std::string, moveit_msgs::RobotState> RobotStatePair;
   RobotStateMap robot_states_;
 
+  // APC customizations.
+private:
+  boost::shared_ptr<actionlib::SimpleActionClient<apc_msgs::FollowPrimitivePlanAction> > execute_client_;
+
+private Q_SLOTS:
+  // APC tab.
+
+  // Teleoperation widget slots.
+  void connectTeleopSlots();
+  void planButtonClicked();
+  void previewButtonClicked();
+  void executeButtonClicked();
+  void stopButtonClicked();
+  void initExecuteProgressLabel();
+  void updateExecuteActive();
+  void updateExecuteFeedback(const apc_msgs::FollowPrimitivePlanFeedback &feedback);
+  void updateExecuteDone(const actionlib::SimpleClientGoalState& state,
+                         const apc_msgs::FollowPrimitivePlanResult& result);
+
+  // Teleoperation widget helper slots.
+  void connectTeleopHelperSlots();
+  void setStartToCurrentButtonClicked();
+  void setGoalToCurrentButtonClicked();
+  void optionsCheckBoxClicked();
+
+  // Pick and place widget slots.
+  void connectPickAndPlaceSlots();
+  void runAPCButtonClicked();
+  void randomizeBinsButtonClicked();
+  void randomizeOrderButtonClicked();
+  void reloadJsonButtonClicked();
+  void previousJsonButtonClicked();
+  void nextJsonButtonClicked();
+  void tripleIntegralButtonClicked();
+
+  // Vision widget slots.
+  void connectVisionSlots();
+
+  // Calibration widget slots.
+  void connectCalibrationSlots();
+
+  // Active actions widget slots.
+  void connectActiveActionsSlots();
+  void insertActionButtonClicked();
+  void deleteActionButtonClicked();
+  void replaceActionButtonClicked();
+  void renameAllActionsButtonClicked();
+  void activeActionsSelectionChanged();
+  void activeActionsListClicked(const QModelIndex& index);
+  void activeActionsItemClicked(QListWidgetItem* item);
+  void activeActionsItemDoubleClicked(QListWidgetItem* item);
+
+  // Stored plans widget slots.
+  void connectStoredPlansSlots();
+  void activeToStoredButtonClicked();
+  void storedToActiveButtonClicked();
+  void storedPlansTreeClicked(const QModelIndex& index);
+  void storedPlansItemClicked(QTreeWidgetItem* item, int col);
+  void storedPlansItemDoubleClicked(QTreeWidgetItem* item, int col);
+  void storedPlansDatabaseComboBoxChanged();
+  void savePlansButtonClicked();
+  void loadPlansButtonClicked();
+  void deletePlanButtonClicked();
+  void storedPlansDatabaseNameChanged(const QString& text);
+
+  // Stored Objects widget slots.
+  void connectStoredObjectsSlots();
+  void loadObjectsButtonClicked();
+  void saveObjectsButtonClicked();
+  void objectClicked(QListWidgetItem* item);
+  void objectSelectionChanged();
+
+private:
+
+  // Teleoperation widget.
+  void computePlanButtonClicked();
+  bool computePlan(apc_msgs::PrimitivePlan& plan);
+  void displayPlan(const moveit_msgs::RobotState& start_state,
+                   const apc_msgs::PrimitivePlan& plan);
+  void appendToTrajectory(trajectory_msgs::JointTrajectory& first,
+                          const trajectory_msgs::JointTrajectory& second);
+  void computeExecuteButtonClicked();
+  void executeActiveCallback();
+  void executeFeedbackCallback(const apc_msgs::FollowPrimitivePlanFeedbackConstPtr &feedback);
+  void executeDoneCallback(const actionlib::SimpleClientGoalState &state,
+                           const apc_msgs::FollowPrimitivePlanResultConstPtr &result);
+
+  // Teleoperation widget helper.
+  void loadOptionsToView(QList<QListWidgetItem*> items, bool enable = true);
+  void loadOptionsToView(QList<QTreeWidgetItem*> items, bool enable = true);
+  void loadOptionsToView(std::vector<QVariant>& data, bool enable=true);
+  void setTristateCheckBox(QCheckBox* checkbox, bool b, bool init);
+  void saveOptionsFromView(QList<QListWidgetItem*> items);
+  void saveOptionsFromView(std::vector<QVariant>& data);
+
+  // Pick and place widget.
+
+  // Pick and place widget helper.
+
+  // Vision widget.
+
+  // Vision widget helper.
+
+  // Calibration widget.
+
+  // Calibration widget helper.
+
+  // Active actions widget.
+  template< typename Message > static QByteArray serializeMessage(const Message& msg);
+  template< typename Message > static Message deserializeMessage(const QByteArray& string);
+  template< typename Message > static Message getMessageFromUserData(const QVariant& data);
+  template< typename Message > static void setMessageToUserData(QVariant& data, const Message& msg);
+  void getRobotStateFromUserData(const QVariant& data,
+                                 robot_state::RobotState& robot);
+  void getStateFromAction(robot_state::RobotState& robot,
+                          const apc_msgs::PrimitiveAction& action);
+  void saveActionToItem(QListWidgetItem* item);
+  void saveActionToItem(const robot_state::RobotState& state,
+                        QListWidgetItem* item);
+  void loadActionFromItem(QListWidgetItem* item);
+  void loadActionFromItem(QTreeWidgetItem* item);
+  void loadActionFromData(const QVariant& data);
+  void loadStateFromAction(robot_state::RobotState& state,
+                           const apc_msgs::PrimitiveAction& action);
+  void saveStateToAction(const robot_state::RobotState& state,
+                         apc_msgs::PrimitiveAction& action);
+  void loadWaypointsToDisplay(QList<QListWidgetItem*> items);
+  void loadWaypointsToDisplay(QList<QTreeWidgetItem*> items);
+  void loadWaypointsToDisplay(std::vector<QVariant>& data);
+
+  // Stored plans widget.
+  void computeSavePlansButtonClicked();
+  void computeLoadPlansButtonClicked();
+
+  // Stored objects widget.
+  std::string computeObjectScenePath();
+  void computeLoadObjectsButtonClicked();
+  void computeSaveObjectsButtonClicked();
+  void computePopulateObjects();
+  void computeAttachObjectToState(robot_state::RobotState& state,
+                                  const std::string& object_name,
+                                  const std::string& link_name);
+  void computeAttachObjectToState(robot_state::RobotState& state,
+                                  const std::string& object_name,
+                                  const std::string& link_name,
+                                  const EigenSTL::vector_Affine3d& poses);
+  void computeAttachObjectToState(robot_state::RobotState& state,
+                                  const std::string& object_name,
+                                  const std::string& link_name,
+                                  const std::vector<geometry_msgs::Pose>& poses);
+  void computeDetachObjectFromState(robot_state::RobotState& state,
+                                    const std::string& object_name);
+  void computeAttachObjectToPlan(apc_msgs::PrimitivePlan& plan,
+                                 const robot_state::RobotState& state);
+  void computeAttachObjectToAction(const robot_state::RobotState& state,
+                                   apc_msgs::PrimitiveAction& action);
+  void computeDetachObjectFromPlan(apc_msgs::PrimitivePlan& plan);
+  void computeDetachObjectFromAction(apc_msgs::PrimitiveAction& action);
+
+
+  // MoveIt interface.
 private Q_SLOTS:
 
   //Context tab
@@ -147,8 +308,8 @@ private Q_SLOTS:
   void approximateIKChanged(int state);
 
   //Planning tab
-  void planButtonClicked();
-  void executeButtonClicked();
+  // void planButtonClicked();
+  // void executeButtonClicked();
   void planAndExecuteButtonClicked();
   void allowReplanningToggled(bool checked);
   void allowLookingToggled(bool checked);
@@ -157,45 +318,6 @@ private Q_SLOTS:
   void useStartStateButtonClicked();
   void useGoalStateButtonClicked();
   void onClearOctomapClicked();
-
-  // Stored plans tab
-  // Stored plans commands
-  void planActiveGoalsButtonClicked();
-  void pickAndPlaceButtonClicked();
-  void planGoalsButtonClicked();
-  void previewButtonClicked();
-  void executePlansButtonClicked();
-  void stopExecutionButtonClicked();
-  // Stored plans active goals commands
-  void setStartToCurrentButtonClicked();
-  void setGoalToCurrentButtonClicked();
-  void insertGoalButtonClicked();
-  void deleteGoalButtonClicked();
-  // Stored plans active goals list
-  void activeGoalSelectionChanged();
-  void activeGoalListClicked(const QModelIndex& index);
-  void activeGoalItemClicked(QListWidgetItem* item);
-  void activeGoalItemDoubleClicked(QListWidgetItem* item);
-  // Stored plans stored plans tree
-  void storedPlanTreeClicked(const QModelIndex& index);
-  void storedPlanItemClicked(QTreeWidgetItem* item, int col);
-  void storedPlanItemDoubleClicked(QTreeWidgetItem* item, int col);
-  // Stored plans active <-> stored commands
-  void activeToStoredPlansButtonClicked();
-  void storedToActiveGoalsButtonClicked();
-  // Stored plans stored plans database commands
-  void planDatabaseComboBoxChanged();
-  void savePlansButtonClicked();
-  void loadPlansButtonClicked();
-  void deleteStoredPlanButtonClicked();
-  void planDatabaseNameChanged(const QString& text);
-  // Stored plans options
-  void optionsCheckBoxClicked();
-  // Object panel group
-  void loadObjectsButtonClicked();
-  void saveObjectsButtonClicked();
-  void objectClicked(QListWidgetItem* item);
-  void objectSelectionChanged();
 
   //Scene Objects tab
   void importFileButtonClicked();
@@ -252,8 +374,8 @@ private:
   void populatePlannersList(const moveit_msgs::PlannerInterfaceDescription &desc);
 
   //Planning tab
-  void computePlanButtonClicked();
-  void computeExecuteButtonClicked();
+  // void computePlanButtonClicked();
+  // void computeExecuteButtonClicked();
   void computePlanAndExecuteButtonClicked();
   void computePlanAndExecuteButtonClickedDisplayHelper();
   void populateConstraintsList();
@@ -263,72 +385,6 @@ private:
   void configureWorkspace();
   void updateQueryStateHelper(robot_state::RobotState &state, const std::string &v);
   void fillStateSelectionOptions();
-
-
-  //Stored plans tab
-  boost::shared_ptr<actionlib::SimpleActionClient<apc_msgs::FollowPrimitivePlanAction> > execute_client_;
-  template< typename Message > static QByteArray serializeMessage(const Message& msg);
-  template< typename Message > static Message deserializeMessage(const QByteArray& string);
-  template< typename Message > static Message getMessageFromUserData(const QVariant& data);
-  template< typename Message > static void setMessageToUserData(QVariant& data, const Message& msg);
-  void getRobotStateFromUserData(const QVariant& data, robot_state::RobotState& robot);
-  void getStateFromAction(robot_state::RobotState& robot, const apc_msgs::PrimitiveAction& action);
-  void saveGoalToItem(QListWidgetItem* item);
-  void saveGoalToItem(const robot_state::RobotState& state, QListWidgetItem* item);
-  void loadGoalFromItem(QListWidgetItem* item);
-  void loadGoalFromItem(QTreeWidgetItem* item);
-  void loadGoalFromData(const QVariant& data);
-  // displaying waypoints
-  void loadWaypointsToDisplay(QList<QListWidgetItem*> items);
-  void loadWaypointsToDisplay(QList<QTreeWidgetItem*> items);
-  void loadWaypointsToDisplay(std::vector<QVariant>& data);
-  // plan options
-  void loadOptionsToView(QList<QListWidgetItem*> items, bool enable = true);
-  void loadOptionsToView(QList<QTreeWidgetItem*> items, bool enable = true);
-  void loadOptionsToView(std::vector<QVariant>& data, bool enable=true);
-  void setTristateCheckBox(QCheckBox* checkbox, bool b, bool init);
-  void saveOptionsFromView(QList<QListWidgetItem*> items);
-  void saveOptionsFromView(std::vector<QVariant>& data);
-  // plan database
-  void computeSavePlansButtonClicked();
-  void computeLoadPlansButtonClicked();
-  // primitive planning
-  void computePickAndPlaceButtonClicked();
-  void computePlanGoalsButtonClicked();
-  void computeLinearInterpPlan(const robot_state::RobotState& start, apc_msgs::PrimitiveAction& goal);
-  void copyTrajectoryToDisplay(const moveit_msgs::RobotState& start_state, const apc_msgs::PrimitivePlan& plan);
-  void appendToTrajectory(trajectory_msgs::JointTrajectory& first, const trajectory_msgs::JointTrajectory& second);
-  // execution
-  void initExecutePlans();
-  void computeExecutePlansButtonClicked();
-  void executeActiveCallback();
-  void executeFeedbackCallback(const apc_msgs::FollowPrimitivePlanFeedbackConstPtr &feedback);
-  void executeDoneCallback(const actionlib::SimpleClientGoalState &state, const apc_msgs::FollowPrimitivePlanResultConstPtr &result);
-  void updateExecuteActive();
-  void updateExecuteFeedback(const apc_msgs::FollowPrimitivePlanFeedback &feedback);
-  void updateExecuteDone(const actionlib::SimpleClientGoalState& state, const apc_msgs::FollowPrimitivePlanResult& result);
-  // objects
-  std::string computeObjectScenePath();
-  void computeLoadObjectsButtonClicked();
-  void computeSaveObjectsButtonClicked();
-  void computePopulateObjects();
-  void computeAttachObjectToState(robot_state::RobotState& state, const std::string& object_name, const std::string& link_name);
-  void computeAttachObjectToState(robot_state::RobotState& state, const std::string& object_name, const std::string& link_name, const EigenSTL::vector_Affine3d& poses);
-  void computeAttachObjectToState(robot_state::RobotState& state,
-                                  const std::string& object_name,
-                                  const std::string& link_name,
-                                  const std::vector<geometry_msgs::Pose>& poses);
-  void computeDetachObjectFromState(robot_state::RobotState& state, const std::string& object_name);
-  void computeAttachObjectToPlan(apc_msgs::PrimitivePlan& plan, const robot_state::RobotState& state);
-  void computeAttachObjectToAction(const robot_state::RobotState& state, apc_msgs::PrimitiveAction& action);
-  void computeDetachObjectFromPlan(apc_msgs::PrimitivePlan& plan);
-  void computeDetachObjectFromAction(apc_msgs::PrimitiveAction& action);
-  // trajopt
-  void loadStateFromAction(robot_state::RobotState& state, const apc_msgs::PrimitiveAction& action);
-  void saveStateToAction(const robot_state::RobotState& state, apc_msgs::PrimitiveAction& action);
-  bool computeTrajectoryFromActiveGoals();
-  bool computeTrajectoryOptimizationSequence(apc_msgs::PrimitivePlan& plan);
-  void computeTrajectoryOptimizationPlan();
 
   //Scene objects tab
   void addObject(const collision_detection::WorldPtr &world, const std::string &id,

@@ -40,8 +40,8 @@
 
 namespace moveit_rviz_plugin
 {
-    void MotionPlanningFrame::copyTrajectoryToDisplay(const moveit_msgs::RobotState& start_state,
-                                                      const apc_msgs::PrimitivePlan& plan)
+    void MotionPlanningFrame::displayPlan(const moveit_msgs::RobotState& start_state,
+                                          const apc_msgs::PrimitivePlan& plan)
     {
         // Get a robot model.
         const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
@@ -196,7 +196,7 @@ namespace moveit_rviz_plugin
         }
     }
 
-    bool MotionPlanningFrame::callPlanningService(apc_msgs::PrimitivePlan& plan)
+    bool MotionPlanningFrame::computePlan(apc_msgs::PrimitivePlan& plan)
     {
         // Create a motion plan service object.
         apc_msgs::GetMotionPlan srv;

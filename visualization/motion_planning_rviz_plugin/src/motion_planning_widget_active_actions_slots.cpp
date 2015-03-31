@@ -39,96 +39,120 @@
 
 namespace moveit_rviz_plugin
 {
-    void MotionPlanningFrame::insertGoalButtonClicked()
+    void MotionPlanningFrame::connectActiveActionsSlots()
     {
-        // Get the list of active goals (waypoints).
-        QListWidget* active_goals_list = ui_->active_goals_list;
+        connect( ui_->insert_action_button,  SIGNAL( clicked() ), this, SLOT( insertActionButtonClicked() ));
+        connect( ui_->delete_action_button,  SIGNAL( clicked() ), this, SLOT( deleteActionButtonClicked() ));
+        connect( ui_->replace_action_button, SIGNAL( clicked() ), this, SLOT( replaceActionButtonClicked() ));
+        connect( ui_->rename_actions_button, SIGNAL( clicked() ), this, SLOT( renameAllActionsButtonClicked() ));
+        connect( ui_->active_actions_list,  SIGNAL( itemSelectionChanged() ),
+                 this, SLOT( activeActionsSelectionChanged() ));
+        connect( ui_->active_actions_list,  SIGNAL( itemClicked(QListWidgetItem*) ),
+                 this, SLOT( activeActionsItemClicked(QListWidgetItem*) ));
+        connect( ui_->active_actions_list,  SIGNAL( itemDoubleClicked(QListWidgetItem*) ),
+                 this, SLOT( activeActionsItemDoubleClicked(QListWidgetItem*) ));
+    }
 
-        // Save the current goal to a new item.
+    void MotionPlanningFrame::insertActionButtonClicked()
+    {
+        // Get the list of active actions (waypoints).
+        QListWidget* active_actions_list = ui_->active_actions_list;
+
+        // Save the current action to a new item.
         QListWidgetItem* item = new QListWidgetItem;
         item->setFlags(item->flags() | Qt::ItemIsEditable);
-        saveGoalToItem(item);
+        saveActionToItem(item);
 
         // Get the currently selected row.
-        int row = active_goals_list->currentRow();
+        int row = active_actions_list->currentRow();
 
         // Unselect item.
-        if (active_goals_list->currentItem())
-            active_goals_list->currentItem()->setSelected(false);
+        if (active_actions_list->currentItem())
+            active_actions_list->currentItem()->setSelected(false);
 
         // Insert the item into the list.
-        active_goals_list->insertItem(row + 1, item);
+        active_actions_list->insertItem(row + 1, item);
 
         // Set item as active.
-        active_goals_list->setCurrentItem(item);
+        active_actions_list->setCurrentItem(item);
 
-        // Set the current options into the goal.
+        // Set the current options into the action.
         QList<QListWidgetItem*> opt;
         opt.append(item);
         saveOptionsFromView(opt);
 
-        // Load all goals into waypoint display.
-        QList<QListWidgetItem*> goals = ui_->active_goals_list->findItems(".*", Qt::MatchRegExp);
-        loadWaypointsToDisplay(goals);
+        // Load all actions into waypoint display.
+        QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
+        loadWaypointsToDisplay(actions);
     }
 
-    void MotionPlanningFrame::deleteGoalButtonClicked()
+    void MotionPlanningFrame::deleteActionButtonClicked()
     {
-        // Get the list of active goals (waypoints).
-        QListWidget* active_goals_list = ui_->active_goals_list;
+        // Get the list of active actions (waypoints).
+        QListWidget* active_actions_list = ui_->active_actions_list;
 
         // If there are no items to delete, return.
-        if (active_goals_list->count() == 0)
+        if (active_actions_list->count() == 0)
             return;
 
         // Take and delete item.
-        int row = active_goals_list->currentRow();
-        QListWidgetItem* item = active_goals_list->takeItem(row);
+        int row = active_actions_list->currentRow();
+        QListWidgetItem* item = active_actions_list->takeItem(row);
         if (item)
             delete item;
 
-        // Set the active goal to the next in line if available or else previous.
-        if (row == active_goals_list->count())
-            active_goals_list->setCurrentRow(std::max(row - 1, 0));
+        // Set the active action to the next in line if available or else previous.
+        if (row == active_actions_list->count())
+            active_actions_list->setCurrentRow(std::max(row - 1, 0));
 
-        // Load all goals into waypoint display.
-        QList<QListWidgetItem*> goals = ui_->active_goals_list->findItems(".*", Qt::MatchRegExp);
-        loadWaypointsToDisplay(goals);
+        // Load all actions into waypoint display.
+        QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
+        loadWaypointsToDisplay(actions);
     }
 
-    void MotionPlanningFrame::activeGoalSelectionChanged()
+    void MotionPlanningFrame::replaceActionButtonClicked()
+    {
+        ROS_WARN("replaceActionButtonClicked");
+    }
+
+    void MotionPlanningFrame::renameAllActionsButtonClicked()
+    {
+        ROS_WARN("renameAllActionsButtonClicked");
+    }
+
+    void MotionPlanningFrame::activeActionsSelectionChanged()
     {
         // HACK Because QWidget does not provide a 'clicked' signal, we check here for the no selection case.
-        if (ui_->active_goals_list->selectedItems().empty())
-            activeGoalListClicked(QModelIndex());
+        if (ui_->active_actions_list->selectedItems().empty())
+            activeActionListClicked(QModelIndex());
     }
 
-    void MotionPlanningFrame::activeGoalListClicked(const QModelIndex& index)
+    void MotionPlanningFrame::activeActionsListClicked(const QModelIndex& index)
     {
         // Load the options from all items, but make it non-editable.
-        QList<QListWidgetItem*> options = ui_->active_goals_list->findItems(".*", Qt::MatchRegExp);
+        QList<QListWidgetItem*> options = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
         loadOptionsToView(options, false);
 
-        // Load all goals into waypoint display.
-        QList<QListWidgetItem*> goals = ui_->active_goals_list->findItems(".*", Qt::MatchRegExp);
-        loadWaypointsToDisplay(goals);
+        // Load all actions into waypoint display.
+        QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
+        loadWaypointsToDisplay(actions);
     }
 
-    void MotionPlanningFrame::activeGoalItemClicked(QListWidgetItem* item)
+    void MotionPlanningFrame::activeActionsItemClicked(QListWidgetItem* item)
     {
         // Load the options from selected items.
-        QList<QListWidgetItem*> options = ui_->active_goals_list->selectedItems();
+        QList<QListWidgetItem*> options = ui_->active_actions_list->selectedItems();
         loadOptionsToView(options, true);
 
         // Load the selected items into waypoint display.
-        QList<QListWidgetItem*> goals = ui_->active_goals_list->selectedItems();
-        loadWaypointsToDisplay(goals);
+        QList<QListWidgetItem*> actions = ui_->active_actions_list->selectedItems();
+        loadWaypointsToDisplay(actions);
     }
 
-    void MotionPlanningFrame::activeGoalItemDoubleClicked(QListWidgetItem* item)
+    void MotionPlanningFrame::activeActionsItemDoubleClicked(QListWidgetItem* item)
     {
-        // Load the currently selected item into the goal query state.
-        loadGoalFromItem(item);
+        // Load the currently selected item into the action query state.
+        loadActionFromItem(item);
 
         // Load the options from double clicked items.
         QList<QListWidgetItem*> option;

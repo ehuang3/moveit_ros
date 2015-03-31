@@ -40,6 +40,18 @@
 namespace moveit_rviz_plugin
 {
 
+    void MotionPlanningFrame::connectTeleopHelperSlots()
+    {
+    }
+
+    void MotionPlanningFrame::groupComboBoxActivated()
+    {
+    }
+
+    void MotionPlanningFrame::jointComboBoxActivated()
+    {
+    }
+
     void MotionPlanningFrame::setStartToCurrentButtonClicked()
     {
         robot_state::RobotState start = *planning_display_->getQueryStartState();
