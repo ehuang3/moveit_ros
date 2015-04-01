@@ -36,9 +36,22 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include "ui_motion_planning_rviz_plugin_frame.h"
+#include <QtGui/QInputDialog>
+
 
 namespace moveit_rviz_plugin
 {
+    void MotionPlanningFrame::connectStoredObjectsSlots()
+    {
+        connect( ui_->load_objects_button, SIGNAL( clicked() ), this, SLOT( loadObjectsButtonClicked() ));
+        connect( ui_->save_objects_button, SIGNAL( clicked() ), this, SLOT( saveObjectsButtonClicked() ));
+        connect( ui_->object_list_widget, SIGNAL( itemClicked( QListWidgetItem * ) ),
+                 this, SLOT( objectClicked( QListWidgetItem * ) ));
+        connect( ui_->object_list_widget, SIGNAL( itemSelectionChanged() ), this, SLOT( objectSelectionChanged() ));
+    }
 
     void MotionPlanningFrame::loadObjectsButtonClicked()
     {

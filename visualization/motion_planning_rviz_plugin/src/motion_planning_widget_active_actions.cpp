@@ -36,6 +36,13 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include "ui_motion_planning_rviz_plugin_frame.h"
+#include <eigen_conversions/eigen_msg.h>
+#include <moveit/kinematic_constraints/utils.h>
+#include <moveit/robot_state/conversions.h>
+
 
 namespace moveit_rviz_plugin
 {
@@ -165,13 +172,13 @@ namespace moveit_rviz_plugin
         robot.update();
     }
 
-    void MotionPlanningFrame::saveGoalToItem(QListWidgetItem* item)
+    void MotionPlanningFrame::saveActionToItem(QListWidgetItem* item)
     {
         const robot_state::RobotState& state = *planning_display_->getQueryGoalState();
-        saveGoalToItem(state, item);
+        saveActionToItem(state, item);
     }
 
-    void MotionPlanningFrame::saveGoalToItem(const robot_state::RobotState& state,
+    void MotionPlanningFrame::saveActionToItem(const robot_state::RobotState& state,
                                              QListWidgetItem* item)
     {
         if (!item)
@@ -188,27 +195,27 @@ namespace moveit_rviz_plugin
         // Get the goal joint tolerance.
         double goal_joint_tolerance = move_group_->getGoalJointTolerance();
 
-        // Create a move group goal message.
-        apc_msgs::PrimitivePlan goal;
-        goal.actions.resize(1);
+        // Create a move group action message.
+        apc_msgs::PrimitivePlan action;
+        action.actions.resize(1);
 
-        // Set the goal group name.
-        goal.actions[0].group_name = group;
+        // Set the action group name.
+        action.actions[0].group_name = group;
 
-        // Save state information to goal.
-        saveStateToAction(state, goal.actions[0]);
+        // Save state information to action.
+        saveStateToAction(state, action.actions[0]);
 
         // TODO Build a descriptive name.
         static int count = 0;
         QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
 
-        goal.actions[0].action_name = display_name.toStdString();
+        action.actions[0].action_name = display_name.toStdString();
 
         // Get the data in the item.
         QVariant data = item->data(Qt::UserRole);
 
-        // Store the goal into the data.
-        setMessageToUserData<apc_msgs::PrimitivePlan>(data, goal);
+        // Store the action into the data.
+        setMessageToUserData<apc_msgs::PrimitivePlan>(data, action);
 
         // Save the serialized data back into the item.
         item->setData(Qt::UserRole, data);
@@ -217,7 +224,7 @@ namespace moveit_rviz_plugin
         item->setText(display_name);
     }
 
-    void MotionPlanningFrame::loadGoalFromItem(QListWidgetItem* item)
+    void MotionPlanningFrame::loadActionFromItem(QListWidgetItem* item)
     {
         if (!item)
             return;
@@ -225,11 +232,11 @@ namespace moveit_rviz_plugin
         // Get the saved binary data.
         QVariant data = item->data(Qt::UserRole);
 
-        // Load goal from data.
-        loadGoalFromData(data);
+        // Load action from data.
+        loadActionFromData(data);
     }
 
-    void MotionPlanningFrame::loadGoalFromItem(QTreeWidgetItem* item)
+    void MotionPlanningFrame::loadActionFromItem(QTreeWidgetItem* item)
     {
         if (!item)
             return;
@@ -237,26 +244,26 @@ namespace moveit_rviz_plugin
         // Get the saved binary data.
         QVariant data = item->data(0, Qt::UserRole);
 
-        // Load goal from data.
-        loadGoalFromData(data);
+        // Load action from data.
+        loadActionFromData(data);
     }
 
-    void MotionPlanningFrame::loadGoalFromData(const QVariant& data)
+    void MotionPlanningFrame::loadActionFromData(const QVariant& data)
     {
-        // Deserialize byte array into move group goal.
-        apc_msgs::PrimitivePlan goal = getMessageFromUserData<apc_msgs::PrimitivePlan>(data);
+        // Deserialize byte array into move group action.
+        apc_msgs::PrimitivePlan action = getMessageFromUserData<apc_msgs::PrimitivePlan>(data);
 
         // Get the new planning group.
-        std::string group = goal.actions[0].group_name;
+        std::string group = action.actions[0].group_name;
 
         // Update the planning group.
         planning_display_->changePlanningGroup(group);
 
-        // Get the current goal state.
+        // Get the current action state.
         robot_state::RobotState current_state = *planning_display_->getQueryGoalState();
 
         // Load state from the first action.
-        loadStateFromAction(current_state, goal.actions[0]);
+        loadStateFromAction(current_state, action.actions[0]);
 
         // Set the joints related to the current group.
         planning_display_->setQueryGoalState(current_state);
@@ -302,14 +309,14 @@ namespace moveit_rviz_plugin
         robot_state::RobotState waypoint(planning_display_->getPlanningSceneRO()->getCurrentState());
         for (int i = 0; i < data.size(); i++)
         {
-            // Get the ith goal message in the data vector.
-            apc_msgs::PrimitivePlan goal = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[i]);
+            // Get the ith action message in the data vector.
+            apc_msgs::PrimitivePlan action = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[i]);
 
             // Get the group name.
-            group = goal.actions[0].group_name;
+            group = action.actions[0].group_name;
 
             // Load action into state.
-            loadStateFromAction(waypoint, goal.actions[0]);
+            loadStateFromAction(waypoint, action.actions[0]);
 
             // Update the dirty transforms, etc.
             waypoint.update();

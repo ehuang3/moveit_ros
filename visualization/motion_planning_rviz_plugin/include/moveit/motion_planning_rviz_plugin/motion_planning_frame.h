@@ -145,7 +145,6 @@ private Q_SLOTS:
   // APC tab.
 
   // Teleoperation widget slots.
-  void connectTeleopSlots();
   void planButtonClicked();
   void previewButtonClicked();
   void executeButtonClicked();
@@ -157,29 +156,27 @@ private Q_SLOTS:
                          const apc_msgs::FollowPrimitivePlanResult& result);
 
   // Teleoperation widget helper slots.
-  void connectTeleopHelperSlots();
+  void updateGroupComboBox();
+  void groupComboBoxActivated(int);
+  void jointComboBoxActivated(int);
   void setStartToCurrentButtonClicked();
   void setGoalToCurrentButtonClicked();
   void optionsCheckBoxClicked();
 
   // Pick and place widget slots.
-  void connectPickAndPlaceSlots();
   void runAPCButtonClicked();
   void randomizeBinsButtonClicked();
   void randomizeOrderButtonClicked();
   void reloadJsonButtonClicked();
-  void previousJsonButtonClicked();
   void nextJsonButtonClicked();
+  void previousJsonButtonClicked();
   void tripleIntegralButtonClicked();
 
   // Vision widget slots.
-  void connectVisionSlots();
 
   // Calibration widget slots.
-  void connectCalibrationSlots();
 
   // Active actions widget slots.
-  void connectActiveActionsSlots();
   void insertActionButtonClicked();
   void deleteActionButtonClicked();
   void replaceActionButtonClicked();
@@ -190,20 +187,18 @@ private Q_SLOTS:
   void activeActionsItemDoubleClicked(QListWidgetItem* item);
 
   // Stored plans widget slots.
-  void connectStoredPlansSlots();
   void activeToStoredButtonClicked();
   void storedToActiveButtonClicked();
   void storedPlansTreeClicked(const QModelIndex& index);
   void storedPlansItemClicked(QTreeWidgetItem* item, int col);
   void storedPlansItemDoubleClicked(QTreeWidgetItem* item, int col);
-  void storedPlansDatabaseComboBoxChanged();
+  // void storedPlansDatabaseComboBoxChanged();
   void savePlansButtonClicked();
   void loadPlansButtonClicked();
   void deletePlanButtonClicked();
   void storedPlansDatabaseNameChanged(const QString& text);
 
   // Stored Objects widget slots.
-  void connectStoredObjectsSlots();
   void loadObjectsButtonClicked();
   void saveObjectsButtonClicked();
   void objectClicked(QListWidgetItem* item);
@@ -211,11 +206,24 @@ private Q_SLOTS:
 
 private:
 
+  // Widget slots.
+  void connectTeleopSlots();
+  void connectTeleopHelperSlots();
+  void connectPickAndPlaceSlots();
+  void connectPickAndPlaceHelperSlots();
+  void connectVisionSlots();
+  void connectVisionHelperSlots();
+  void connectCalibrationSlots();
+  void connectCalibrationHelperSlots();
+  void connectActiveActionsSlots();
+  void connectStoredPlansSlots();
+  void connectStoredObjectsSlots();
+
   // Teleoperation widget.
   void computePlanButtonClicked();
   bool computePlan(apc_msgs::PrimitivePlan& plan);
-  void displayPlan(const moveit_msgs::RobotState& start_state,
-                   const apc_msgs::PrimitivePlan& plan);
+  void loadPlanToDisplay(const moveit_msgs::RobotState& start_state,
+                         const apc_msgs::PrimitivePlan& plan);
   void appendToTrajectory(trajectory_msgs::JointTrajectory& first,
                           const trajectory_msgs::JointTrajectory& second);
   void computeExecuteButtonClicked();

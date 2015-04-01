@@ -36,12 +36,19 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include "ui_motion_planning_rviz_plugin_frame.h"
+#include <eigen_conversions/eigen_msg.h>
+#include <moveit/kinematic_constraints/utils.h>
+#include <moveit/robot_state/conversions.h>
+#include <apc_msgs/GetMotionPlan.h>
 
 
 namespace moveit_rviz_plugin
 {
-    void MotionPlanningFrame::displayPlan(const moveit_msgs::RobotState& start_state,
-                                          const apc_msgs::PrimitivePlan& plan)
+    void MotionPlanningFrame::loadPlanToDisplay(const moveit_msgs::RobotState& start_state,
+                                                const apc_msgs::PrimitivePlan& plan)
     {
         // Get a robot model.
         const robot_model::RobotModelConstPtr& robot_model = planning_display_->getRobotModel();
@@ -157,42 +164,42 @@ namespace moveit_rviz_plugin
         return;
     }
 
-    bool MotionPlanningFrame::computePlanButtonClicked()
+    void MotionPlanningFrame::computePlanButtonClicked()
     {
         // Reset last computed plan.
         primitive_plan_.reset(new apc_msgs::PrimitivePlan);
 
         // Get the list of active goals (waypoints) to follow.
-        QListWidget* active_goals = ui_->active_goals_list;
+        QListWidget* active_actions = ui_->active_actions_list;
 
         // Create an empty plan.
         apc_msgs::PrimitivePlan plan;
 
-        // Appeach each active goal to the plan.
-        for (int i = 0; i < active_goals->count(); i++)
+        // Appeach each active action to the plan.
+        for (int i = 0; i < active_actions->count(); i++)
         {
-            // Get the plan stored in the active goal item.
+            // Get the plan stored in the active action item.
             apc_msgs::PrimitivePlan stored_plan =
-                getMessageFromUserData<apc_msgs::PrimitivePlan>(active_goals->item(i)->data(Qt::UserRole));
+                getMessageFromUserData<apc_msgs::PrimitivePlan>(active_actions->item(i)->data(Qt::UserRole));
 
-            // Append each action stored in the active goal item.
+            // Append each action stored in the active action item.
             for (int j = 0; j < stored_plan.actions.size(); j++)
                 plan.actions.push_back(stored_plan.actions[j]);
         }
 
         // Compute trajectory and save on success.
-        if (optimizeTrajectory(plan))
+        if (computePlan(plan))
             *primitive_plan_ = plan;
         else
         {
-            ROS_ERROR("Failed to compute TRAJOPT plan for active goals");
+            ROS_ERROR("Failed to compute TRAJOPT plan for active actions");
         }
 
         // Copy trajectory over to display.
         {
             moveit_msgs::RobotState start_state;
             robot_state::robotStateToRobotStateMsg(*planning_display_->getQueryStartState(), start_state);
-            copyTrajectoryToDisplay(start_state, plan);
+            loadPlanToDisplay(start_state, plan);
         }
     }
 
@@ -270,7 +277,7 @@ namespace moveit_rviz_plugin
                 return;
             }
             else
-                planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::initExecutePlans, this));
+                planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::initExecuteProgressLabel, this));
 
         // Get goal.
         apc_msgs::FollowPrimitivePlanGoal goal;

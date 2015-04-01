@@ -36,29 +36,51 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#include <ros/package.h>
-#include <rviz/display_context.h>
-#include <rviz/frame_manager.h>
-#include <rviz/window_manager_interface.h>
-#include <geometric_shapes/shape_operations.h>
-#include <interactive_markers/tools.h>
-#include <eigen_conversions/eigen_msg.h>
-#include <boost/algorithm/string.hpp>
-#include <QMessageBox>
-#include <QInputDialog>
-#include <QFileDialog>
-#include <moveit/warehouse/planning_scene_storage.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
-#include <moveit/robot_state/conversions.h>
-#include <moveit/robot_interaction/interactive_marker_helpers.h>
-#include <apc_msgs/StoredScene.h>
 #include "ui_motion_planning_rviz_plugin_frame.h"
+#include <ros/package.h>
+#include <eigen_conversions/eigen_msg.h>
+#include <moveit/robot_state/conversions.h>
+#include <moveit/warehouse/planning_scene_storage.h>
+#include <boost/xpressive/xpressive.hpp>
+#include <QTextStream>
+#define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
+#include <rapidjson/document.h>
+
 
 namespace moveit_rviz_plugin
 {
+    bool parseUriRef(const std::string& uriRef,
+                     std::string& scheme,
+                     std::string& authority,
+                     std::string& path,
+                     std::string& query,
+                     std::string& fragment) {
+        using namespace boost::xpressive;
+        sregex rex = sregex::compile("^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?");
+        smatch what;
+        if (regex_match(uriRef, what, rex))
+        {
+            scheme = what[2];
+            authority = what[4];
+            path = what[5];
+            query = what[7];
+            fragment = what[9];
+            return true;
+        }
+        return false;
+    }
+
     void MotionPlanningFrame::connectPickAndPlaceSlots()
     {
+        connect( ui_->run_apc_button,         SIGNAL( clicked() ), this, SLOT( runAPCButtonClicked() ));
+        connect( ui_->randomize_bins_button,  SIGNAL( clicked() ), this, SLOT( randomizeBinsButtonClicked() ));
+        connect( ui_->randomize_order_button, SIGNAL( clicked() ), this, SLOT( randomizeOrderButtonClicked() ));
+        connect( ui_->reload_json_button, SIGNAL( clicked() ), this, SLOT( reloadJsonButtonClicked() ));
+        connect( ui_->next_json_button, SIGNAL( clicked() ), this, SLOT( nextJsonButtonClicked() ));
+        connect( ui_->prev_json_button, SIGNAL( clicked() ), this, SLOT( previousJsonButtonClicked() ));
+        connect( ui_->triple_integral_button, SIGNAL( clicked() ), this, SLOT( tripleIntegralButtonClicked() ));
     }
 
     void MotionPlanningFrame::runAPCButtonClicked()
@@ -76,7 +98,56 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::reloadJsonButtonClicked()
     {
         // Load JSON from line edit's URI.
-        // std::string json_path = apc_config::uriToPath(ui_->json_path_line_edit->text().toStdString());
+        std::string uri = ui_->json_path_line_edit->text().toStdString();
+        std::string scheme, authority, path, query, fragment;
+        if (!parseUriRef(uri, scheme, authority, path, query, fragment))
+        {
+            ROS_ERROR("Malformed URI: %s", uri.c_str());
+            return;
+        }
+        // Load package path.
+        path = ros::package::getPath(authority) + path;
+        // Load JSON.
+        QFile file(QString::fromStdString(path));
+        if (!file.open(QFile::ReadOnly | QFile::Text))
+        {
+            ROS_ERROR("Failed to open file: %s", file.errorString().toStdString().c_str());
+            return;
+        }
+        QTextStream in(&file);
+        QString json;
+        while (!in.atEnd())
+            json += in.readLine() + "\n";
+        file.close();
+        // Load JSON into list view.
+        try
+        {
+            rapidjson::Document doc;
+            doc.Parse(json.toStdString().c_str());
+            const rapidjson::Value& work_order = doc["work_order"];
+            ui_->json_table_widget->setRowCount(work_order.Size());
+            ui_->json_table_widget->setColumnCount(2);
+            QStringList labels;
+            labels.append("Bin");
+            labels.append("Item");
+            ui_->json_table_widget->setHorizontalHeaderLabels(labels);
+            for (int i = 0; i < work_order.Size(); i++)
+            {
+                QString bin  = work_order[i]["bin"].GetString();
+                QString item = work_order[i]["item"].GetString();
+                // ui_->json_table_view->
+                QTableWidgetItem* new_bin = new QTableWidgetItem(bin);
+                QTableWidgetItem* new_item = new QTableWidgetItem(item);
+                ui_->json_table_widget->setItem(i, 0, new_bin);
+                ui_->json_table_widget->setItem(i, 1, new_item);
+            }
+            ui_->json_table_widget->setCurrentCell(0,0);
+        }
+        catch (std::logic_error& e)
+        {
+            ROS_ERROR("%s", e.what());
+            return;
+        }
     }
 
     void MotionPlanningFrame::previousJsonButtonClicked()

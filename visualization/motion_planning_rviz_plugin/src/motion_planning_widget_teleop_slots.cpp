@@ -36,6 +36,9 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include "ui_motion_planning_rviz_plugin_frame.h"
 
 
 namespace moveit_rviz_plugin
@@ -66,26 +69,28 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::stopButtonClicked()
     {
+        if (!execute_client_)
+            return;
         ROS_INFO("Cancelling all goals on server");
         execute_client_->cancelAllGoals();
     }
 
-    void setLabelColor(QLabel* label, std::string color)
+    void setLineEditColor(QLineEdit* label, std::string color)
     {
         label->setStyleSheet(QString("QLabel { color : %1; background-color: rgb(212, 208, 200); }").arg(color.c_str()));
     }
 
     void MotionPlanningFrame::initExecuteProgressLabel()
     {
-        ui_->executeProgressLabel->setText("READY");
-        setLabelColor(ui_->executeProgressLabel, "rgb(0,170,0)");
+        ui_->execute_progress_line_edit->setText("READY");
+        setLineEditColor(ui_->execute_progress_line_edit, "rgb(0,170,0)");
     }
 
     void MotionPlanningFrame::updateExecuteActive()
     {
         ROS_INFO("Goal is active!");
-        ui_->executeProgressLabel->setText(QString("Executing"));
-        setLabelColor(ui_->executeProgressLabel, "rgb(170,170,0)");
+        ui_->execute_progress_line_edit->setText(QString("Executing"));
+        setLineEditColor(ui_->execute_progress_line_edit, "rgb(170,170,0)");
         int min = ui_->executeProgressBar->minimum();
         ui_->executeProgressBar->setValue(min);
         ui_->executeProgressBar->update();
@@ -107,14 +112,14 @@ namespace moveit_rviz_plugin
         if (state == actionlib::SimpleClientGoalState::SUCCEEDED)
         {
             ROS_INFO("Yay! The primtive plan was executed");
-            ui_->executeProgressLabel->setText(QString("READY"));
-            setLabelColor(ui_->executeProgressLabel, "rgb(0,170,0)");
+            ui_->execute_progress_line_edit->setText(QString("READY"));
+            setLineEditColor(ui_->execute_progress_line_edit, "rgb(0,170,0)");
         }
         else
         {
-            // ui_->executeProgressLabel->setText(QString("%1").arg(state.getText().c_str()));
-            ui_->executeProgressLabel->setText(QString("FAILED"));
-            setLabelColor(ui_->executeProgressLabel, "rgb(170,0,0)");
+            // ui_->execute_progress_line_edit->setText(QString("%1").arg(state.getText().c_str()));
+            ui_->execute_progress_line_edit->setText(QString("FAILED"));
+            setLineEditColor(ui_->execute_progress_line_edit, "rgb(170,0,0)");
         }
     }
 

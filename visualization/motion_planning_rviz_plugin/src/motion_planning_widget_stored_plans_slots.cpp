@@ -36,56 +36,79 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include "ui_motion_planning_rviz_plugin_frame.h"
+#include <moveit/warehouse/primitive_plan_storage.h>
+
 
 namespace moveit_rviz_plugin
 {
+    void MotionPlanningFrame::connectStoredPlansSlots()
+    {
+        connect( ui_->active_to_stored_button, SIGNAL( clicked() ), this, SLOT( activeToStoredButtonClicked() ));
+        connect( ui_->stored_to_active_button, SIGNAL( clicked() ), this, SLOT( storedToActiveButtonClicked() ));
 
-    void MotionPlanningFrame::storedPlanTreeClicked(const QModelIndex& index)
+        // connect( ui_->stored_plans_tree, SIGNAL( clicked(const QModelIndex&) ), this,
+        //          SLOT( storedPlansTreeClicked(const QModelIndex&) ));
+        connect( ui_->stored_plans_tree, SIGNAL( itemClicked(QTreeWidgetItem*, int) ), this,
+                 SLOT( storedPlansItemClicked(QTreeWidgetItem*, int) ));
+        connect( ui_->stored_plans_tree, SIGNAL( itemDoubleClicked(QTreeWidgetItem*, int) ), this,
+                 SLOT( storedPlansItemDoubleClicked(QTreeWidgetItem*, int) ));
+        connect( ui_->plan_database_name_combobox, SIGNAL( currentIndexChanged(const QString&) ), this,
+                 SLOT( storedPlansDatabaseNameChanged(const QString&) ));
+
+        connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
+        connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
+        connect( ui_->delete_plan_button, SIGNAL( clicked() ), this, SLOT( deletePlanButtonClicked() ));
+    }
+
+    void MotionPlanningFrame::storedPlansTreeClicked(const QModelIndex& index)
     {
         // Load the options from selected items, but make them non-editable.
         QList<QTreeWidgetItem*> options = ui_->stored_plans_tree->selectedItems();
         loadOptionsToView(options, false);
 
         // Load selected stored tree plans into waypoint display.
-        QList<QTreeWidgetItem*> goals = ui_->stored_plans_tree->selectedItems();
-        loadWaypointsToDisplay(goals);
+        QList<QTreeWidgetItem*> actions = ui_->stored_plans_tree->selectedItems();
+        loadWaypointsToDisplay(actions);
     }
 
-    void MotionPlanningFrame::storedPlanItemClicked(QTreeWidgetItem* item, int col)
+    void MotionPlanningFrame::storedPlansItemClicked(QTreeWidgetItem* item, int col)
     {
         // Load the options from selected items.
         QList<QTreeWidgetItem*> options = ui_->stored_plans_tree->selectedItems();
         loadOptionsToView(options, false);
 
         // Load the selected items into waypoint display.
-        QList<QTreeWidgetItem*> goals = ui_->stored_plans_tree->selectedItems();
-        loadWaypointsToDisplay(goals);
+        QList<QTreeWidgetItem*> actions = ui_->stored_plans_tree->selectedItems();
+        loadWaypointsToDisplay(actions);
     }
 
-    void MotionPlanningFrame::storedPlanItemDoubleClicked(QTreeWidgetItem* item, int col)
+    void MotionPlanningFrame::storedPlansItemDoubleClicked(QTreeWidgetItem* item, int col)
     {
-        // If the clicked item is not a toplevel item, load robot into goal state,
+        // If the clicked item is not a toplevel item, load robot into action state,
         if (ui_->stored_plans_tree->indexOfTopLevelItem(item) < 0)
-            loadGoalFromItem(item);
+            loadActionFromItem(item);
 
         // Do nothing special.
-        storedPlanItemClicked(item, col);
+        storedPlansItemClicked(item, col);
     }
 
-    void MotionPlanningFrame::activeToStoredPlansButtonClicked()
+    void MotionPlanningFrame::activeToStoredButtonClicked()
     {
-        // Get the list of active goals (waypoints).
-        QListWidget* active_goals = ui_->active_goals_list;
+        // Get the list of active actions (waypoints).
+        QListWidget* active_actions = ui_->active_actions_list;
 
         // Do nothing if there are no items.
-        if (active_goals->count() == 0)
+        if (active_actions->count() == 0)
             return;
 
         // Get all hightlighted items, or all items if none are highlighted.
-        QList<QListWidgetItem*> items = active_goals->selectedItems();
+        QList<QListWidgetItem*> items = active_actions->selectedItems();
         if (items.count() == 0)
-            for (int i = 0; i < active_goals->count(); i++)
-                items.push_back(active_goals->item(i));
+            for (int i = 0; i < active_actions->count(); i++)
+                items.push_back(active_actions->item(i));
 
         // Construct a top level tree item.
         QTreeWidgetItem* root = new QTreeWidgetItem;
@@ -112,7 +135,7 @@ namespace moveit_rviz_plugin
         stored_plans->addTopLevelItem(root);
     }
 
-    void MotionPlanningFrame::storedToActiveGoalsButtonClicked()
+    void MotionPlanningFrame::storedToActiveButtonClicked()
     {
         // Tree of stored plans.
         QTreeWidget* stored_plans = ui_->stored_plans_tree;
@@ -135,11 +158,11 @@ namespace moveit_rviz_plugin
             else if (!mixed && toplevel)
                 mixed = true;
 
-        // List of active goals.
-        QListWidget* active_goals = ui_->active_goals_list;
+        // List of active actions.
+        QListWidget* active_actions = ui_->active_actions_list;
 
-        // Active goal's currently selected row or else the last row.
-        int row = active_goals->currentRow() == -1 ? active_goals->count()-1 : active_goals->currentRow();
+        // Active action's currently selected row or else the last row.
+        int row = active_actions->currentRow() == -1 ? active_actions->count()-1 : active_actions->currentRow();
 
         // For loop to copy over the selected items.
         for (int i = 0; i < items.count(); i++)
@@ -155,7 +178,7 @@ namespace moveit_rviz_plugin
             else if (-1 == stored_plans->indexOfTopLevelItem(items[i]))
                 data.push_back(items[i]->data(0, Qt::UserRole));
 
-            // Copy data over to goals list.
+            // Copy data over to actions list.
             for (int j = 0; j < data.size(); j++)
             {
                 // Create a new list item.
@@ -174,14 +197,14 @@ namespace moveit_rviz_plugin
                 // Set the display name into the item.
                 item->setText(text);
 
-                // Insert item into the goals list.
-                active_goals->insertItem(++row, item);
+                // Insert item into the actions list.
+                active_actions->insertItem(++row, item);
             }
         }
 
-        // Load all goals into waypoint display.
-        QList<QListWidgetItem*> goals = ui_->active_goals_list->findItems(".*", Qt::MatchRegExp);
-        loadWaypointsToDisplay(goals);
+        // Load all actions into waypoint display.
+        QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
+        loadWaypointsToDisplay(actions);
     }
 
     void MotionPlanningFrame::savePlansButtonClicked()
@@ -194,7 +217,7 @@ namespace moveit_rviz_plugin
         planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeLoadPlansButtonClicked, this), "load plans");
     }
 
-    void MotionPlanningFrame::deleteStoredPlanButtonClicked()
+    void MotionPlanningFrame::deletePlanButtonClicked()
     {
         // Get the stored plans.
         QTreeWidget* stored_plans = ui_->stored_plans_tree;
@@ -211,7 +234,7 @@ namespace moveit_rviz_plugin
             delete stored_plans->takeTopLevelItem(index);
     }
 
-    void MotionPlanningFrame::planDatabaseNameChanged(const QString& text)
+    void MotionPlanningFrame::storedPlansDatabaseNameChanged(const QString& text)
     {
         if (!primitive_plan_storage_)
         {

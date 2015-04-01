@@ -36,19 +36,53 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include "ui_motion_planning_rviz_plugin_frame.h"
+
 
 namespace moveit_rviz_plugin
 {
 
     void MotionPlanningFrame::connectTeleopHelperSlots()
     {
+        connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
+        connect( ui_->goal_to_current_button,  SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
+        connect( ui_->relative_to_object_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->relative_to_pose_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->eef_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->dense_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->cartesian_interpolate_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->group_combo_box, SIGNAL( activated(int) ), this, SLOT( groupComboBoxActivated(int) ));
+        connect( ui_->joint_combo_box, SIGNAL( activated(int) ), this, SLOT( jointComboBoxActivated(int) ));
     }
 
-    void MotionPlanningFrame::groupComboBoxActivated()
+    void MotionPlanningFrame::updateGroupComboBox()
     {
+        // If the group combo box is empty, add a list of groups.
+        if (ui_->group_combo_box->count() == 0)
+        {
+            const std::vector<std::string>& groups =
+                planning_display_->getRobotModel()->getJointModelGroupNames();
+            for (int i = 0; i < groups.size(); i++)
+                ui_->group_combo_box->addItem(QString(groups[i].c_str()));
+        }
+        std::string group = planning_display_->getCurrentPlanningGroup();
+        int index = ui_->group_combo_box->findText(QString::fromStdString(group));
+        ui_->group_combo_box->setCurrentIndex(index);
     }
 
-    void MotionPlanningFrame::jointComboBoxActivated()
+    void MotionPlanningFrame::groupComboBoxActivated(int index)
+    {
+        std::string group = ui_->group_combo_box->currentText().toStdString();
+        if (group.empty())
+            return;
+        planning_display_->changePlanningGroup(group);
+    }
+
+    void MotionPlanningFrame::jointComboBoxActivated(int index)
     {
     }
 
@@ -69,7 +103,7 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::optionsCheckBoxClicked()
     {
         // Save the clicked options.
-        QList<QListWidgetItem*> items = ui_->active_goals_list->selectedItems();
+        QList<QListWidgetItem*> items = ui_->active_actions_list->selectedItems();
         saveOptionsFromView(items);
     }
 
