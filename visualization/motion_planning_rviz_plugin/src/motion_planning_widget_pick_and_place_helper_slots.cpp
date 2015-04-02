@@ -46,4 +46,40 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::connectPickAndPlaceHelperSlots()
     {
     }
+
+    void MotionPlanningFrame::updateBinContentsTableWidget(rapidjson::Document& doc)
+    {
+        // Get the bin contents table widget.
+        QTableWidget* widget = ui_->bin_contents_table_widget;
+
+        // Set bin contents into the table widget.
+        const rapidjson::Value& bin_contents = doc["bin_contents"];
+        char* bin_ids[] = { "bin_A", "bin_B", "bin_C", "bin_D", "bin_E", "bin_F",
+                            "bin_G", "bin_H", "bin_I", "bin_J", "bin_K", "bin_L" };
+        int num_rows = 0;
+        int num_cols = 2;
+        for (int i = 0; i < 12; i++)
+        {
+            num_rows += bin_contents[bin_ids[i]].Size();
+        }
+        widget->setRowCount(num_rows);
+        widget->setColumnCount(num_cols);
+        int r = 0;
+        for (int i = 0; i < 12; i++)
+        {
+            const rapidjson::Value& bin = bin_contents[bin_ids[i]];
+            for (int j = 0; j < bin.Size(); j++)
+            {
+                QTableWidgetItem* new_bin = new QTableWidgetItem(bin_ids[i]);
+                QTableWidgetItem* new_item = new QTableWidgetItem(bin[j].GetString());
+                widget->setItem(r, 0, new_bin);
+                widget->setItem(r, 1, new_item);
+                r++;
+            }
+        }
+        QStringList labels;
+        labels.append("Bin");
+        labels.append("Item");
+        widget->setHorizontalHeaderLabels(labels);
+    }
 }

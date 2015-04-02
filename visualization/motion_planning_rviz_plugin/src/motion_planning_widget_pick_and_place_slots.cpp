@@ -150,6 +150,11 @@ namespace moveit_rviz_plugin
         }
     }
 
+    void MotionPlanningFrame::updateWorkOrderTableWidget(rapidjson::Document& doc)
+    {
+
+    }
+
     void MotionPlanningFrame::previousJsonButtonClicked()
     {
     }
