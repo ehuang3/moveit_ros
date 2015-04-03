@@ -209,6 +209,7 @@ namespace moveit_rviz_plugin
         tf::poseEigenToMsg(pose, item_pose.pose);
         Eigen::Vector3d item_extents = shapes::computeShapeExtents(item->shapes_[0].get());
         double item_scale = 1.80 * item_extents.minCoeff();
+        item_scale = std::max(item_scale, 0.3);
         visualization_msgs::InteractiveMarker marker_msg =
             robot_interaction::make6DOFMarker("marker_" + item_key, item_pose, item_scale);
         marker_msg.header.frame_id = context_->getFrameManager()->getFixedFrame();
@@ -221,6 +222,12 @@ namespace moveit_rviz_plugin
         _item_marker.reset(marker);
         connect(marker, SIGNAL(userFeedback(visualization_msgs::InteractiveMarkerFeedback&)),
                 this, SLOT(processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback&)));
+    }
+
+    void MotionPlanningFrame::updateInteractiveMarkerForItem(float wall_dt)
+    {
+        if (_item_marker)
+            _item_marker->update(wall_dt);
     }
 
     void MotionPlanningFrame::processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback& feedback)

@@ -268,6 +268,7 @@ private:
                       const std::string& item_bin);
   void removeItemFromScene(const std::string& item_key);
   void createInteractiveMarkerForItem(const std::string& item_key);
+  void updateInteractiveMarkerForItem(float wall_dt);
 
   // Vision widget.
 

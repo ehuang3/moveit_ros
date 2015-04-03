@@ -1541,6 +1541,8 @@ void MotionPlanningDisplay::update(float wall_dt, float ros_dt)
     int_marker_display_->update(wall_dt, ros_dt);
   if (frame_)
     frame_->updateSceneMarkers(wall_dt, ros_dt);
+  if (frame_)
+    frame_->updateInteractiveMarkerForItem(wall_dt);
 
   PlanningSceneDisplay::update(wall_dt, ros_dt);
 }
