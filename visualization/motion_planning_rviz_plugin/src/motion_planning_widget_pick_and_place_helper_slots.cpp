@@ -45,6 +45,8 @@ namespace moveit_rviz_plugin
 {
     void MotionPlanningFrame::connectPickAndPlaceHelperSlots()
     {
+        connect( ui_->bin_contents_table_widget, SIGNAL( itemClicked(QTableWidgetItem*) ),
+                 this, SLOT( binContentsItemClicked(QTableWidgetItem*) ));
     }
 
     void MotionPlanningFrame::updateBinContentsTableWidget(rapidjson::Document& doc)
@@ -54,8 +56,8 @@ namespace moveit_rviz_plugin
 
         // Set bin contents into the table widget.
         const rapidjson::Value& bin_contents = doc["bin_contents"];
-        char* bin_ids[] = { "bin_A", "bin_B", "bin_C", "bin_D", "bin_E", "bin_F",
-                            "bin_G", "bin_H", "bin_I", "bin_J", "bin_K", "bin_L" };
+        char const * bin_ids[] = { "bin_A", "bin_B", "bin_C", "bin_D", "bin_E", "bin_F",
+                                   "bin_G", "bin_H", "bin_I", "bin_J", "bin_K", "bin_L" };
         int num_rows = 0;
         int num_cols = 2;
         for (int i = 0; i < 12; i++)
@@ -81,5 +83,25 @@ namespace moveit_rviz_plugin
         labels.append("Bin");
         labels.append("Item");
         widget->setHorizontalHeaderLabels(labels);
+
+        // Load bin contents into planning scene.
+        computeLoadBinContentsToScene();
+    }
+
+    void MotionPlanningFrame::binContentsItemClicked(QTableWidgetItem* item)
+    {
+        std::string item_key = item->data(Qt::UserRole).toString().toStdString();
+        bool create_marker = !_item_marker || _item_marker->getName() != ("marker_" + item_key);
+        if (create_marker)
+            createInteractiveMarkerForItem(item_key);
+        else
+        {
+            ui_->bin_contents_table_widget->clearSelection();
+            _item_marker.reset();
+        }
+    }
+
+    void MotionPlanningFrame::binContentsItemDoubleClicked(QTableWidgetItem* item)
+    {
     }
 }

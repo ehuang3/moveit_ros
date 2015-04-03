@@ -40,6 +40,7 @@
 #include <QWidget>
 #include <QTreeWidgetItem>
 #include <QListWidgetItem>
+#include <QTableWidgetItem>
 #include <QCheckBox>
 
 #ifndef Q_MOC_RUN
@@ -63,6 +64,9 @@
 #include <apc_msgs/FollowPrimitivePlanAction.h>
 #include <map>
 #include <string>
+#define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
+#include <rapidjson/document.h>
+
 
 namespace rviz
 {
@@ -141,6 +145,10 @@ protected:
 private:
   boost::shared_ptr<actionlib::SimpleActionClient<apc_msgs::FollowPrimitivePlanAction> > execute_client_;
 
+  std::map<std::string, int> _bin_item_counts;
+
+  boost::shared_ptr<rviz::InteractiveMarker> _item_marker;
+
 private Q_SLOTS:
   // APC tab.
 
@@ -171,6 +179,11 @@ private Q_SLOTS:
   void nextJsonButtonClicked();
   void previousJsonButtonClicked();
   void tripleIntegralButtonClicked();
+
+  // Pick and place widget helper slots.
+  void binContentsItemClicked(QTableWidgetItem* item);
+  void binContentsItemDoubleClicked(QTableWidgetItem* item);
+  void processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback& feedback);
 
   // Vision widget slots.
 
@@ -231,6 +244,7 @@ private:
   void executeFeedbackCallback(const apc_msgs::FollowPrimitivePlanFeedbackConstPtr &feedback);
   void executeDoneCallback(const actionlib::SimpleClientGoalState &state,
                            const apc_msgs::FollowPrimitivePlanResultConstPtr &result);
+  void updateWorkOrderTableWidget(rapidjson::Document& doc);
 
   // Teleoperation widget helper.
   void loadOptionsToView(QList<QListWidgetItem*> items, bool enable = true);
@@ -239,10 +253,21 @@ private:
   void setTristateCheckBox(QCheckBox* checkbox, bool b, bool init);
   void saveOptionsFromView(QList<QListWidgetItem*> items);
   void saveOptionsFromView(std::vector<QVariant>& data);
+  void updateBinContentsTableWidget(rapidjson::Document& doc);
 
   // Pick and place widget.
 
   // Pick and place widget helper.
+  void computeLoadBinContentsToScene();
+  std::vector<std::string> computeLoadBinContentsToScene(const std::vector<std::pair<std::string, std::string> >& bin_contents);
+  std::string computeItemModelPath(const std::string& item);
+  std::string computeItemSceneKey(const std::string& item,
+                                  const int number);
+  void addItemToScene(const std::string& item_model_path,
+                      const std::string& item_key,
+                      const std::string& item_bin);
+  void removeItemFromScene(const std::string& item_key);
+  void createInteractiveMarkerForItem(const std::string& item_key);
 
   // Vision widget.
 

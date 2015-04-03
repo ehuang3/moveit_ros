@@ -45,8 +45,6 @@
 #include <moveit/warehouse/planning_scene_storage.h>
 #include <boost/xpressive/xpressive.hpp>
 #include <QTextStream>
-#define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
-#include <rapidjson/document.h>
 
 
 namespace moveit_rviz_plugin
@@ -124,35 +122,36 @@ namespace moveit_rviz_plugin
         {
             rapidjson::Document doc;
             doc.Parse(json.toStdString().c_str());
-            const rapidjson::Value& work_order = doc["work_order"];
-            ui_->json_table_widget->setRowCount(work_order.Size());
-            ui_->json_table_widget->setColumnCount(2);
-            QStringList labels;
-            labels.append("Bin");
-            labels.append("Item");
-            ui_->json_table_widget->setHorizontalHeaderLabels(labels);
-            for (int i = 0; i < work_order.Size(); i++)
-            {
-                QString bin  = work_order[i]["bin"].GetString();
-                QString item = work_order[i]["item"].GetString();
-                // ui_->json_table_view->
-                QTableWidgetItem* new_bin = new QTableWidgetItem(bin);
-                QTableWidgetItem* new_item = new QTableWidgetItem(item);
-                ui_->json_table_widget->setItem(i, 0, new_bin);
-                ui_->json_table_widget->setItem(i, 1, new_item);
-            }
-            ui_->json_table_widget->setCurrentCell(0,0);
+            updateWorkOrderTableWidget(doc);
+            updateBinContentsTableWidget(doc);
         }
         catch (std::logic_error& e)
         {
-            ROS_ERROR("%s", e.what());
+            ROS_ERROR("Caught rapidjson error: %s", e.what());
             return;
         }
     }
 
     void MotionPlanningFrame::updateWorkOrderTableWidget(rapidjson::Document& doc)
     {
-
+        const rapidjson::Value& work_order = doc["work_order"];
+        ui_->json_table_widget->setRowCount(work_order.Size());
+        ui_->json_table_widget->setColumnCount(2);
+        QStringList labels;
+        labels.append("Bin");
+        labels.append("Item");
+        ui_->json_table_widget->setHorizontalHeaderLabels(labels);
+        for (int i = 0; i < work_order.Size(); i++)
+        {
+            QString bin  = work_order[i]["bin"].GetString();
+            QString item = work_order[i]["item"].GetString();
+            // ui_->json_table_view->
+            QTableWidgetItem* new_bin = new QTableWidgetItem(bin);
+            QTableWidgetItem* new_item = new QTableWidgetItem(item);
+            ui_->json_table_widget->setItem(i, 0, new_bin);
+            ui_->json_table_widget->setItem(i, 1, new_item);
+        }
+        ui_->json_table_widget->setCurrentCell(0,0);
     }
 
     void MotionPlanningFrame::previousJsonButtonClicked()

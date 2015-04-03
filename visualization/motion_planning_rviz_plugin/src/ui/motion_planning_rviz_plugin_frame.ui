@@ -311,7 +311,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>99</width>
-                   <height>71</height>
+                   <height>70</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -360,8 +360,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>209</width>
-                   <height>124</height>
+                   <width>221</width>
+                   <height>127</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1289,6 +1289,12 @@ background-color: rgb(212, 208, 200);</string>
                    <property name="selectionBehavior">
                     <enum>QAbstractItemView::SelectRows</enum>
                    </property>
+                   <property name="verticalScrollMode">
+                    <enum>QAbstractItemView::ScrollPerPixel</enum>
+                   </property>
+                   <property name="horizontalScrollMode">
+                    <enum>QAbstractItemView::ScrollPerPixel</enum>
+                   </property>
                    <attribute name="horizontalHeaderDefaultSectionSize">
                     <number>50</number>
                    </attribute>
@@ -2137,14 +2143,20 @@ background-color: rgb(212, 208, 200);</string>
                     <property name="autoScroll">
                      <bool>true</bool>
                     </property>
+                    <property name="editTriggers">
+                     <set>QAbstractItemView::NoEditTriggers</set>
+                    </property>
                     <property name="selectionMode">
                      <enum>QAbstractItemView::SingleSelection</enum>
                     </property>
                     <property name="selectionBehavior">
                      <enum>QAbstractItemView::SelectRows</enum>
                     </property>
+                    <property name="verticalScrollMode">
+                     <enum>QAbstractItemView::ScrollPerPixel</enum>
+                    </property>
                     <property name="horizontalScrollMode">
-                     <enum>QAbstractItemView::ScrollPerItem</enum>
+                     <enum>QAbstractItemView::ScrollPerPixel</enum>
                     </property>
                     <property name="wordWrap">
                      <bool>false</bool>

@@ -39,8 +39,207 @@
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
 #include "ui_motion_planning_rviz_plugin_frame.h"
+#include <ros/package.h>
+#include <geometric_shapes/shape_operations.h>
+#include <eigen_conversions/eigen_msg.h>
+#include <moveit/robot_interaction/interactive_marker_helpers.h>
+#include <rviz/display_context.h>
+#include <rviz/frame_manager.h>
+#include <interactive_markers/tools.h>
+
 
 namespace moveit_rviz_plugin
 {
+    void MotionPlanningFrame::computeLoadBinContentsToScene()
+    {
+        // Get a list of the objects and their bins.
+        typedef std::pair<std::string, std::string> BinItem;
+        typedef std::vector<BinItem> BinContents;
+        typedef std::vector<std::string> Keys;
+        BinContents bin_contents;
+        QTableWidget* widget = ui_->bin_contents_table_widget;
+        for (int i = 0; i < widget->rowCount(); i++)
+        {
+            std::string bin = widget->item(i, 0)->text().toStdString();
+            std::string item = widget->item(i, 1)->text().toStdString();
+            bin_contents.push_back(BinItem(bin, item));
+        }
+        // Load bin contents to scene and save keys into widget items.
+        Keys keys = computeLoadBinContentsToScene(bin_contents);
+        for (int i = 0; i < widget->rowCount(); i++)
+        {
+            widget->item(i, 0)->setData(Qt::UserRole, QString::fromStdString(keys[i]));
+            widget->item(i, 1)->setData(Qt::UserRole, QString::fromStdString(keys[i]));
+        }
+        // Set current row to none.
+        widget->setCurrentCell(0,0, QItemSelectionModel::Clear);
+        // Redraw scene geometry.
+        planning_display_->queueRenderSceneGeometry();
+    }
+
+    std::vector<std::string>
+    MotionPlanningFrame::computeLoadBinContentsToScene(const std::vector<std::pair<std::string, std::string> >& bin_contents)
+    {
+        typedef std::pair<std::string, std::string> BinItem;
+        typedef std::vector<BinItem> BinContents;
+        typedef std::map<std::string, int> ItemCount;
+        typedef std::vector<std::string> Keys;
+        // Add items to scene.
+        ItemCount item_count;
+        Keys keys;
+        for (BinContents::const_iterator iter = bin_contents.begin(); iter != bin_contents.end(); ++iter)
+        {
+            // Generate item model path and item scene key.
+            std::string bin = iter->first;
+            std::string item = iter->second;
+            std::string item_model_path = computeItemModelPath(item);
+            std::string item_key = computeItemSceneKey(item, item_count[item]++);
+            // Load/add item to scene.
+            addItemToScene(item_model_path, item_key, bin);
+            // Store the item key.
+            keys.push_back(item_key);
+        }
+        // Remove extra items from scene.
+        for (ItemCount::iterator iter = _bin_item_counts.begin(); iter != _bin_item_counts.end(); ++iter)
+            for (int i = item_count[iter->first]; i < iter->second; i++)
+                removeItemFromScene(computeItemSceneKey(iter->first, i));
+        _bin_item_counts = item_count;
+        // Return keys.
+        return keys;
+    }
+
+    std::string MotionPlanningFrame::computeItemModelPath(const std::string& item)
+    {
+        std::string path = ros::package::getPath("apc_description");
+        path = path + "/objects/" + item + "/reduced_meshes/" + item + ".stl";
+        return path;
+    }
+
+    std::string MotionPlanningFrame::computeItemSceneKey(const std::string& item,
+                                                         const int number)
+    {
+        char buf[50];
+        sprintf(buf, "%d", number);
+        return item + "_" + buf;
+    }
+
+    void MotionPlanningFrame::addItemToScene(const std::string& item_model_path,
+                                             const std::string& item_key,
+                                             const std::string& item_bin)
+    {
+        if (!planning_display_->getPlanningSceneMonitor())
+        {
+            ROS_ERROR("Failed to load items: No planning scene monitor");
+            return;
+        }
+
+        // Determine if we need to load and add the item.
+        bool add_item = false;
+        {
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            add_item = ps->getWorld()->hasObject(item_key) == false;
+        }
+
+        // Retrieve the item's mesh shape.
+        shapes::ShapeConstPtr item_shape;
+        if (add_item)
+        {
+            std::string item_model_uri = "file://" + item_model_path;
+            shapes::Mesh* item_mesh = shapes::createMeshFromResource(item_model_uri);
+            if (!item_mesh)
+            {
+                ROS_ERROR("Failed to load URI: %s", item_model_uri.c_str());
+                return;
+            }
+            item_shape.reset(item_mesh);
+        }
+        else
+        {
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            item_shape = ps->getWorld()->getObject(item_key)->shapes_[0];
+        }
+
+        // Compute pose of the object.
+        Eigen::Affine3d item_pose = Eigen::Affine3d::Identity();
+
+        // Add or move item to scene.
+        {
+            planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
+            collision_detection::WorldPtr world = ps->getWorldNonConst();
+            if (add_item)
+                world->addToObject(item_key, item_shape, item_pose);
+            else
+                world->moveShapeInObject(item_key, item_shape, item_pose);
+        }
+    }
+
+    void MotionPlanningFrame::removeItemFromScene(const std::string& item_key)
+    {
+        planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
+        collision_detection::WorldPtr world = ps->getWorldNonConst();
+        if (!world->hasObject(item_key))
+        {
+            ROS_ERROR("Failed to remove non-existent object from world: %s", item_key.c_str());
+            return;
+        }
+        world->removeObject(item_key);
+    }
+
+    void MotionPlanningFrame::createInteractiveMarkerForItem(const std::string& item_key)
+    {
+        const planning_scene_monitor::LockedPlanningSceneRO &ps = planning_display_->getPlanningSceneRO();
+        if (!ps)
+        {
+            ROS_ERROR("Failed to acquire planning scene");
+            return;
+        }
+
+        if (_item_marker)
+            _item_marker.reset();
+
+        // Create interactive marker for the item.
+        const collision_detection::CollisionWorld::ObjectConstPtr& item = ps->getWorld()->getObject(item_key);
+        if (!item)
+        {
+            ROS_ERROR("Failed to retreive item: %s", item_key.c_str());
+            return;
+        }
+        Eigen::Affine3d pose = item->shape_poses_[0];
+        geometry_msgs::PoseStamped item_pose;
+        tf::poseEigenToMsg(pose, item_pose.pose);
+        Eigen::Vector3d item_extents = shapes::computeShapeExtents(item->shapes_[0].get());
+        double item_scale = 1.80 * item_extents.minCoeff();
+        visualization_msgs::InteractiveMarker marker_msg =
+            robot_interaction::make6DOFMarker("marker_" + item_key, item_pose, item_scale);
+        marker_msg.header.frame_id = context_->getFrameManager()->getFixedFrame();
+        marker_msg.description = item_key;
+        interactive_markers::autoComplete(marker_msg);
+
+        rviz::InteractiveMarker* marker = new rviz::InteractiveMarker(planning_display_->getSceneNode(), context_);
+        marker->processMessage(marker_msg);
+        marker->setShowAxes(false);
+        _item_marker.reset(marker);
+        connect(marker, SIGNAL(userFeedback(visualization_msgs::InteractiveMarkerFeedback&)),
+                this, SLOT(processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback&)));
+    }
+
+    void MotionPlanningFrame::processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback& feedback)
+    {
+        planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
+        if (!ps)
+        {
+            ROS_ERROR("Failed to get planning scene for interactive marker");
+            return;
+        }
+
+        // Set marker pose to scene item.
+        Eigen::Affine3d item_pose;
+        tf::poseMsgToEigen(feedback.pose, item_pose);
+        std::string item_key = feedback.marker_name.erase(0, 7); // Remove "marker_" from marker name.
+        collision_detection::CollisionWorld::ObjectConstPtr item = ps->getWorld()->getObject(item_key);
+        ps->getWorldNonConst()->moveShapeInObject(item_key, item->shapes_[0], item_pose);
+        // Queue render.
+        planning_display_->queueRenderSceneGeometry();
+    }
 
 }
