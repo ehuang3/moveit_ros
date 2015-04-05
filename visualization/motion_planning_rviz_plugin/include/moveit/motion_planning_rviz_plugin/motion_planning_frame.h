@@ -66,6 +66,7 @@
 #include <string>
 #define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
 #include <rapidjson/document.h>
+#include <robot_calibration/robot.h>
 
 
 namespace rviz
@@ -148,6 +149,8 @@ private:
   std::map<std::string, int> _bin_item_counts;
 
   boost::shared_ptr<rviz::InteractiveMarker> _item_marker;
+
+  boost::shared_ptr<robot_calibration::Robotd> _kiva_pod;
 
 private Q_SLOTS:
   // APC tab.
@@ -260,6 +263,7 @@ private:
   // Pick and place widget helper.
   void computeLoadBinContentsToScene();
   std::vector<std::string> computeLoadBinContentsToScene(const std::vector<std::pair<std::string, std::string> >& bin_contents);
+  void loadKivaPodToScene();
   std::string computeItemModelPath(const std::string& item);
   std::string computeItemSceneKey(const std::string& item,
                                   const int number);

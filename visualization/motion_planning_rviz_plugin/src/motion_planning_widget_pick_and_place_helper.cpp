@@ -46,6 +46,7 @@
 #include <rviz/display_context.h>
 #include <rviz/frame_manager.h>
 #include <interactive_markers/tools.h>
+#include <robot_calibration/urdf_loader.h>
 
 
 namespace moveit_rviz_plugin
@@ -84,6 +85,8 @@ namespace moveit_rviz_plugin
         typedef std::vector<BinItem> BinContents;
         typedef std::map<std::string, int> ItemCount;
         typedef std::vector<std::string> Keys;
+        // Load KIVA pod to scene.
+        loadKivaPodToScene();
         // Add items to scene.
         ItemCount item_count;
         Keys keys;
@@ -106,6 +109,34 @@ namespace moveit_rviz_plugin
         _bin_item_counts = item_count;
         // Return keys.
         return keys;
+    }
+
+    void MotionPlanningFrame::loadKivaPodToScene()
+    {
+        if (!planning_display_->getPlanningSceneMonitor())
+        {
+            ROS_ERROR("Failed to load KIVA pod: No planning scene monitor");
+            return;
+        }
+        // Load KIVA pod into planning scene.
+        if (!_kiva_pod)
+        {
+            _kiva_pod.reset(new robot_calibration::Robotd);
+            robot_calibration::LoadUrdf(_kiva_pod.get(), "package://apc_description/urdf/kiva_pod/kiva_pod.urdf", true);
+            _kiva_pod->update();
+        }
+        std::string item_key = "kiva_pod";
+        shapes::ShapeConstPtr item_shape = _kiva_pod->getRootLink()->getState().shapes[0];
+        Eigen::Isometry3d item_pose = Eigen::Isometry3d::Identity();
+        item_pose.translation() = Eigen::Vector3d(-1.1, 0, 0);
+
+        planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
+        collision_detection::WorldPtr world = ps->getWorldNonConst();
+        bool add_item = !world->hasObject(item_key);
+        if (add_item)
+            world->addToObject(item_key, item_shape, item_pose);
+        else
+            world->moveShapeInObject(item_key, item_shape, item_pose);
     }
 
     std::string MotionPlanningFrame::computeItemModelPath(const std::string& item)
@@ -161,6 +192,16 @@ namespace moveit_rviz_plugin
 
         // Compute pose of the object.
         Eigen::Affine3d item_pose = Eigen::Affine3d::Identity();
+        if (_kiva_pod)
+        {
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            Eigen::Affine3d T_pod = ps->getWorld()->getObject("kiva_pod")->shape_poses_[0];
+            Eigen::Affine3d T_bin = _kiva_pod->getGlobalTransform(item_bin);
+            robot_calibration::Linkd* bin = _kiva_pod->getLink(item_bin);
+            double bin_height = static_cast<const shapes::Box*>(bin->getState().shapes[0].get())->size[2];
+            T_bin.translate(Eigen::Vector3d(0.2, 0, -bin_height / 2.0 + bin_height/5.0));
+            item_pose = T_pod * T_bin;
+        }
 
         // Add or move item to scene.
         {
