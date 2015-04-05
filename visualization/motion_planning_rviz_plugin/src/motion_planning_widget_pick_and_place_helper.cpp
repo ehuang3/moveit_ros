@@ -252,7 +252,7 @@ namespace moveit_rviz_plugin
         double item_scale = 1.80 * item_extents.minCoeff();
         item_scale = std::max(item_scale, 0.3);
         visualization_msgs::InteractiveMarker marker_msg =
-            robot_interaction::make6DOFMarker("marker_" + item_key, item_pose, item_scale);
+            robot_interaction::make6DOFMarker("marker_" + item_key, item_pose, item_scale, true);
         marker_msg.header.frame_id = context_->getFrameManager()->getFixedFrame();
         marker_msg.description = item_key;
         interactive_markers::autoComplete(marker_msg);
