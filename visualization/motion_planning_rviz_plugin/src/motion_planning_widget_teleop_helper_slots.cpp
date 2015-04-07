@@ -46,9 +46,13 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::connectTeleopHelperSlots()
     {
+        connect( ui_->padlock_button,     SIGNAL( clicked() ), this, SLOT( padlockButtonClicked() ));
+        connect( ui_->start_radio_button, SIGNAL( clicked() ), this, SLOT( startRadioButtonClicked() ));
+        connect( ui_->goal_radio_button,  SIGNAL( clicked() ), this, SLOT( goalRadioButtonClicked() ));
+
         connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
         connect( ui_->goal_to_current_button,  SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
-        connect( ui_->relative_to_object_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        connect( ui_->relative_to_frame_checkbox, SIGNAL( clicked() ), this, SLOT( relativeToFrameCheckBoxClicked() ));
         connect( ui_->relative_to_pose_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         connect( ui_->eef_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         connect( ui_->dense_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
@@ -56,7 +60,41 @@ namespace moveit_rviz_plugin
         connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         connect( ui_->cartesian_interpolate_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         connect( ui_->group_combo_box, SIGNAL( activated(int) ), this, SLOT( groupComboBoxActivated(int) ));
-        connect( ui_->joint_combo_box, SIGNAL( activated(int) ), this, SLOT( jointComboBoxActivated(int) ));
+    }
+
+    void MotionPlanningFrame::padlockButtonClicked()
+    {
+        // Update text to reflect locked state.
+        const QString lock = QString::fromUtf8("\uF023");
+        const QString unlock = QString::fromUtf8("\uF13E");
+        bool checked = ui_->padlock_button->isChecked();
+        ui_->padlock_button->setText(checked ? lock : unlock);
+
+        // Toggle start and goal buttons.
+        ui_->start_radio_button->setEnabled(!checked);
+        ui_->goal_radio_button->setEnabled(!checked);
+
+        // Update query visualizations.
+        planning_display_->query_start_state_property_->setBool(!checked);
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningDisplay::publishInteractiveMarkers,
+                                                        planning_display_, true),
+                                            "publishInteractiveMarkers");
+    }
+
+    void MotionPlanningFrame::startRadioButtonClicked()
+    {
+        // Update query visualizations.
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningDisplay::publishInteractiveMarkers,
+                                                        planning_display_, true),
+                                            "publishInteractiveMarkers");
+    }
+
+    void MotionPlanningFrame::goalRadioButtonClicked()
+    {
+        // Update query visualizations.
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningDisplay::publishInteractiveMarkers,
+                                                        planning_display_, true),
+                                            "publishInteractiveMarkers");
     }
 
     void MotionPlanningFrame::updateGroupComboBox()
@@ -106,5 +144,37 @@ namespace moveit_rviz_plugin
         QList<QListWidgetItem*> items = ui_->active_actions_list->selectedItems();
         saveOptionsFromView(items);
     }
+
+    void MotionPlanningFrame::relativeToFrameCheckBoxClicked()
+    {
+        QListWidget* active_actions_widget = ui_->active_actions_list;
+        if (active_actions_widget->selectedItems().count() != 1)
+        {
+            ROS_WARN("Cannot determine action from active action selection");
+            return;
+        }
+
+        bool checked = ui_->relative_to_frame_checkbox->isChecked();
+
+
+
+        if (!checked)
+        {
+
+        }
+
+        QTableWidget* bin_contents_widget = ui_->bin_contents_table_widget;
+
+        if (bin_contents_widget->selectedItems().count() != 1)
+        {
+            ROS_WARN("Cannot determine frame from bin content selection");
+            return;
+        }
+
+
+
+    }
+
+
 
 }

@@ -69,7 +69,7 @@ namespace moveit_rviz_plugin
         Keys keys = computeLoadBinContentsToScene(bin_contents);
         for (int i = 0; i < widget->rowCount(); i++)
         {
-            widget->item(i, 0)->setData(Qt::UserRole, QString::fromStdString(keys[i]));
+            widget->item(i, 0)->setData(Qt::UserRole, QString::fromStdString("kiva_pod")); // HACK
             widget->item(i, 1)->setData(Qt::UserRole, QString::fromStdString(keys[i]));
         }
         // Set current row to none.
@@ -135,8 +135,6 @@ namespace moveit_rviz_plugin
         bool add_item = !world->hasObject(item_key);
         if (add_item)
             world->addToObject(item_key, item_shape, item_pose);
-        else
-            world->moveShapeInObject(item_key, item_shape, item_pose);
     }
 
     std::string MotionPlanningFrame::computeItemModelPath(const std::string& item)
@@ -250,7 +248,7 @@ namespace moveit_rviz_plugin
         tf::poseEigenToMsg(pose, item_pose.pose);
         Eigen::Vector3d item_extents = shapes::computeShapeExtents(item->shapes_[0].get());
         double item_scale = 1.80 * item_extents.minCoeff();
-        item_scale = std::max(item_scale, 0.3);
+        item_scale = std::min(std::max(item_scale, 0.3), 1.0);
         visualization_msgs::InteractiveMarker marker_msg =
             robot_interaction::make6DOFMarker("marker_" + item_key, item_pose, item_scale, true);
         marker_msg.header.frame_id = context_->getFrameManager()->getFixedFrame();

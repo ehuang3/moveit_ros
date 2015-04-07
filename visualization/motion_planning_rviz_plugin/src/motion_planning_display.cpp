@@ -942,21 +942,26 @@ void MotionPlanningDisplay::publishInteractiveMarkers(bool pose_update)
 {
   if (robot_interaction_)
   {
+    bool show_start = (query_start_state_property_->getBool() &&
+                       frame_->showQueryStartInteractiveMarkers());
+    bool show_goal  = (query_goal_state_property_->getBool() &&
+                       frame_->showQueryGoalInteractiveMarkers());
+
     if (pose_update &&
-        robot_interaction_->showingMarkers(query_start_state_) == query_start_state_property_->getBool() &&
-        robot_interaction_->showingMarkers(query_goal_state_) == query_goal_state_property_->getBool())
+        robot_interaction_->showingMarkers(query_start_state_) == show_start &&
+        robot_interaction_->showingMarkers(query_goal_state_) == show_goal)
     {
-      if (query_start_state_property_->getBool())
+      if (show_start)
         robot_interaction_->updateInteractiveMarkers(query_start_state_);
-      if (query_goal_state_property_->getBool())
+      if (show_goal)
         robot_interaction_->updateInteractiveMarkers(query_goal_state_);
     }
     else
     {
       robot_interaction_->clearInteractiveMarkers();
-      if (query_start_state_property_->getBool())
+      if (show_start)
         robot_interaction_->addInteractiveMarkers(query_start_state_, query_marker_scale_property_->getFloat());
-      if (query_goal_state_property_->getBool())
+      if (show_goal)
         robot_interaction_->addInteractiveMarkers(query_goal_state_, query_marker_scale_property_->getFloat());
       robot_interaction_->publishInteractiveMarkers();
     }

@@ -46,90 +46,90 @@ namespace moveit_rviz_plugin
 {
     void MotionPlanningFrame::connectStoredObjectsSlots()
     {
-        connect( ui_->load_objects_button, SIGNAL( clicked() ), this, SLOT( loadObjectsButtonClicked() ));
-        connect( ui_->save_objects_button, SIGNAL( clicked() ), this, SLOT( saveObjectsButtonClicked() ));
-        connect( ui_->object_list_widget, SIGNAL( itemClicked( QListWidgetItem * ) ),
-                 this, SLOT( objectClicked( QListWidgetItem * ) ));
-        connect( ui_->object_list_widget, SIGNAL( itemSelectionChanged() ), this, SLOT( objectSelectionChanged() ));
+        // connect( ui_->load_objects_button, SIGNAL( clicked() ), this, SLOT( loadObjectsButtonClicked() ));
+        // connect( ui_->save_objects_button, SIGNAL( clicked() ), this, SLOT( saveObjectsButtonClicked() ));
+        // connect( ui_->object_list_widget, SIGNAL( itemClicked( QListWidgetItem * ) ),
+        //          this, SLOT( objectClicked( QListWidgetItem * ) ));
+        // connect( ui_->object_list_widget, SIGNAL( itemSelectionChanged() ), this, SLOT( objectSelectionChanged() ));
     }
 
-    void MotionPlanningFrame::loadObjectsButtonClicked()
-    {
-        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeLoadObjectsButtonClicked, this),
-                                            "Load objects");
-    }
+    // void MotionPlanningFrame::loadObjectsButtonClicked()
+    // {
+    //     planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeLoadObjectsButtonClicked, this),
+    //                                         "Load objects");
+    // }
 
-    void MotionPlanningFrame::saveObjectsButtonClicked()
-    {
-        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeSaveObjectsButtonClicked, this),
-                                            "Save objects");
-    }
+    // void MotionPlanningFrame::saveObjectsButtonClicked()
+    // {
+    //     planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeSaveObjectsButtonClicked, this),
+    //                                         "Save objects");
+    // }
 
-    void MotionPlanningFrame::objectSelectionChanged()
-    {
-        // Get selections.
-        QList<QListWidgetItem*> selection = ui_->object_list_widget->selectedItems();
-        if (selection.empty())
-            return;
+    // void MotionPlanningFrame::objectSelectionChanged()
+    // {
+    //     // Get selections.
+    //     QList<QListWidgetItem*> selection = ui_->object_list_widget->selectedItems();
+    //     if (selection.empty())
+    //         return;
 
-        // Set selection into collision object list. This allows us to hook into
-        // the object tab functionality for generating interactive markers for
-        // the objects.
-        QListWidget* collision_objects = ui_->collision_objects_list;
-        for (int i = 0; i < selection.size(); i++)
-            for (int j = 0; j < collision_objects->count(); j++)
-                if (collision_objects->item(j)->text() == selection[i]->text())
-                    collision_objects->item(j)->setSelected(true);
+    //     // Set selection into collision object list. This allows us to hook into
+    //     // the object tab functionality for generating interactive markers for
+    //     // the objects.
+    //     QListWidget* collision_objects = ui_->collision_objects_list;
+    //     for (int i = 0; i < selection.size(); i++)
+    //         for (int j = 0; j < collision_objects->count(); j++)
+    //             if (collision_objects->item(j)->text() == selection[i]->text())
+    //                 collision_objects->item(j)->setSelected(true);
 
-        // Change selected collision object.
-        selectedCollisionObjectChanged();
-    }
+    //     // Change selected collision object.
+    //     selectedCollisionObjectChanged();
+    // }
 
-    void MotionPlanningFrame::objectClicked(QListWidgetItem* item)
-    {
-        if (!item)
-            return;
-        // This should avoid the problems with itemChanged approach.
+    // void MotionPlanningFrame::objectClicked(QListWidgetItem* item)
+    // {
+    //     if (!item)
+    //         return;
+    //     // This should avoid the problems with itemChanged approach.
 
-        // Determine whether the checked state has changed for the object.
-        int index = item->type();
-        bool checked = item->checkState() == Qt::Checked;
-        bool toggled = attached_objects_[index].second != checked;
-        if (!toggled)
-            return;
-        attached_objects_[index].second = checked;
+    //     // Determine whether the checked state has changed for the object.
+    //     int index = item->type();
+    //     bool checked = item->checkState() == Qt::Checked;
+    //     bool toggled = attached_objects_[index].second != checked;
+    //     if (!toggled)
+    //         return;
+    //     attached_objects_[index].second = checked;
 
-        // Get object name.
-        std::string object_name = item->text().toStdString();
+    //     // Get object name.
+    //     std::string object_name = item->text().toStdString();
 
-        // Get the goal state.
-        robot_state::RobotState state = *planning_display_->getQueryGoalState();
+    //     // Get the goal state.
+    //     robot_state::RobotState state = *planning_display_->getQueryGoalState();
 
-        // If the checked state has changed, attach or detach an object.
-        if (checked)
-        {
-            // Ask user for link to attach object to.
-            QStringList links;
-            const std::vector<std::string> &links_std =
-                planning_display_->getRobotModel()->
-                getJointModelGroup(planning_display_->getCurrentPlanningGroup())->getLinkModelNames();
-            for (std::size_t i = 0 ; i < links_std.size() ; ++i)
-                links.append(QString::fromStdString(links_std[i]));
-            bool ok = false;
-            QString response = QInputDialog::getItem(this, tr("Select Link Name"), tr("Choose the link to attach to:"),
-                                                     links, 0, false, &ok);
-            std::string link_name = response.toStdString();
+    //     // If the checked state has changed, attach or detach an object.
+    //     if (checked)
+    //     {
+    //         // Ask user for link to attach object to.
+    //         QStringList links;
+    //         const std::vector<std::string> &links_std =
+    //             planning_display_->getRobotModel()->
+    //             getJointModelGroup(planning_display_->getCurrentPlanningGroup())->getLinkModelNames();
+    //         for (std::size_t i = 0 ; i < links_std.size() ; ++i)
+    //             links.append(QString::fromStdString(links_std[i]));
+    //         bool ok = false;
+    //         QString response = QInputDialog::getItem(this, tr("Select Link Name"), tr("Choose the link to attach to:"),
+    //                                                  links, 0, false, &ok);
+    //         std::string link_name = response.toStdString();
 
-            computeAttachObjectToState(state, object_name, link_name);
-        }
-        else
-        {
-            computeDetachObjectFromState(state, object_name);
-        }
+    //         computeAttachObjectToState(state, object_name, link_name);
+    //     }
+    //     else
+    //     {
+    //         computeDetachObjectFromState(state, object_name);
+    //     }
 
-        // One of these should work.
-        planning_display_->setQueryGoalState(state);
-        planning_display_->queueRenderSceneGeometry();
-    }
+    //     // One of these should work.
+    //     planning_display_->setQueryGoalState(state);
+    //     planning_display_->queueRenderSceneGeometry();
+    // }
 
 }

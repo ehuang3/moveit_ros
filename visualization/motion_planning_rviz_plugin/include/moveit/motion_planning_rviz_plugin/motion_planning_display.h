@@ -220,7 +220,13 @@ protected:
 
   void executeMainLoopJobs();
   void clearTrajectoryTrail();
+
+public:
   void publishInteractiveMarkers(bool pose_update);
+
+protected:
+  void toggleQueryStartStateInteractiveMarkers(bool on);
+  void toggleQueryGoalStateInteractiveMarkers(bool on);
 
   void recomputeQueryStartStateMetrics();
   void recomputeQueryGoalStateMetrics();
@@ -252,7 +258,7 @@ protected:
   virtual void onDisable();
   virtual void fixedFrameChanged();
 
-
+protected:
   RobotStateVisualizationPtr query_robot_start_;                  ///< Handles drawing the robot at the start configuration
   RobotStateVisualizationPtr query_robot_goal_;                   ///< Handles drawing the robot at the goal configuration
   RobotStateVisualizationPtr display_path_robot_;                 ///< Handles actually drawing the robot along motion plans
@@ -309,7 +315,9 @@ protected:
   rviz::Property* metrics_category_;
 
   rviz::EditableEnumProperty* planning_group_property_;
+public:
   rviz::BoolProperty* query_start_state_property_;
+protected:
   rviz::BoolProperty* query_goal_state_property_;
   rviz::BoolProperty* display_waypoints_state_property_;
   rviz::FloatProperty* query_marker_scale_property_;

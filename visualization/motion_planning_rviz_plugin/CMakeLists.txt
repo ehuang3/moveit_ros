@@ -66,9 +66,9 @@ set(SOURCE_FILES
   src/motion_planning_widget_stored_plans.cpp
   src/motion_planning_widget_stored_plans_slots.cpp
 
-  # Stored objects widget.
-  src/motion_planning_widget_stored_objects.cpp
-  src/motion_planning_widget_stored_objects_slots.cpp
+  # Stored objects widget. FIXME REMOVE
+  # src/motion_planning_widget_stored_objects.cpp
+  # src/motion_planning_widget_stored_objects_slots.cpp
 
 )
 

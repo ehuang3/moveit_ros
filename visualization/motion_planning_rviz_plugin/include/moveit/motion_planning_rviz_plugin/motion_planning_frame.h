@@ -173,6 +173,10 @@ private Q_SLOTS:
   void setStartToCurrentButtonClicked();
   void setGoalToCurrentButtonClicked();
   void optionsCheckBoxClicked();
+  void relativeToFrameCheckBoxClicked();
+  void padlockButtonClicked();
+  void startRadioButtonClicked();
+  void goalRadioButtonClicked();
 
   // Pick and place widget slots.
   void runAPCButtonClicked();
@@ -233,7 +237,7 @@ private:
   void connectCalibrationHelperSlots();
   void connectActiveActionsSlots();
   void connectStoredPlansSlots();
-  void connectStoredObjectsSlots();
+  // void connectStoredObjectsSlots();
 
   // Teleoperation widget.
   void computePlanButtonClicked();
@@ -257,6 +261,8 @@ private:
   void saveOptionsFromView(QList<QListWidgetItem*> items);
   void saveOptionsFromView(std::vector<QVariant>& data);
   void updateBinContentsTableWidget(rapidjson::Document& doc);
+  bool showQueryStartInteractiveMarkers();
+  bool showQueryGoalInteractiveMarkers();
 
   // Pick and place widget.
 
@@ -304,6 +310,27 @@ private:
   void loadWaypointsToDisplay(QList<QListWidgetItem*> items);
   void loadWaypointsToDisplay(QList<QTreeWidgetItem*> items);
   void loadWaypointsToDisplay(std::vector<QVariant>& data);
+
+  void writeOptionsToAction(const std::map<std::string, bool>& options,
+                            apc_msgs::PrimitiveAction& action);
+  void writeStateToAction(const robot_state::RobotState& state,
+                          apc_msgs::PrimitiveAction& action);
+  void writeRelativeFrameToAction(const std::string& frame,
+                                  const robot_state::RobotState& state,
+                                  apc_msgs::PrimitiveAction& action);
+
+  void readOptionsFromAction(std::map<std::string, bool>& options,
+                             const apc_msgs::PrimitiveAction& action);
+  void readStateFromAction(robot_state::RobotState& state,
+                           const apc_msgs::PrimitiveAction& action);
+  void readRelativeFrameFromAction(std::string& frame,
+                                   robot_state::RobotState& state,
+                                   const apc_msgs::PrimitiveAction& action);
+
+  void writeGoalOptionsToAction(apc_msgs::PrimitiveAction& action);
+  void writeGoalStateToAction(apc_msgs::PrimitiveAction& action);
+  void writeGoalFrameToAction(apc_msgs::PrimitiveAction& action);
+
 
   // Stored plans widget.
   void computeSavePlansButtonClicked();
