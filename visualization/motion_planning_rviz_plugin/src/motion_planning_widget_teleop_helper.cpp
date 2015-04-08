@@ -78,14 +78,10 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::loadOptionsToView(std::vector<QVariant>& data, bool enable)
     {
         // The number of checkboxes.
-        const int num_checkboxes = 7;
+        const int num_checkboxes = 3;
 
         // Array of checkbox pointers.
-        class QCheckBox* checkbox[num_checkboxes] = { ui_->relative_to_frame_checkbox,
-                                                      ui_->relative_to_pose_checkbox,
-                                                      ui_->eef_trajectory_checkbox,
-                                                      ui_->dense_trajectory_checkbox,
-                                                      ui_->monitor_contact_checkbox,
+        class QCheckBox* checkbox[num_checkboxes] = { ui_->monitor_contact_checkbox,
                                                       ui_->monitor_profile_checkbox,
                                                       ui_->cartesian_interpolate_checkbox };
 
@@ -116,11 +112,7 @@ namespace moveit_rviz_plugin
             for (int j = 0; j < plan.actions.size(); j++)
             {
                 const apc_msgs::PrimitiveAction& action = plan.actions[j];
-                unsigned char options[num_checkboxes] = { action.relative_to_frame,
-                                                          action.relative_to_previous_pose,
-                                                          action.use_eef_trajectory,
-                                                          action.dense_trajectory,
-                                                          action.stop_on_contact,
+                unsigned char options[num_checkboxes] = { action.stop_on_contact,
                                                           action.use_haptic_profile,
                                                           action.interpolate_cartesian };
                 // Set the tristate of the checkbox.
@@ -158,7 +150,7 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::saveOptionsFromView(std::vector<QVariant>& data)
     {
-        if (!ui_->relative_to_frame_checkbox->isEnabled())
+        if (!ui_->monitor_contact_checkbox->isEnabled())
             return;
 
         for (int i = 0; i < data.size(); i++)
@@ -170,21 +162,14 @@ namespace moveit_rviz_plugin
             for (int j = 0; j < plan.actions.size(); j++)
             {
                 apc_msgs::PrimitiveAction& action = plan.actions[i];
-                QCheckBox* checkbox[7] = { ui_->relative_to_frame_checkbox,
-                                           ui_->relative_to_pose_checkbox,
-                                           ui_->eef_trajectory_checkbox,
-                                           ui_->dense_trajectory_checkbox,
-                                           ui_->monitor_contact_checkbox,
-                                           ui_->monitor_profile_checkbox,
-                                           ui_->cartesian_interpolate_checkbox };
-                unsigned char* options[7] = { &action.relative_to_frame,
-                                              &action.relative_to_previous_pose,
-                                              &action.use_eef_trajectory,
-                                              &action.dense_trajectory,
-                                              &action.stop_on_contact,
-                                              &action.use_haptic_profile,
-                                              &action.interpolate_cartesian };
-                for (int k = 0; k < 7; k++)
+                const int num_checkbox = 3;
+                class QCheckBox* checkbox[num_checkbox] = { ui_->monitor_contact_checkbox,
+                                                            ui_->monitor_profile_checkbox,
+                                                            ui_->cartesian_interpolate_checkbox };
+                unsigned char* options[num_checkbox] = { &action.stop_on_contact,
+                                                         &action.use_haptic_profile,
+                                                         &action.interpolate_cartesian };
+                for (int k = 0; k < num_checkbox; k++)
                     if (checkbox[k]->checkState() == Qt::PartiallyChecked)
                         ROS_WARN("Skipping partially checked checkbox: %s", checkbox[k]->text().toStdString().c_str());
                     else

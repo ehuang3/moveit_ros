@@ -124,6 +124,8 @@ namespace moveit_rviz_plugin
             doc.Parse(json.toStdString().c_str());
             updateWorkOrderTableWidget(doc);
             updateBinContentsTableWidget(doc);
+            updateFrameComboBox();
+            updateObjectComboBox();
         }
         catch (std::logic_error& e)
         {

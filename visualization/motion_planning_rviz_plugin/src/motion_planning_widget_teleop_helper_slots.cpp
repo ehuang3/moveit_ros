@@ -49,17 +49,14 @@ namespace moveit_rviz_plugin
         connect( ui_->padlock_button,     SIGNAL( clicked() ), this, SLOT( padlockButtonClicked() ));
         connect( ui_->start_radio_button, SIGNAL( clicked() ), this, SLOT( startRadioButtonClicked() ));
         connect( ui_->goal_radio_button,  SIGNAL( clicked() ), this, SLOT( goalRadioButtonClicked() ));
+        connect( ui_->group_combo_box, SIGNAL( activated(int) ), this, SLOT( groupComboBoxActivated(int) ));
 
         connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
         connect( ui_->goal_to_current_button,  SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
-        connect( ui_->relative_to_frame_checkbox, SIGNAL( clicked() ), this, SLOT( relativeToFrameCheckBoxClicked() ));
-        connect( ui_->relative_to_pose_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-        connect( ui_->eef_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-        connect( ui_->dense_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         connect( ui_->cartesian_interpolate_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-        connect( ui_->group_combo_box, SIGNAL( activated(int) ), this, SLOT( groupComboBoxActivated(int) ));
+
     }
 
     void MotionPlanningFrame::padlockButtonClicked()
@@ -120,7 +117,70 @@ namespace moveit_rviz_plugin
         planning_display_->changePlanningGroup(group);
     }
 
-    void MotionPlanningFrame::jointComboBoxActivated(int index)
+    void MotionPlanningFrame::updateFrameComboBox()
+    {
+        QComboBox* frame = ui_->frame_combobox;
+        // Clear combo box.
+        frame->clear();
+        // Add blank space.
+        frame->addItem("");
+        // Add highlighted item.
+        if (ui_->bin_contents_table_widget->selectedItems().size() > 0)
+            frame->addItem(ui_->bin_contents_table_widget->selectedItems()[0]->text());
+        // Add generic "bin".
+        frame->addItem("bin");
+        // Add specific bins.
+        for (char a = 'A'; a <= 'L'; a++)
+            frame->addItem(QString("bin_%1").arg(a));
+        // Add objects.
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        for (int i = 0; i < bin_contents->rowCount(); i++)
+            if (frame->findText(bin_contents->item(i, 1)->text(), Qt::MatchExactly) == -1)
+                frame->addItem(bin_contents->item(i, 1)->text());
+    }
+
+    void MotionPlanningFrame::frameComboBoxActivated(int)
+    {
+        // QListWidget* active_actions_widget = ui_->active_actions_list;
+        // if (active_actions_widget->selectedItems().count() != 1)
+        // {
+        //     ROS_WARN("Cannot determine action from active action selection");
+        //     return;
+        // }
+
+        // if (!checked)
+        // {
+
+        // }
+
+        // QTableWidget* bin_contents_widget = ui_->bin_contents_table_widget;
+
+        // if (bin_contents_widget->selectedItems().count() != 1)
+        // {
+        //     ROS_WARN("Cannot determine frame from bin content selection");
+        //     return;
+        // }
+    }
+
+    void MotionPlanningFrame::updateObjectComboBox()
+    {
+        QComboBox* object = ui_->object_combobox;
+        // Clear combo box.
+        object->clear();
+        // Add blank space.
+        object->addItem("");
+        // Add highlighted item if it is an object.
+        if (ui_->bin_contents_table_widget->selectedItems().size() > 0 &&
+            ui_->bin_contents_table_widget->selectedItems()[0]->column() == 1)
+            object->addItem(ui_->bin_contents_table_widget->selectedItems()[0]->text());
+        // Add objects.
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        for (int i = 0; i < bin_contents->rowCount(); i++)
+            if (object->findText(bin_contents->item(i, 1)->text(), Qt::MatchExactly) == -1) // No duplicates.
+                object->addItem(bin_contents->item(i, 1)->text());
+    }
+
+    void MotionPlanningFrame::objectComboBoxActivated(int)
     {
     }
 
@@ -144,37 +204,5 @@ namespace moveit_rviz_plugin
         QList<QListWidgetItem*> items = ui_->active_actions_list->selectedItems();
         saveOptionsFromView(items);
     }
-
-    void MotionPlanningFrame::relativeToFrameCheckBoxClicked()
-    {
-        QListWidget* active_actions_widget = ui_->active_actions_list;
-        if (active_actions_widget->selectedItems().count() != 1)
-        {
-            ROS_WARN("Cannot determine action from active action selection");
-            return;
-        }
-
-        bool checked = ui_->relative_to_frame_checkbox->isChecked();
-
-
-
-        if (!checked)
-        {
-
-        }
-
-        QTableWidget* bin_contents_widget = ui_->bin_contents_table_widget;
-
-        if (bin_contents_widget->selectedItems().count() != 1)
-        {
-            ROS_WARN("Cannot determine frame from bin content selection");
-            return;
-        }
-
-
-
-    }
-
-
 
 }

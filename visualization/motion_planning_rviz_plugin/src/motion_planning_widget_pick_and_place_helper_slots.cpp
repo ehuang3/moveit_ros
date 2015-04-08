@@ -93,7 +93,12 @@ namespace moveit_rviz_plugin
         std::string item_key = item->data(Qt::UserRole).toString().toStdString();
         bool create_marker = !_item_marker || _item_marker->getName() != ("marker_" + item_key);
         if (create_marker)
+        {
             createInteractiveMarkerForItem(item_key);
+            // Leave the object higher up in the combo box.
+            updateFrameComboBox();
+            updateObjectComboBox();
+        }
         else
         {
             ui_->bin_contents_table_widget->clearSelection();

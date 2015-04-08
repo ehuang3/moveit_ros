@@ -167,16 +167,20 @@ private Q_SLOTS:
                          const apc_msgs::FollowPrimitivePlanResult& result);
 
   // Teleoperation widget helper slots.
-  void updateGroupComboBox();
-  void groupComboBoxActivated(int);
-  void jointComboBoxActivated(int);
-  void setStartToCurrentButtonClicked();
-  void setGoalToCurrentButtonClicked();
-  void optionsCheckBoxClicked();
-  void relativeToFrameCheckBoxClicked();
   void padlockButtonClicked();
   void startRadioButtonClicked();
   void goalRadioButtonClicked();
+  void updateGroupComboBox();
+  void groupComboBoxActivated(int);
+  void updateFrameComboBox();
+  void frameComboBoxActivated(int);
+  void updateObjectComboBox();
+  void objectComboBoxActivated(int);
+  void optionsCheckBoxClicked();
+  void setStartToCurrentButtonClicked();
+  void setGoalToCurrentButtonClicked();
+
+
 
   // Pick and place widget slots.
   void runAPCButtonClicked();
