@@ -42,6 +42,8 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <moveit/kinematic_constraints/utils.h>
 #include <moveit/robot_state/conversions.h>
+#include <sstream>
+#include <boost/algorithm/string.hpp>
 
 
 namespace moveit_rviz_plugin
@@ -61,6 +63,244 @@ namespace moveit_rviz_plugin
             }
         }
         return s;
+    }
+
+    void MotionPlanningFrame::saveStartAndGoalToAction(apc_msgs::PrimitiveAction& action)
+    {
+        // Set action group.
+        action.group_name = planning_display_->getCurrentPlanningGroup();
+        // Clear joint trajectory.
+        action.joint_trajectory.joint_names.clear();
+        action.joint_trajectory.points.clear();
+        // Save start and end points to joint trajectory.
+        const robot_state::RobotState& start_state = *planning_display_->getQueryStartState();
+        const robot_state::RobotState& goal_state  = *planning_display_->getQueryGoalState();
+        // If start and goal state are locked together, use the goal
+        // state as the start.
+        if (ui_->padlock_button->isChecked())
+            appendStateToAction(action, goal_state);
+        else
+            appendStateToAction(action, start_state);
+        appendStateToAction(action, goal_state);
+    }
+
+    void MotionPlanningFrame::appendStateToAction(apc_msgs::PrimitiveAction& action,
+                                                  const robot_state::RobotState& state)
+    {
+        if (action.group_name.empty())
+        {
+            ROS_ERROR("No group provided in action");
+        }
+        const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(action.group_name);
+        if (!joint_model_group)
+        {
+            ROS_ERROR("Failed to get joint model group %s", action.group_name.c_str());
+            return;
+        }
+        // Get the goal joint tolerance.
+        double goal_joint_tolerance = move_group_->getGoalJointTolerance();
+        // Construct goal constraints only for the joint model group.
+        moveit_msgs::Constraints constraints = kinematic_constraints::constructGoalConstraints(state,
+                                                                                               joint_model_group,
+                                                                                               goal_joint_tolerance);
+        // Warn the user if the number of joints in the joint group
+        // doesn't match previous points in the trajectory.
+        int num_state_joints  = joint_model_group->getJointModelNames().size();
+        int num_action_joints = action.joint_trajectory.joint_names.size();
+        if (num_state_joints != num_action_joints)
+        {
+            ROS_ERROR("Mismatch in number of joints when appending state to action");
+            return;
+        }
+        if (num_action_joints == 0)
+            action.joint_trajectory.joint_names = joint_model_group->getJointModelNames();
+        else
+            for (int i = 0; i < joint_model_group->getJointModelNames().size(); i++)
+                // if (std::find(action.joint_trajectory.joint_names.begin(),
+                //               action.joint_trajectory.joint_names.end(),
+                //               joint_model_group->getJointModelNames()[i]) == action.joint_trajectory.joint_names.end())
+                if (joint_model_group->getJointModelNames()[i] != action.joint_trajectory.joint_names[i])
+                {
+                    ROS_ERROR("Mismatch in joint names (or joint order) when appending state to action");
+                    return;
+                }
+
+        trajectory_msgs::JointTrajectoryPoint point;
+        state.copyJointGroupPositions(joint_model_group, point.positions);
+        action.joint_trajectory.points.push_back(point);
+    }
+
+    void MotionPlanningFrame::saveFormatToAction(apc_msgs::PrimitiveAction& action, const std::string& format)
+    {
+        if (action.group_name.empty())
+            action.group_name = planning_display_->getCurrentPlanningGroup();
+        // Construct %a token.
+        std::string a = action.group_name;
+        // Construct %g token.
+        std::string g;
+        std::string token;
+        std::istringstream iss(action.group_name);
+        while (std::getline(iss, token, '_'))
+            g.push_back(token[0]);
+        // Construct %i token.
+        std::stringstream ss;
+        ss << ui_->active_actions_list->count();
+        std::string i = ss.str();
+        // Substitute args into format.
+        std::string name = format;
+        boost::replace_all(name, "%a", a);
+        boost::replace_all(name, "%g", g);
+        boost::replace_all(name, "%i", i);
+        action.action_name = name;
+    }
+
+    std::string MotionPlanningFrame::computeNearestBin(std::string group,
+                                                       robot_state::RobotState& state)
+    {
+        const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
+        const moveit::core::JointModelGroup* jmg = state.getJointModelGroup(group);
+        if (!jmg)
+        {
+            ROS_ERROR("Failed to find group: %s", group.c_str());
+            return "";
+        }
+        // Find active end-effector.
+        const std::vector<srdf::Model::EndEffector> &eef = srdf->getEndEffectors();
+        std::vector<srdf::Model::EndEffector> active_eef;
+        for (int i = 0; i < eef.size(); i++)
+            if (jmg->hasLinkModel(eef[i].parent_link_) ||
+                jmg->getName() == eef[i].parent_group_)
+                active_eef.push_back(eef[i]);
+        if (active_eef.size() != 1)
+        {
+            ROS_ERROR("No or more than one end-effector found");
+            return "";
+        }
+        // Get world transform of end-effector parent link.
+        Eigen::Affine3d T_eef = state.getGlobalLinkTransform(active_eef[0].parent_link_);
+        // Find closest bin to parent link.
+        if (!_kiva_pod)
+        {
+            ROS_ERROR("KIVA Pod not loaded!");
+            return "";
+        }
+        Eigen::Affine3d T_pod;
+        {
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            Eigen::Affine3d T_pod = ps->getWorld()->getObject("kiva_pod")->shape_poses_[0];
+        }
+        double min_dist = 1e9;
+        std::string bin;
+        for (char c = 'A'; c <= 'L'; c++)
+        {
+            std::string current_bin = std::string("bin_") + c;
+            Eigen::Affine3d T_bin = T_pod * _kiva_pod->getGlobalTransform(current_bin);
+            if (min_dist > (T_bin.translation() - T_eef.translation()).norm())
+            {
+                min_dist = (T_bin.translation() - T_eef.translation()).norm();
+                bin = current_bin;
+            }
+        }
+        return bin;
+    }
+
+    Eigen::Isometry3d MotionPlanningFrame::computeFrame(const std::string& frame,
+                                                        const std::string& group,
+                                                        robot_state::RobotState& state)
+    {
+        if (frame.empty())
+        {
+            ROS_WARN("Attempted to look up empty frame!");
+            return Eigen::Isometry3d::Identity();
+        }
+        // Compute the frame lookup information.
+        std::string object_name = frame;
+        std::string bin_name = "";
+        if (frame.find("bin") == 0)
+        {
+            object_name = "kiva_pod";
+            bin_name = frame;
+            if (frame == "bin")
+                bin_name = computeNearestBin(group, state);
+            if (bin_name.empty())
+            {
+                ROS_ERROR("Failed to compute frame");
+                return Eigen::Isometry3d::Identity();
+            }
+        }
+
+        // Lookup the frame.
+        Eigen::Isometry3d T_frame = Eigen::Isometry3d::Identity();
+        {
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            if (!ps->getWorld()->getObject(object_name))
+            {
+                ROS_ERROR("Failed to get %s from world", object_name.c_str());
+                return T_frame;
+            }
+            Eigen::Affine3d T_object = ps->getWorld()->getObject(object_name)->shape_poses_[0];
+            if (!bin_name.empty() && !_kiva_pod)
+            {
+                ROS_ERROR("Failed to get KIVA Pod kinematics");
+                return T_frame;
+            }
+            if (bin_name)
+                T_frame = T_object * _kiva_pod->getGlobalTransform(bin_name);
+            else
+                T_frame = T_object;
+        }
+        return T_frame;
+    }
+
+    void MotionPlanningFrame::saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame)
+    {
+        if (frame.empty())
+            return;
+        if (action.group_name.empty())
+            action.group_name = planning_display_->getCurrentPlanningGroup();
+        // Handle start and goal.
+        robot_state::RobotState start_state = planning_display_->getQueryStartState();
+        robot_state::RobotState goal_state  = planning_display_->getQueryGoalState();
+        if (ui_->padlock_button->isChecked())
+            start_state = goal_state;
+
+        // Get frame location of "bin", "bin_%alpha", or "<object>".
+        Eigen::Isometry3d T_frame = computeFrame(frame, action.group_name, start_state);
+
+        // Find active end-effector.
+        const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
+        const moveit::core::JointModelGroup* jmg = state.getJointModelGroup(group);
+        if (!jmg)
+        {
+            ROS_ERROR("Failed to find group: %s", group.c_str());
+            return "";
+        }
+
+        std::string eef_link;
+        const std::vector<srdf::Model::EndEffector> &eef = srdf->getEndEffectors();
+        std::vector<srdf::Model::EndEffector> active_eef;
+        for (int i = 0; i < eef.size(); i++)
+            if (jmg->hasLinkModel(eef[i].parent_link_) ||
+                jmg->getName() == eef[i].parent_group_)
+                active_eef.push_back(eef[i]);
+        if (active_eef.size() == 0) // Use last link as "eef".
+            eef_link = jmg->getLinkModelNames().back();
+        else if (active_eef.size() == 1) // Use last link as "eef".
+            eef_link = active_eef[0].parent_link_;
+        else if (active_eef.size() > 1)
+        {
+            ROS_ERROR("More than one end-effector found");
+            return "";
+        }
+        // Get relative transform from frame to start eef.
+        Eigen::Affine3d T_start_inv = start_state.getGlobalLinkTransform(eef_link).inverse();
+        Eigen::Affine3d T_start_frame = T_start_inv * T_frame;
+        Eigen::Affine3d T_goal_inv = goal_state.getGlobalLinkTransform(eef_link).inverse();
+        Eigen::Affine3d T_goal_frame = T_start_inv * T_frame;
+        // Write to action.
+        action.eef_trajectory.poses.resize(2);
+        tf::poseEigenToMsg(T_start_frame, action.eef_trajectory.poses[0]);
+        tf::poseEigenToMsg(T_start_frame, action.eef_trajectory.poses[1]);
     }
 
     void MotionPlanningFrame::loadStateFromAction(robot_state::RobotState& state,

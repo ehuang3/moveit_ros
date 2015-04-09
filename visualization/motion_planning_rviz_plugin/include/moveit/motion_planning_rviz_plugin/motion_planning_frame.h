@@ -315,6 +315,16 @@ private:
   void loadWaypointsToDisplay(QList<QTreeWidgetItem*> items);
   void loadWaypointsToDisplay(std::vector<QVariant>& data);
 
+
+  void saveStartAndGoalToAction(apc_msgs::PrimitiveAction& action);
+  void appendStateToAction(apc_msgs::PrimitiveAction& action,
+                           const robot_state::RobotState& state);
+  void saveFormatToAction(apc_msgs::PrimitiveAction& action,
+                          const std::string& format);
+  void saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame);
+
+
+
   void writeOptionsToAction(const std::map<std::string, bool>& options,
                             apc_msgs::PrimitiveAction& action);
   void writeStateToAction(const robot_state::RobotState& state,
