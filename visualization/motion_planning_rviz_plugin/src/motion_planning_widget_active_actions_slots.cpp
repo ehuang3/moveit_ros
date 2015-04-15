@@ -43,6 +43,7 @@
 
 namespace moveit_rviz_plugin
 {
+
     void MotionPlanningFrame::connectActiveActionsSlots()
     {
         connect( ui_->insert_action_button,  SIGNAL( clicked() ), this, SLOT( insertActionButtonClicked() ));
@@ -59,13 +60,38 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::insertActionButtonClicked()
     {
+        if (!planning_display_->getPlanningSceneMonitor())
+        {
+            ROS_ERROR("Error: No query start or goal state to save");
+            return;
+        }
+
         // Get the list of active actions (waypoints).
         QListWidget* active_actions_list = ui_->active_actions_list;
 
         // Save the current action to a new item.
         QListWidgetItem* item = new QListWidgetItem;
         item->setFlags(item->flags() | Qt::ItemIsEditable);
-        saveActionToItem(item);
+
+        // Save state and settings to action.
+        apc_msgs::PrimitiveAction action;
+        saveStartAndGoalToAction(action);
+        saveFormatToAction(action);
+        saveFrameToAction(action);
+        saveObjectToAction(action);
+        saveOptionsToAction(action);
+
+        std::cout << "==================== Action ====================\n"
+                  << action
+                  << "================================================\n";
+
+        // Store action in variant.
+        QVariant data;
+        saveActionToData(action, data);
+        item->setData(Qt::UserRole, data);
+
+        // Set item name to action name.
+        item->setText(QString::fromStdString(action.action_name));
 
         // Get the currently selected row.
         int row = active_actions_list->currentRow();
@@ -79,11 +105,6 @@ namespace moveit_rviz_plugin
 
         // Set item as active.
         active_actions_list->setCurrentItem(item);
-
-        // Set the current options into the action.
-        QList<QListWidgetItem*> opt;
-        opt.append(item);
-        saveOptionsFromView(opt);
 
         // Load all actions into waypoint display.
         QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
@@ -133,10 +154,6 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::activeActionsListClicked(const QModelIndex& index)
     {
-        // Load the options from all items, but make it non-editable.
-        QList<QListWidgetItem*> options = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
-        loadOptionsToView(options, false);
-
         // Load all actions into waypoint display.
         QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
         loadWaypointsToDisplay(actions);
@@ -144,10 +161,6 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::activeActionsItemClicked(QListWidgetItem* item)
     {
-        // Load the options from selected items.
-        QList<QListWidgetItem*> options = ui_->active_actions_list->selectedItems();
-        loadOptionsToView(options, true);
-
         // Load the selected items into waypoint display.
         QList<QListWidgetItem*> actions = ui_->active_actions_list->selectedItems();
         loadWaypointsToDisplay(actions);
@@ -155,12 +168,16 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::activeActionsItemDoubleClicked(QListWidgetItem* item)
     {
-        // Load the currently selected item into the action query state.
-        loadActionFromItem(item);
+        apc_msgs::PrimitiveAction action;
+        loadActionFromData(action, item->data(Qt::UserRole));
 
-        // Load the options from double clicked items.
-        QList<QListWidgetItem*> option;
-        option.append(item);
-        loadOptionsToView(option, true);
+        // Load the currently selected item into the query start and goal state.
+        loadStartAndGoalFromAction(action);
+
+        // Load the action into the GUI.
+        updateGroupComboBoxFromAction(action);
+        updateFrameComboBoxFromAction(action);
+        updateObjectComboBoxFromAction(action);
+        updateOptionsCheckBoxesFromAction(action);
     }
 }

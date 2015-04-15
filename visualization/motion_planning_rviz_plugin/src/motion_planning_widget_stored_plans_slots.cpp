@@ -65,10 +65,6 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::storedPlansTreeClicked(const QModelIndex& index)
     {
-        // Load the options from selected items, but make them non-editable.
-        QList<QTreeWidgetItem*> options = ui_->stored_plans_tree->selectedItems();
-        loadOptionsToView(options, false);
-
         // Load selected stored tree plans into waypoint display.
         QList<QTreeWidgetItem*> actions = ui_->stored_plans_tree->selectedItems();
         loadWaypointsToDisplay(actions);
@@ -76,10 +72,6 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::storedPlansItemClicked(QTreeWidgetItem* item, int col)
     {
-        // Load the options from selected items.
-        QList<QTreeWidgetItem*> options = ui_->stored_plans_tree->selectedItems();
-        loadOptionsToView(options, false);
-
         // Load the selected items into waypoint display.
         QList<QTreeWidgetItem*> actions = ui_->stored_plans_tree->selectedItems();
         loadWaypointsToDisplay(actions);
@@ -87,10 +79,6 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::storedPlansItemDoubleClicked(QTreeWidgetItem* item, int col)
     {
-        // If the clicked item is not a toplevel item, load robot into action state,
-        if (ui_->stored_plans_tree->indexOfTopLevelItem(item) < 0)
-            loadActionFromItem(item);
-
         // Do nothing special.
         storedPlansItemClicked(item, col);
     }

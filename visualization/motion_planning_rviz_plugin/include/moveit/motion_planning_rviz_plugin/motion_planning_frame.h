@@ -69,6 +69,13 @@
 #include <robot_calibration/robot.h>
 
 
+#include <string.h>
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+#define ROS_DEBUG_FUNCTION                                              \
+  ROS_DEBUG("%s at %s line %d", __FUNCTION__, __FILENAME__, __LINE__)   \
+
+
 namespace rviz
 {
 class DisplayContext;
@@ -172,15 +179,16 @@ private Q_SLOTS:
   void goalRadioButtonClicked();
   void updateGroupComboBox();
   void groupComboBoxActivated(int);
+  void updateGroupComboBoxFromAction(const apc_msgs::PrimitiveAction& action);
   void updateFrameComboBox();
   void frameComboBoxActivated(int);
+  void updateFrameComboBoxFromAction(const apc_msgs::PrimitiveAction& action);
   void updateObjectComboBox();
   void objectComboBoxActivated(int);
-  void optionsCheckBoxClicked();
+  void updateObjectComboBoxFromAction(const apc_msgs::PrimitiveAction& action);
+  void updateOptionsCheckBoxesFromAction(const apc_msgs::PrimitiveAction& action);
   void setStartToCurrentButtonClicked();
   void setGoalToCurrentButtonClicked();
-
-
 
   // Pick and place widget slots.
   void runAPCButtonClicked();
@@ -241,7 +249,6 @@ private:
   void connectCalibrationHelperSlots();
   void connectActiveActionsSlots();
   void connectStoredPlansSlots();
-  // void connectStoredObjectsSlots();
 
   // Teleoperation widget.
   void computePlanButtonClicked();
@@ -258,12 +265,12 @@ private:
   void updateWorkOrderTableWidget(rapidjson::Document& doc);
 
   // Teleoperation widget helper.
-  void loadOptionsToView(QList<QListWidgetItem*> items, bool enable = true);
-  void loadOptionsToView(QList<QTreeWidgetItem*> items, bool enable = true);
-  void loadOptionsToView(std::vector<QVariant>& data, bool enable=true);
-  void setTristateCheckBox(QCheckBox* checkbox, bool b, bool init);
-  void saveOptionsFromView(QList<QListWidgetItem*> items);
-  void saveOptionsFromView(std::vector<QVariant>& data);
+  // void loadOptionsToView(QList<QListWidgetItem*> items, bool enable = true);
+  // void loadOptionsToView(QList<QTreeWidgetItem*> items, bool enable = true);
+  // void loadOptionsToView(std::vector<QVariant>& data, bool enable=true);
+  // void setTristateCheckBox(QCheckBox* checkbox, bool b, bool init);
+  // void saveOptionsFromView(QList<QListWidgetItem*> items);
+  // void saveOptionsFromView(std::vector<QVariant>& data);
   void updateBinContentsTableWidget(rapidjson::Document& doc);
   bool showQueryStartInteractiveMarkers();
   bool showQueryGoalInteractiveMarkers();
@@ -297,84 +304,52 @@ private:
   template< typename Message > static Message deserializeMessage(const QByteArray& string);
   template< typename Message > static Message getMessageFromUserData(const QVariant& data);
   template< typename Message > static void setMessageToUserData(QVariant& data, const Message& msg);
-  void getRobotStateFromUserData(const QVariant& data,
-                                 robot_state::RobotState& robot);
-  void getStateFromAction(robot_state::RobotState& robot,
-                          const apc_msgs::PrimitiveAction& action);
-  void saveActionToItem(QListWidgetItem* item);
-  void saveActionToItem(const robot_state::RobotState& state,
-                        QListWidgetItem* item);
-  void loadActionFromItem(QListWidgetItem* item);
-  void loadActionFromItem(QTreeWidgetItem* item);
-  void loadActionFromData(const QVariant& data);
-  void loadStateFromAction(robot_state::RobotState& state,
-                           const apc_msgs::PrimitiveAction& action);
-  void saveStateToAction(const robot_state::RobotState& state,
-                         apc_msgs::PrimitiveAction& action);
+
+  robot_state::RobotStateConstPtr getQueryStartState();
+  robot_state::RobotStateConstPtr getQueryGoalState();
+  robot_state::RobotStateConstPtr getQueryStartState(bool locked);
+  robot_state::RobotStateConstPtr getQueryGoalState(bool locked);
+  bool computeStartAndGoalEefLockedState(const apc_msgs::PrimitiveAction& action);
+  void saveLockedStateToAction(apc_msgs::PrimitiveAction& action);
+  void saveStartAndGoalToAction(apc_msgs::PrimitiveAction& action);
+  void appendStateToAction(apc_msgs::PrimitiveAction& action, const robot_state::RobotState& state);
+  std::string computeEefLink(const std::string& group);
+  std::string computeNearestBin(std::string group, robot_state::RobotState& state);
+  std::string computeNearestObject(const std::string& object, const std::string& group, robot_state::RobotState& state);
+  Eigen::Affine3d computeFrame(const std::string& frame);
+  Eigen::Affine3d computeNearestFrame(const std::string& frame, const std::string& group, robot_state::RobotState& state);
+  void saveFrameToAction(apc_msgs::PrimitiveAction& action);
+  void saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame);
+  void saveFormatToAction(apc_msgs::PrimitiveAction& action);
+  void saveFormatToAction(apc_msgs::PrimitiveAction& action, const std::string& format);
+  void saveObjectToAction(apc_msgs::PrimitiveAction& action);
+  void saveObjectToAction(apc_msgs::PrimitiveAction& action, const std::string& object);
+  void saveOptionsToAction(apc_msgs::PrimitiveAction& action);
+  void saveOptionsToAction(apc_msgs::PrimitiveAction& action, const std::map<std::string, bool>& options);
+  void saveActionToData(const std::vector<apc_msgs::PrimitiveAction>& actions, std::vector<QVariant>& data);
+  void saveActionToData(const apc_msgs::PrimitiveAction& action, QVariant& data);
+  void loadActionFromData(apc_msgs::PrimitiveAction& action, const QVariant& data);
+  void loadActionFromData(std::vector<apc_msgs::PrimitiveAction>& actions, const std::vector<QVariant>& data);
+  void snapStateToPoint(robot_state::RobotState& state, const std::vector<std::string>& joint_names,
+                        const trajectory_msgs::JointTrajectoryPoint& point);
+  void snapStateToFrame(robot_state::RobotState& state, const std::string& frame, const std::string& link,
+                        const geometry_msgs::Pose& pose_frame_link, const std::string& group);
+  void snapStateToFrame(robot_state::RobotState& state, const Eigen::Affine3d& T_frame_world, const std::string& link,
+                        const Eigen::Affine3d& T_frame_link, const std::string& group);
+  void attachObjectToState(robot_state::RobotState& state, const std::string& object_id, const std::string& link_id,
+                           const geometry_msgs::Pose& pose_object_link);
+  void attachObjectToState(robot_state::RobotState& state, const std::string& object_id, const std::string& link_id,
+                           const Eigen::Affine3d& T_object_link);
+  void loadStartAndGoalFromAction(const apc_msgs::PrimitiveAction& action);
+  void loadStartAndGoalFromAction(robot_state::RobotState& start, robot_state::RobotState& goal,
+                                  const apc_msgs::PrimitiveAction& action);
   void loadWaypointsToDisplay(QList<QListWidgetItem*> items);
   void loadWaypointsToDisplay(QList<QTreeWidgetItem*> items);
-  void loadWaypointsToDisplay(std::vector<QVariant>& data);
-
-
-  void saveStartAndGoalToAction(apc_msgs::PrimitiveAction& action);
-  void appendStateToAction(apc_msgs::PrimitiveAction& action,
-                           const robot_state::RobotState& state);
-  void saveFormatToAction(apc_msgs::PrimitiveAction& action,
-                          const std::string& format);
-  void saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame);
-
-
-
-  void writeOptionsToAction(const std::map<std::string, bool>& options,
-                            apc_msgs::PrimitiveAction& action);
-  void writeStateToAction(const robot_state::RobotState& state,
-                          apc_msgs::PrimitiveAction& action);
-  void writeRelativeFrameToAction(const std::string& frame,
-                                  const robot_state::RobotState& state,
-                                  apc_msgs::PrimitiveAction& action);
-
-  void readOptionsFromAction(std::map<std::string, bool>& options,
-                             const apc_msgs::PrimitiveAction& action);
-  void readStateFromAction(robot_state::RobotState& state,
-                           const apc_msgs::PrimitiveAction& action);
-  void readRelativeFrameFromAction(std::string& frame,
-                                   robot_state::RobotState& state,
-                                   const apc_msgs::PrimitiveAction& action);
-
-  void writeGoalOptionsToAction(apc_msgs::PrimitiveAction& action);
-  void writeGoalStateToAction(apc_msgs::PrimitiveAction& action);
-  void writeGoalFrameToAction(apc_msgs::PrimitiveAction& action);
-
+  void loadWaypointsToDisplay(std::vector<apc_msgs::PrimitiveAction>& actions);
 
   // Stored plans widget.
   void computeSavePlansButtonClicked();
   void computeLoadPlansButtonClicked();
-
-  // Stored objects widget.
-  std::string computeObjectScenePath();
-  void computeLoadObjectsButtonClicked();
-  void computeSaveObjectsButtonClicked();
-  void computePopulateObjects();
-  void computeAttachObjectToState(robot_state::RobotState& state,
-                                  const std::string& object_name,
-                                  const std::string& link_name);
-  void computeAttachObjectToState(robot_state::RobotState& state,
-                                  const std::string& object_name,
-                                  const std::string& link_name,
-                                  const EigenSTL::vector_Affine3d& poses);
-  void computeAttachObjectToState(robot_state::RobotState& state,
-                                  const std::string& object_name,
-                                  const std::string& link_name,
-                                  const std::vector<geometry_msgs::Pose>& poses);
-  void computeDetachObjectFromState(robot_state::RobotState& state,
-                                    const std::string& object_name);
-  void computeAttachObjectToPlan(apc_msgs::PrimitivePlan& plan,
-                                 const robot_state::RobotState& state);
-  void computeAttachObjectToAction(const robot_state::RobotState& state,
-                                   apc_msgs::PrimitiveAction& action);
-  void computeDetachObjectFromPlan(apc_msgs::PrimitivePlan& plan);
-  void computeDetachObjectFromAction(apc_msgs::PrimitiveAction& action);
-
 
   // MoveIt interface.
 private Q_SLOTS:

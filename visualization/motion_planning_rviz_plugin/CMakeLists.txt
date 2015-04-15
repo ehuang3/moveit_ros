@@ -1,3 +1,4 @@
+# set(CMAKE_CXX_FLAGS "-Wshadow -Wreturn-type -Wuninitialized")
 
 # Header files that need Qt Moc pre-processing for use with Qt signals, etc:
 set( headers

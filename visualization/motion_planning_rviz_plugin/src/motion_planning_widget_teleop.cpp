@@ -231,7 +231,7 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < plan.actions.size(); i++)
         {
             // Construct robot goal state.
-            loadStateFromAction(goal_state, plan.actions[i]);
+            // FIXME loadStateFromAction(goal_state, plan.actions[i]);
 
             // Write planning arguments into service message.
             robot_state::robotStateToRobotStateMsg(start_state, srv.request.start_state);

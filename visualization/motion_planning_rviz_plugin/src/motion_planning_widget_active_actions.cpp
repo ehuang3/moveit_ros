@@ -65,81 +65,145 @@ namespace moveit_rviz_plugin
         return s;
     }
 
+    robot_state::RobotStateConstPtr MotionPlanningFrame::getQueryStartState()
+    {
+        return getQueryStartState(ui_->padlock_button->isChecked());
+    }
+
+    robot_state::RobotStateConstPtr MotionPlanningFrame::getQueryGoalState()
+    {
+        return getQueryGoalState(ui_->padlock_button->isChecked());
+    }
+
+    robot_state::RobotStateConstPtr MotionPlanningFrame::getQueryStartState(bool locked)
+    {
+        if (!locked)
+            return planning_display_->getQueryStartState();
+        else
+            return planning_display_->getQueryGoalState();
+    }
+
+    robot_state::RobotStateConstPtr MotionPlanningFrame::getQueryGoalState(bool locked)
+    {
+        return planning_display_->getQueryGoalState();
+    }
+
+    bool MotionPlanningFrame::computeStartAndGoalEefLockedState(const apc_msgs::PrimitiveAction& action)
+    {
+        int n = action.eef_trajectory.poses.size();
+        if (n == 0)
+        {
+            ROS_ERROR("Failed to compute start and goal locked state");
+            return false;
+        }
+        geometry_msgs::Pose start, goal;
+        start = action.eef_trajectory.poses[0];
+        goal = action.eef_trajectory.poses[n-1];
+        const double tol = 1e-7;
+
+#define APC_EXPECT_NEAR(x, y, tol)                  \
+        if (std::abs(x-y) > tol)                    \
+            return false;                           \
+
+        APC_EXPECT_NEAR(start.position.x, goal.position.x, tol);
+        APC_EXPECT_NEAR(start.position.y, goal.position.y, tol);
+        APC_EXPECT_NEAR(start.position.z, goal.position.z, tol);
+        APC_EXPECT_NEAR(start.orientation.w, goal.orientation.w, tol);
+        APC_EXPECT_NEAR(start.orientation.x, goal.orientation.x, tol);
+        APC_EXPECT_NEAR(start.orientation.y, goal.orientation.y, tol);
+        APC_EXPECT_NEAR(start.orientation.z, goal.orientation.z, tol);
+
+#undef APC_EXPECT_NEAR
+
+        return true;
+    }
+
+    void MotionPlanningFrame::saveLockedStateToAction(apc_msgs::PrimitiveAction& action)
+    {
+        action.eef_locked = ui_->padlock_button->isChecked();
+    }
+
     void MotionPlanningFrame::saveStartAndGoalToAction(apc_msgs::PrimitiveAction& action)
     {
         // Set action group.
-        action.group_name = planning_display_->getCurrentPlanningGroup();
+        action.group_id = planning_display_->getCurrentPlanningGroup();
         // Clear joint trajectory.
         action.joint_trajectory.joint_names.clear();
         action.joint_trajectory.points.clear();
+        // If start and goal state are locked together, we will use
+        // the goal state as the start.
+        const robot_state::RobotState& start_state = *getQueryStartState();
+        const robot_state::RobotState& goal_state  = *getQueryGoalState();
         // Save start and end points to joint trajectory.
-        const robot_state::RobotState& start_state = *planning_display_->getQueryStartState();
-        const robot_state::RobotState& goal_state  = *planning_display_->getQueryGoalState();
-        // If start and goal state are locked together, use the goal
-        // state as the start.
-        if (ui_->padlock_button->isChecked())
-            appendStateToAction(action, goal_state);
-        else
-            appendStateToAction(action, start_state);
+        appendStateToAction(action, start_state);
         appendStateToAction(action, goal_state);
     }
 
     void MotionPlanningFrame::appendStateToAction(apc_msgs::PrimitiveAction& action,
                                                   const robot_state::RobotState& state)
     {
-        if (action.group_name.empty())
+        if (action.group_id.empty())
         {
             ROS_ERROR("No group provided in action");
         }
-        const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(action.group_name);
-        if (!joint_model_group)
+        const moveit::core::JointModelGroup* jmg = state.getJointModelGroup(action.group_id);
+        if (!jmg)
         {
-            ROS_ERROR("Failed to get joint model group %s", action.group_name.c_str());
+            ROS_ERROR("Failed to get joint model group %s", action.group_id.c_str());
             return;
         }
         // Get the goal joint tolerance.
         double goal_joint_tolerance = move_group_->getGoalJointTolerance();
         // Construct goal constraints only for the joint model group.
         moveit_msgs::Constraints constraints = kinematic_constraints::constructGoalConstraints(state,
-                                                                                               joint_model_group,
+                                                                                               jmg,
                                                                                                goal_joint_tolerance);
         // Warn the user if the number of joints in the joint group
         // doesn't match previous points in the trajectory.
-        int num_state_joints  = joint_model_group->getJointModelNames().size();
+        int num_state_joints  = jmg->getActiveJointModelNames().size();
         int num_action_joints = action.joint_trajectory.joint_names.size();
-        if (num_state_joints != num_action_joints)
+        if (num_action_joints == 0)
+        {
+            action.joint_trajectory.joint_names = jmg->getActiveJointModelNames();
+        }
+        else if (num_state_joints != num_action_joints)
         {
             ROS_ERROR("Mismatch in number of joints when appending state to action");
             return;
         }
-        if (num_action_joints == 0)
-            action.joint_trajectory.joint_names = joint_model_group->getJointModelNames();
         else
-            for (int i = 0; i < joint_model_group->getJointModelNames().size(); i++)
+        {
+            for (int i = 0; i < jmg->getActiveJointModelNames().size(); i++)
                 // if (std::find(action.joint_trajectory.joint_names.begin(),
                 //               action.joint_trajectory.joint_names.end(),
-                //               joint_model_group->getJointModelNames()[i]) == action.joint_trajectory.joint_names.end())
-                if (joint_model_group->getJointModelNames()[i] != action.joint_trajectory.joint_names[i])
+                //               jmg->getJointModelNames()[i]) == action.joint_trajectory.joint_names.end())
+                if (jmg->getActiveJointModelNames()[i] != action.joint_trajectory.joint_names[i])
                 {
                     ROS_ERROR("Mismatch in joint names (or joint order) when appending state to action");
                     return;
                 }
+        }
 
         trajectory_msgs::JointTrajectoryPoint point;
-        state.copyJointGroupPositions(joint_model_group, point.positions);
+        state.copyJointGroupPositions(jmg, point.positions);
         action.joint_trajectory.points.push_back(point);
+    }
+
+    void MotionPlanningFrame::saveFormatToAction(apc_msgs::PrimitiveAction& action)
+    {
+        saveFormatToAction(action, ui_->format_line_edit->text().toStdString());
     }
 
     void MotionPlanningFrame::saveFormatToAction(apc_msgs::PrimitiveAction& action, const std::string& format)
     {
-        if (action.group_name.empty())
-            action.group_name = planning_display_->getCurrentPlanningGroup();
+        if (action.group_id.empty())
+            action.group_id = planning_display_->getCurrentPlanningGroup();
         // Construct %a token.
-        std::string a = action.group_name;
+        std::string a = action.group_id;
         // Construct %g token.
         std::string g;
         std::string token;
-        std::istringstream iss(action.group_name);
+        std::istringstream iss(action.group_id);
         while (std::getline(iss, token, '_'))
             g.push_back(token[0]);
         // Construct %i token.
@@ -154,122 +218,10 @@ namespace moveit_rviz_plugin
         action.action_name = name;
     }
 
-    std::string MotionPlanningFrame::computeNearestBin(std::string group,
-                                                       robot_state::RobotState& state)
+    std::string MotionPlanningFrame::computeEefLink(const std::string& group)
     {
         const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
-        const moveit::core::JointModelGroup* jmg = state.getJointModelGroup(group);
-        if (!jmg)
-        {
-            ROS_ERROR("Failed to find group: %s", group.c_str());
-            return "";
-        }
-        // Find active end-effector.
-        const std::vector<srdf::Model::EndEffector> &eef = srdf->getEndEffectors();
-        std::vector<srdf::Model::EndEffector> active_eef;
-        for (int i = 0; i < eef.size(); i++)
-            if (jmg->hasLinkModel(eef[i].parent_link_) ||
-                jmg->getName() == eef[i].parent_group_)
-                active_eef.push_back(eef[i]);
-        if (active_eef.size() != 1)
-        {
-            ROS_ERROR("No or more than one end-effector found");
-            return "";
-        }
-        // Get world transform of end-effector parent link.
-        Eigen::Affine3d T_eef = state.getGlobalLinkTransform(active_eef[0].parent_link_);
-        // Find closest bin to parent link.
-        if (!_kiva_pod)
-        {
-            ROS_ERROR("KIVA Pod not loaded!");
-            return "";
-        }
-        Eigen::Affine3d T_pod;
-        {
-            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
-            Eigen::Affine3d T_pod = ps->getWorld()->getObject("kiva_pod")->shape_poses_[0];
-        }
-        double min_dist = 1e9;
-        std::string bin;
-        for (char c = 'A'; c <= 'L'; c++)
-        {
-            std::string current_bin = std::string("bin_") + c;
-            Eigen::Affine3d T_bin = T_pod * _kiva_pod->getGlobalTransform(current_bin);
-            if (min_dist > (T_bin.translation() - T_eef.translation()).norm())
-            {
-                min_dist = (T_bin.translation() - T_eef.translation()).norm();
-                bin = current_bin;
-            }
-        }
-        return bin;
-    }
-
-    Eigen::Isometry3d MotionPlanningFrame::computeFrame(const std::string& frame,
-                                                        const std::string& group,
-                                                        robot_state::RobotState& state)
-    {
-        if (frame.empty())
-        {
-            ROS_WARN("Attempted to look up empty frame!");
-            return Eigen::Isometry3d::Identity();
-        }
-        // Compute the frame lookup information.
-        std::string object_name = frame;
-        std::string bin_name = "";
-        if (frame.find("bin") == 0)
-        {
-            object_name = "kiva_pod";
-            bin_name = frame;
-            if (frame == "bin")
-                bin_name = computeNearestBin(group, state);
-            if (bin_name.empty())
-            {
-                ROS_ERROR("Failed to compute frame");
-                return Eigen::Isometry3d::Identity();
-            }
-        }
-
-        // Lookup the frame.
-        Eigen::Isometry3d T_frame = Eigen::Isometry3d::Identity();
-        {
-            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
-            if (!ps->getWorld()->getObject(object_name))
-            {
-                ROS_ERROR("Failed to get %s from world", object_name.c_str());
-                return T_frame;
-            }
-            Eigen::Affine3d T_object = ps->getWorld()->getObject(object_name)->shape_poses_[0];
-            if (!bin_name.empty() && !_kiva_pod)
-            {
-                ROS_ERROR("Failed to get KIVA Pod kinematics");
-                return T_frame;
-            }
-            if (bin_name)
-                T_frame = T_object * _kiva_pod->getGlobalTransform(bin_name);
-            else
-                T_frame = T_object;
-        }
-        return T_frame;
-    }
-
-    void MotionPlanningFrame::saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame)
-    {
-        if (frame.empty())
-            return;
-        if (action.group_name.empty())
-            action.group_name = planning_display_->getCurrentPlanningGroup();
-        // Handle start and goal.
-        robot_state::RobotState start_state = planning_display_->getQueryStartState();
-        robot_state::RobotState goal_state  = planning_display_->getQueryGoalState();
-        if (ui_->padlock_button->isChecked())
-            start_state = goal_state;
-
-        // Get frame location of "bin", "bin_%alpha", or "<object>".
-        Eigen::Isometry3d T_frame = computeFrame(frame, action.group_name, start_state);
-
-        // Find active end-effector.
-        const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
-        const moveit::core::JointModelGroup* jmg = state.getJointModelGroup(group);
+        const moveit::core::JointModelGroup* jmg = planning_display_->getQueryStartState()->getJointModelGroup(group);
         if (!jmg)
         {
             ROS_ERROR("Failed to find group: %s", group.c_str());
@@ -292,230 +244,467 @@ namespace moveit_rviz_plugin
             ROS_ERROR("More than one end-effector found");
             return "";
         }
-        // Get relative transform from frame to start eef.
-        Eigen::Affine3d T_start_inv = start_state.getGlobalLinkTransform(eef_link).inverse();
-        Eigen::Affine3d T_start_frame = T_start_inv * T_frame;
-        Eigen::Affine3d T_goal_inv = goal_state.getGlobalLinkTransform(eef_link).inverse();
-        Eigen::Affine3d T_goal_frame = T_start_inv * T_frame;
-        // Write to action.
-        action.eef_trajectory.poses.resize(2);
-        tf::poseEigenToMsg(T_start_frame, action.eef_trajectory.poses[0]);
-        tf::poseEigenToMsg(T_start_frame, action.eef_trajectory.poses[1]);
+        return eef_link;
     }
 
-    void MotionPlanningFrame::loadStateFromAction(robot_state::RobotState& state,
-                                                  const apc_msgs::PrimitiveAction& action)
+    std::string MotionPlanningFrame::computeNearestBin(std::string link,
+                                                       robot_state::RobotState& state)
     {
-        // Get the saved joint constraints.
-        const trajectory_msgs::JointTrajectory& joint_trajectory = action.joint_trajectory;
+        ROS_DEBUG_FUNCTION;
 
-        // Warn when the joint trajectory has more than one point!
-        if (joint_trajectory.points.size() != 1)
-            ROS_WARN("Loading state from an action with a dense trajectory!");
-
-        // Get the number of points in this trajectory.
-        int num_points = joint_trajectory.points.size();
-
-        // Copy the joints in the goal to the current state.
-        for (int i = 0; i < joint_trajectory.joint_names.size(); i++)
+        const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
+        if (!_kiva_pod)
         {
-            state.setJointPositions(joint_trajectory.joint_names[i],
-                                    &joint_trajectory.points[num_points - 1].positions[i]);
+            ROS_ERROR("KIVA Pod not loaded!");
+            return "";
         }
 
-        // Add attached objects if they exist.
-        computeAttachObjectToState(state,
-                                   action.object_name,
-                                   action.link_name,
-                                   action.object_poses);
+        // Get world transform of link.
+        Eigen::Affine3d T_link = state.getGlobalLinkTransform(link);
 
-        // If this action was recorded with an attached object, default to
-        // executing relative to object.
-        if (!action.object_name.empty() && action.object_poses.size() > 0)
+        // Get world transform to KIVA pod.
+        Eigen::Affine3d T_pod_world;
         {
-            // Extract the object from the world.
-            collision_detection::CollisionWorld::ObjectConstPtr object;
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            T_pod_world = ps->getWorld()->getObject("kiva_pod")->shape_poses_[0];
+        }
+
+        // Find closest bin to parent link.
+        double min_dist = 1e9;
+        std::string bin;
+        for (char c = 'A'; c <= 'L'; c++)
+        {
+            std::string current_bin = std::string("bin_") + c;
+            Eigen::Affine3d T_bin_pod = _kiva_pod->getGlobalTransform(current_bin);
+            Eigen::Affine3d T_bin_world = T_pod_world * T_bin_pod;
+            double dist = (T_bin_world.translation() - T_link.translation()).norm();
+            if (min_dist > dist)
             {
-                planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
-                object = ps->getWorld()->getObject(action.object_name);
-            }
-            // If the object has not been loaded into the world, do nothing.
-            if (!object)
-            {
-                ROS_ERROR("Failed to get object %s from world.",
-                          action.object_name.c_str());
-            }
-            else
-            {
-                // Create link to object pose offsets from action.
-                EigenSTL::vector_Affine3d poses(action.object_poses.size());
-                for (int i = 0; i < action.object_poses.size(); i++)
-                    tf::poseMsgToEigen(action.object_poses[i], poses[i]);
-                // Back out the desired link transform in global coordinates.
-                Eigen::Affine3d T_link = object->shape_poses_[0] * poses[0].inverse();
-                // Create arguments for IK.
-                const moveit::core::JointModelGroup* group = state.getJointModelGroup(action.group_name);
-                geometry_msgs::Pose pose;
-                tf::poseEigenToMsg(T_link, pose);
-                // Compute IK to link.
-                state.setFromIK(group, pose);
+                min_dist = dist;
+                bin = current_bin;
             }
         }
 
-        // Update the dirty transforms, etc.
+        ROS_DEBUG("bin: %s", bin.c_str());
+        ROS_DEBUG("min dist: %f", min_dist);
+        ROS_DEBUG_FUNCTION;
+
+        return bin;
+    }
+
+    std::string MotionPlanningFrame::computeNearestObject(const std::string& object,
+                                                          const std::string& link,
+                                                          robot_state::RobotState& state)
+    {
+        ROS_DEBUG_FUNCTION;
+
+        // Get the world where all objects are stored.
+        planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+        const collision_detection::WorldConstPtr world = ps->getWorld();
+
+        // Get the group end-effector link transform.
+        Eigen::Affine3d T_link_world = state.getGlobalLinkTransform(link);
+
+        // Find the object closest to the group's end-effector link.
+        const std::vector<std::string>& object_ids = ps->getWorld()->getObjectIds();
+        double min_dist = 1e9;
+        std::string nearest_object;
+        for (int i = 0; i < object_ids.size(); i++)
+            if (object_ids[i].find(object) == 0)
+            {
+                Eigen::Affine3d T_object_world = world->getObject(object_ids[i])->shape_poses_[0];
+                double dist = (T_link_world.translation() - T_object_world.translation()).norm();
+                if (dist < min_dist)
+                {
+                    min_dist = dist;
+                    nearest_object = object_ids[i];
+                }
+            }
+
+        ROS_DEBUG("nearest object: %s", nearest_object.c_str());
+        ROS_DEBUG("min dist: %.4f", min_dist);
+        ROS_DEBUG_FUNCTION;
+
+        return nearest_object;
+    }
+
+    Eigen::Affine3d MotionPlanningFrame::computeFrame(const std::string& frame)
+    {
+        ROS_DEBUG_FUNCTION;
+
+        // Get the world state.
+        planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+        const collision_detection::WorldConstPtr world = ps->getWorld();
+
+        // Lookup the frame.
+        Eigen::Affine3d T_frame_world = Eigen::Affine3d::Identity();
+
+        collision_detection::World::ObjectConstPtr object;
+        if (frame.find("bin") == 0)
+            object = world->getObject("kiva_pod");
+        else
+            object = world->getObject(frame);
+
+        T_frame_world = object->shape_poses_[0];
+
+        if (frame.find("bin") == 0)
+            T_frame_world = T_frame_world * _kiva_pod->getGlobalTransform(frame);
+
+        ROS_DEBUG_STREAM("T_frame_world:\n" << T_frame_world.matrix());
+        ROS_DEBUG_FUNCTION;
+
+        return T_frame_world;
+    }
+
+    Eigen::Affine3d MotionPlanningFrame::computeNearestFrame(const std::string& frame,
+                                                             const std::string& group,
+                                                             robot_state::RobotState& state)
+    {
+        ROS_DEBUG_FUNCTION;
+
+        if (frame.empty())
+        {
+            ROS_WARN("Attempting to look up empty frame!");
+            return Eigen::Affine3d::Identity();
+        }
+
+        // Compute the end-effector link.
+        std::string eef_link = computeEefLink(group);
+
+        // Compute the nearest frame to our state, provided ambiguity exists.
+        std::string nearest_frame;
+        if (frame.find("bin") == 0)
+            nearest_frame = computeNearestBin(eef_link, state);
+        else
+            nearest_frame = computeNearestObject(frame, eef_link, state);
+
+        // Lookup the frame.
+        Eigen::Affine3d T_frame_world = computeFrame(nearest_frame);
+
+        ROS_DEBUG_FUNCTION;
+
+        return T_frame_world;
+    }
+
+    void MotionPlanningFrame::saveFrameToAction(apc_msgs::PrimitiveAction& action)
+    {
+        saveFrameToAction(action, ui_->frame_combobox->currentText().toStdString());
+    }
+
+    void MotionPlanningFrame::saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame)
+    {
+        // Clear the frame information.
+        action.frame_id = "";
+        action.eef_link_id = "";
+        action.eef_trajectory.poses.clear();
+
+        if (frame.empty())
+            return;
+        if (action.group_id.empty())
+            action.group_id = planning_display_->getCurrentPlanningGroup();
+
+        // Handle start and goal.
+        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
+        robot_state::RobotState goal_state  = *planning_display_->getQueryGoalState();
+        if (ui_->padlock_button->isChecked())
+            start_state = goal_state;
+
+        // Get frame location of "bin", "bin_%alpha", or "<object>".
+        Eigen::Affine3d T_frame = computeNearestFrame(frame, action.group_id, start_state);
+
+        // Find active end-effector.
+        std::string eef_link = computeEefLink(action.group_id);
+
+        // Get the frame transform relative to the end-effector link.
+        Eigen::Affine3d T_start_world = start_state.getGlobalLinkTransform(eef_link);
+        Eigen::Affine3d T_frame_start = T_start_world.inverse() * T_frame;
+        Eigen::Affine3d T_goal_world = goal_state.getGlobalLinkTransform(eef_link);
+        Eigen::Affine3d T_frame_goal = T_goal_world.inverse() * T_frame;
+
+        // std::cout << "T_start_world:\n" << T_start_world.matrix() << std::endl;
+        // std::cout << "T_goal_world:\n" << T_goal_world.matrix() << std::endl;
+
+        // std::cout << "T_frame_start:\n" << T_frame_start.matrix() << std::endl;
+        // std::cout << "T_frame_goal:\n" << T_frame_goal.matrix() << std::endl;
+
+        // Write to action.
+        action.frame_id = frame;
+        action.eef_link_id = eef_link;
+        action.eef_trajectory.poses.resize(2);
+        tf::poseEigenToMsg(T_frame_start, action.eef_trajectory.poses[0]);
+        tf::poseEigenToMsg(T_frame_goal, action.eef_trajectory.poses[1]);
+    }
+
+    void MotionPlanningFrame::saveObjectToAction(apc_msgs::PrimitiveAction& action)
+    {
+        saveObjectToAction(action, ui_->object_combobox->currentText().toStdString());
+    }
+
+    void MotionPlanningFrame::saveObjectToAction(apc_msgs::PrimitiveAction& action,
+                                                 const std::string& object)
+    {
+        // Clear attached object information.
+        action.object_id = "";
+        action.attached_link_id = "";
+        action.object_trajectory.poses.clear();
+
+        if (object.empty())
+            return;
+        if (action.group_id.empty())
+            action.group_id = planning_display_->getCurrentPlanningGroup();
+
+        // Handle start and goal.
+        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
+        robot_state::RobotState goal_state  = *planning_display_->getQueryGoalState();
+        if (ui_->padlock_button->isChecked())
+            start_state = goal_state;
+
+        // Get frame location of "bin", "bin_%alpha", or "<object>".
+        Eigen::Affine3d T_object = computeNearestFrame(object, action.group_id, start_state);
+
+        // Find active end-effector.
+        std::string eef_link = computeEefLink(action.group_id);
+
+        // Get object transform relative to the end-effector link.
+        Eigen::Affine3d T_start_inv = start_state.getGlobalLinkTransform(eef_link).inverse();
+        Eigen::Affine3d T_object_start = T_start_inv * T_object;
+        Eigen::Affine3d T_goal_inv = goal_state.getGlobalLinkTransform(eef_link).inverse();
+        Eigen::Affine3d T_object_goal = T_start_inv * T_object;
+
+        // Write to object.
+        action.object_id = object;
+        action.attached_link_id = eef_link;
+        action.object_trajectory.poses.resize(2);
+        tf::poseEigenToMsg(T_object_start, action.object_trajectory.poses[0]);
+        tf::poseEigenToMsg(T_object_goal, action.object_trajectory.poses[1]);
+    }
+
+    void MotionPlanningFrame::saveOptionsToAction(apc_msgs::PrimitiveAction& action)
+    {
+        std::map<std::string, bool> options;
+        options["interpolate_cartesian"] = ui_->interpolate_cartesian_checkbox->isChecked();
+        options["monitor_contact"] = ui_->monitor_contact_checkbox->isChecked();
+        options["monitor_haptic_profile"] = ui_->monitor_profile_checkbox->isChecked();
+        saveOptionsToAction(action, options);
+    }
+
+    void MotionPlanningFrame::saveOptionsToAction(apc_msgs::PrimitiveAction& action,
+                                                  const std::map<std::string, bool>& options)
+    {
+        action.interpolate_cartesian = false;
+        action.monitor_contact = false;
+        action.monitor_haptic_profile = false;
+        if (options.size() == 0)
+            return;
+        action.interpolate_cartesian = options.find("interpolate_cartesian")->second;
+        action.monitor_contact = options.find("monitor_contact")->second;
+        action.monitor_haptic_profile = options.find("monitor_haptic_profile")->second;
+    }
+
+    void MotionPlanningFrame::saveActionToData(const std::vector<apc_msgs::PrimitiveAction>& actions,
+                                               std::vector<QVariant>& data)
+    {
+        data.resize(actions.size());
+        for (int i = 0; i < actions.size(); i++)
+            saveActionToData(actions[i], data[i]);
+    }
+
+    void MotionPlanningFrame::saveActionToData(const apc_msgs::PrimitiveAction& action,
+                                               QVariant& data)
+    {
+        // Store the action into the data.
+        setMessageToUserData<apc_msgs::PrimitiveAction>(data, action);
+    }
+
+    void MotionPlanningFrame::loadActionFromData(apc_msgs::PrimitiveAction& action,
+                                                 const QVariant& data)
+    {
+        // Retrieve the action from the data.
+        action = getMessageFromUserData<apc_msgs::PrimitiveAction>(data);
+    }
+
+    void MotionPlanningFrame::loadActionFromData(std::vector<apc_msgs::PrimitiveAction>& actions,
+                                                 const std::vector<QVariant>& data)
+    {
+        actions.resize(data.size());
+        for (int i = 0; i < data.size(); i++)
+            loadActionFromData(actions[i], data[i]);
+    }
+
+    void MotionPlanningFrame::snapStateToPoint(robot_state::RobotState& state,
+                                               const std::vector<std::string>& joint_names,
+                                               const trajectory_msgs::JointTrajectoryPoint& point)
+    {
+        for (int i = 0; i < joint_names.size(); i++)
+            state.setJointPositions(joint_names[i], &point.positions[i]);
         state.update();
     }
 
-    void MotionPlanningFrame::saveStateToAction(const robot_state::RobotState& state,
-                                                apc_msgs::PrimitiveAction& action)
+    void MotionPlanningFrame::snapStateToFrame(robot_state::RobotState& state,
+                                               const std::string& frame,
+                                               const std::string& link,
+                                               const geometry_msgs::Pose& pose_frame_link,
+                                               const std::string& group)
     {
-        const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(action.group_name);
-        if (!joint_model_group)
+        if (frame.empty() || link.empty())
+            return;
+        Eigen::Affine3d T_frame_world = computeNearestFrame(frame, group, state);
+        Eigen::Affine3d T_frame_link;
+        tf::poseMsgToEigen(pose_frame_link, T_frame_link);
+        snapStateToFrame(state, T_frame_world, link, T_frame_link, group);
+    }
+
+    void MotionPlanningFrame::snapStateToFrame(robot_state::RobotState& state,
+                                               const Eigen::Affine3d& T_frame_world,
+                                               const std::string& link,
+                                               const Eigen::Affine3d& T_frame_link,
+                                               const std::string& group)
+    {
+        ROS_DEBUG_FUNCTION;
+
+        // std::cout << "T_frame_world:\n" << T_frame_world.matrix() << std::endl;
+        // std::cout << "T_frame_link:\n" << T_frame_link.matrix() << std::endl;
+
+        // Back out the desired link transform in global coordinates.
+        Eigen::Affine3d T_link_world = T_frame_world * T_frame_link.inverse();
+        // Snap to the frame using IK.
+        const moveit::core::JointModelGroup* jmg = state.getJointModelGroup(group);
+
+        // std::cout << "group: " << group << std::endl;
+
+        state.update();
+        trajectory_msgs::JointTrajectoryPoint point;
+        state.copyJointGroupPositions(jmg, point.positions);
+        ROS_DEBUG_STREAM("pre-ik positions:\n" << point);
+
+        geometry_msgs::Pose pose;
+        tf::poseEigenToMsg(T_link_world, pose);
+        state.setFromIK(jmg, pose, link);
+        state.update();
+
+        state.copyJointGroupPositions(jmg, point.positions);
+        ROS_DEBUG_STREAM("post-ik positions:\n" << point);
+
+        ROS_DEBUG_FUNCTION;
+    }
+
+    void MotionPlanningFrame::attachObjectToState(robot_state::RobotState& state,
+                                                  const std::string& object_id,
+                                                  const std::string& link_id,
+                                                  const geometry_msgs::Pose& pose_object_link)
+    {
+        state.clearAttachedBodies();
+        if (object_id.empty() || link_id.empty())
+            return;
+        Eigen::Affine3d T_object_link;
+        tf::poseMsgToEigen(pose_object_link, T_object_link);
+        attachObjectToState(state, object_id, link_id, T_object_link);
+    }
+
+    void MotionPlanningFrame::attachObjectToState(robot_state::RobotState& state,
+                                                  const std::string& object_id,
+                                                  const std::string& link_id,
+                                                  const Eigen::Affine3d& T_object_link)
+    {
+        state.clearAttachedBodies();
+        if (object_id.empty())
+            return;
+
+        // Compute the object key.
+        std::string object_key = computeNearestObject(object_id, link_id, state);
+
+        // Extract the object from the world.
+        collision_detection::CollisionWorld::ObjectConstPtr object;
+        std::vector<shapes::ShapeConstPtr> shapes;
+        EigenSTL::vector_Affine3d poses;
         {
-            ROS_ERROR("Failed to get joint model group %s", action.group_name.c_str());
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            object = ps->getWorld()->getObject(object_key);
+        }
+        if (!object)
+        {
+            if (!object_id.empty())
+                ROS_WARN("Failed to attach %s to %s. Object does not exist.",
+                         object_id.c_str(), link_id.c_str());
             return;
         }
-        // Get the goal joint tolerance.
-        double goal_joint_tolerance = move_group_->getGoalJointTolerance();
-        // Construct goal constraints only for the joint model group.
-        moveit_msgs::Constraints constraints = kinematic_constraints::constructGoalConstraints(state,
-                                                                                               joint_model_group,
-                                                                                               goal_joint_tolerance);
-        // Copy joint angles and names to action.
-        action.joint_trajectory.points.resize(1);
-        for (int i = 0; i < constraints.joint_constraints.size(); i++)
+
+        // Compute poses relative to link.
+        shapes = object->shapes_;
+        poses = object->shape_poses_;
+        for (int i = 0; i < poses.size(); i++)
+            poses[i] = T_object_link * poses[0].inverse() * poses[i];
+        // Attach collision object to robot.
+        moveit_msgs::AttachedCollisionObject aco; // For dummy arguments.
+        state.attachBody(object_id, shapes, poses, aco.touch_links, link_id, aco.detach_posture);
+        // Update state.
+        state.update();
+    }
+
+    void MotionPlanningFrame::loadStartAndGoalFromAction(robot_state::RobotState& start,
+                                                         robot_state::RobotState& goal,
+                                                         const apc_msgs::PrimitiveAction& action)
+    {
+        int num_points = action.joint_trajectory.points.size();
+        const std::vector<std::string>& joint_names = action.joint_trajectory.joint_names;
+        if (joint_names.size() == 0 || num_points == 0)
         {
-            action.joint_trajectory.joint_names.push_back(constraints.joint_constraints[i].joint_name);
-            action.joint_trajectory.points[0].positions.push_back(constraints.joint_constraints[i].position);
+            ROS_ERROR("Invalid action: No joint trajectory to load!");
+            return;
         }
-        // Save attached objects to the plan.
-        computeAttachObjectToAction(state, action);
+
+        // Next snap start and goal states to joint trajectory points.
+        const trajectory_msgs::JointTrajectoryPoint start_point = action.joint_trajectory.points.front();
+        const trajectory_msgs::JointTrajectoryPoint goal_point  = action.joint_trajectory.points.back();
+        // If it's "bin", do IK from current state instead of recorded
+        // as it's closer to the nearest bin by definition.
+        if (action.frame_id != "bin")
+        {
+            snapStateToPoint(start, joint_names, start_point);
+            snapStateToPoint(goal, joint_names, goal_point);
+        }
+
+        // Next snap start and goal states to the frame. Note that we
+        // must provide the same transform from from world to frame to
+        // both snaps.
+        if (!action.frame_id.empty() && !action.eef_link_id.empty())
+        {
+            int num_eef = action.eef_trajectory.poses.size();
+            // Use compute the frame nearest the *start* state. Or
+            // else, the goal state will shift itself around.
+            Eigen::Affine3d T_frame_world = computeNearestFrame(action.frame_id, action.group_id, start);
+            Eigen::Affine3d T_frame_start;
+            Eigen::Affine3d T_frame_goal;
+            geometry_msgs::Pose pose_start = action.eef_trajectory.poses[0];
+            geometry_msgs::Pose pose_goal = action.eef_trajectory.poses[num_eef-1];
+            tf::poseMsgToEigen(pose_start, T_frame_start);
+            tf::poseMsgToEigen(pose_goal, T_frame_goal);
+
+            snapStateToFrame(start, T_frame_world, action.eef_link_id, T_frame_start, action.group_id);
+            snapStateToFrame(goal, T_frame_world, action.eef_link_id, T_frame_goal, action.group_id);
+        }
+
+        // Attach manipulated objects.
+        int num_object_poses = action.object_trajectory.poses.size();
+        attachObjectToState(start, action.object_id, action.attached_link_id, action.object_trajectory.poses[0]);
+        attachObjectToState(goal, action.object_id, action.attached_link_id, action.object_trajectory.poses[num_object_poses-1]);
     }
 
-    void MotionPlanningFrame::getStateFromAction(robot_state::RobotState& robot,
-                                                 const apc_msgs::PrimitiveAction& action)
+    void MotionPlanningFrame::loadStartAndGoalFromAction(const apc_msgs::PrimitiveAction& action)
     {
-        // Get the group name.
-        std::string group = action.group_name;
-
-        // Convert goal message into joint state message.
-        sensor_msgs::JointState state;
-        state.name = action.joint_trajectory.joint_names;
-
-        // Get the joint constraints. Note we only extract the first one!
-        state.position = action.joint_trajectory.points[0].positions;
-
-        // Merge the goal message into the robot state. This keeps the previous values.
-        robot.setVariableValues(state);
-
-        // Update the dirty transforms, etc.
-        robot.update();
-    }
-
-    void MotionPlanningFrame::saveActionToItem(QListWidgetItem* item)
-    {
-        const robot_state::RobotState& state = *planning_display_->getQueryGoalState();
-        saveActionToItem(state, item);
-    }
-
-    void MotionPlanningFrame::saveActionToItem(const robot_state::RobotState& state,
-                                             QListWidgetItem* item)
-    {
-        if (!item)
-            return;
-
-        // TODO Save the end-effector relative poses and the joint angles.
-
-        // Get current planning group (set of active joints).
-        std::string group = planning_display_->getCurrentPlanningGroup();
-
-        // Get the active joint models in that group.
-        const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(group);
-
-        // Get the goal joint tolerance.
-        double goal_joint_tolerance = move_group_->getGoalJointTolerance();
-
-        // Create a move group action message.
-        apc_msgs::PrimitivePlan action;
-        action.actions.resize(1);
-
-        // Set the action group name.
-        action.actions[0].group_name = group;
-
-        // Save state information to action.
-        saveStateToAction(state, action.actions[0]);
-
-        // TODO Build a descriptive name.
-        static int count = 0;
-        QString display_name = QString("%1: %2").arg(group.c_str()).arg(count++);
-
-        action.actions[0].action_name = display_name.toStdString();
-
-        // Get the data in the item.
-        QVariant data = item->data(Qt::UserRole);
-
-        // Store the action into the data.
-        setMessageToUserData<apc_msgs::PrimitivePlan>(data, action);
-
-        // Save the serialized data back into the item.
-        item->setData(Qt::UserRole, data);
-
-        // Set the display name of the item.
-        item->setText(display_name);
-    }
-
-    void MotionPlanningFrame::loadActionFromItem(QListWidgetItem* item)
-    {
-        if (!item)
-            return;
-
-        // Get the saved binary data.
-        QVariant data = item->data(Qt::UserRole);
-
-        // Load action from data.
-        loadActionFromData(data);
-    }
-
-    void MotionPlanningFrame::loadActionFromItem(QTreeWidgetItem* item)
-    {
-        if (!item)
-            return;
-
-        // Get the saved binary data.
-        QVariant data = item->data(0, Qt::UserRole);
-
-        // Load action from data.
-        loadActionFromData(data);
-    }
-
-    void MotionPlanningFrame::loadActionFromData(const QVariant& data)
-    {
-        // Deserialize byte array into move group action.
-        apc_msgs::PrimitivePlan action = getMessageFromUserData<apc_msgs::PrimitivePlan>(data);
-
-        // Get the new planning group.
-        std::string group = action.actions[0].group_name;
-
-        // Update the planning group.
-        planning_display_->changePlanningGroup(group);
-
-        // Get the current action state.
-        robot_state::RobotState current_state = *planning_display_->getQueryGoalState();
-
-        // Load state from the first action.
-        loadStateFromAction(current_state, action.actions[0]);
-
-        // Set the joints related to the current group.
-        planning_display_->setQueryGoalState(current_state);
+        robot_state::RobotState start = *getQueryStartState();
+        robot_state::RobotState goal = *getQueryGoalState();
+        loadStartAndGoalFromAction(start, goal, action);
+        planning_display_->setQueryStartState(start);
+        planning_display_->setQueryGoalState(goal);
     }
 
     void MotionPlanningFrame::loadWaypointsToDisplay(QList<QListWidgetItem*> items)
     {
-        std::vector<QVariant> data;
+        std::vector<apc_msgs::PrimitiveAction> actions(items.count());
         for (int i = 0; i < items.count(); i++)
-            data.push_back(items[i]->data(Qt::UserRole));
-
-        loadWaypointsToDisplay(data);
+            loadActionFromData(actions[i], items[i]->data(Qt::UserRole));
+        loadWaypointsToDisplay(actions);
     }
 
     void MotionPlanningFrame::loadWaypointsToDisplay(QList<QTreeWidgetItem*> items)
@@ -527,11 +716,12 @@ namespace moveit_rviz_plugin
                     data.push_back(items[i]->child(j)->data(0, Qt::UserRole));
             else
                 data.push_back(items[i]->data(0, Qt::UserRole));
-
-        loadWaypointsToDisplay(data);
+        std::vector<apc_msgs::PrimitiveAction> actions;
+        loadActionFromData(actions, data);
+        loadWaypointsToDisplay(actions);
     }
 
-    void MotionPlanningFrame::loadWaypointsToDisplay(std::vector<QVariant>& data)
+    void MotionPlanningFrame::loadWaypointsToDisplay(std::vector<apc_msgs::PrimitiveAction>& actions)
     {
         // Delete all existing waypoints!
         planning_display_->clearDisplayWaypoints();
@@ -546,23 +736,26 @@ namespace moveit_rviz_plugin
         int focus = 0;
 
         // Construct a list of new waypoints.
-        robot_state::RobotState waypoint(planning_display_->getPlanningSceneRO()->getCurrentState());
-        for (int i = 0; i < data.size(); i++)
+        robot_state::RobotState start_waypoint = *getQueryStartState();
+        robot_state::RobotState goal_waypoint = *getQueryGoalState();
+        for (int i = 0; i < actions.size(); i++)
         {
             // Get the ith action message in the data vector.
-            apc_msgs::PrimitivePlan action = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[i]);
+            const apc_msgs::PrimitiveAction& action = actions[i];
 
             // Get the group name.
-            group = action.actions[0].group_name;
+            group = action.group_id;
 
             // Load action into state.
-            loadStateFromAction(waypoint, action.actions[0]);
+            loadStartAndGoalFromAction(start_waypoint, goal_waypoint, action);
 
             // Update the dirty transforms, etc.
-            waypoint.update();
+            start_waypoint.update();
+            goal_waypoint.update();
 
             // Add waypoint.
-            planning_display_->addDisplayWaypoint(waypoint, group, link_names, focus);
+            planning_display_->addDisplayWaypoint(start_waypoint, group, link_names, focus);
+            planning_display_->addDisplayWaypoint(goal_waypoint, group, link_names, focus);
         }
     }
 

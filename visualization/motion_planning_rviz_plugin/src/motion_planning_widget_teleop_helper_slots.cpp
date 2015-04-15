@@ -50,12 +50,11 @@ namespace moveit_rviz_plugin
         connect( ui_->start_radio_button, SIGNAL( clicked() ), this, SLOT( startRadioButtonClicked() ));
         connect( ui_->goal_radio_button,  SIGNAL( clicked() ), this, SLOT( goalRadioButtonClicked() ));
         connect( ui_->group_combo_box, SIGNAL( activated(int) ), this, SLOT( groupComboBoxActivated(int) ));
-
         connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
         connect( ui_->goal_to_current_button,  SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
-        connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-        connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-        connect( ui_->cartesian_interpolate_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        // connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        // connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+        // connect( ui_->interpolate_cartesian_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
 
     }
 
@@ -66,6 +65,10 @@ namespace moveit_rviz_plugin
         const QString unlock = QString::fromUtf8("\uF13E");
         bool checked = ui_->padlock_button->isChecked();
         ui_->padlock_button->setText(checked ? lock : unlock);
+
+        // Snap start to goal on unlock.
+        if (!checked)
+            planning_display_->setQueryStartState(*planning_display_->getQueryGoalState());
 
         // Toggle start and goal buttons.
         ui_->start_radio_button->setEnabled(!checked);
@@ -117,6 +120,11 @@ namespace moveit_rviz_plugin
         planning_display_->changePlanningGroup(group);
     }
 
+    void MotionPlanningFrame::updateGroupComboBoxFromAction(const apc_msgs::PrimitiveAction& action)
+    {
+        planning_display_->changePlanningGroup(action.group_id);
+    }
+
     void MotionPlanningFrame::updateFrameComboBox()
     {
         QComboBox* frame = ui_->frame_combobox;
@@ -141,6 +149,7 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::frameComboBoxActivated(int)
     {
+        ROS_WARN("Frame combo box activated");
         // QListWidget* active_actions_widget = ui_->active_actions_list;
         // if (active_actions_widget->selectedItems().count() != 1)
         // {
@@ -160,6 +169,14 @@ namespace moveit_rviz_plugin
         //     ROS_WARN("Cannot determine frame from bin content selection");
         //     return;
         // }
+    }
+
+    void MotionPlanningFrame::updateFrameComboBoxFromAction(const apc_msgs::PrimitiveAction& action)
+    {
+        QComboBox* frame = ui_->frame_combobox;
+        int index = frame->findText(QString::fromStdString(action.frame_id));
+        if (index != -1)
+            frame->setCurrentIndex(index);
     }
 
     void MotionPlanningFrame::updateObjectComboBox()
@@ -182,6 +199,22 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::objectComboBoxActivated(int)
     {
+        ROS_WARN("Object combo box activated");
+    }
+
+    void MotionPlanningFrame::updateObjectComboBoxFromAction(const apc_msgs::PrimitiveAction& action)
+    {
+        QComboBox* object = ui_->object_combobox;
+        int index = object->findText(QString::fromStdString(action.object_id));
+        if (index != -1)
+            object->setCurrentIndex(index);
+    }
+
+    void MotionPlanningFrame::updateOptionsCheckBoxesFromAction(const apc_msgs::PrimitiveAction& action)
+    {
+        ui_->monitor_contact_checkbox->setChecked(action.monitor_contact);
+        ui_->monitor_profile_checkbox->setChecked(action.monitor_haptic_profile);
+        ui_->interpolate_cartesian_checkbox->setChecked(action.interpolate_cartesian);
     }
 
     void MotionPlanningFrame::setStartToCurrentButtonClicked()
@@ -196,13 +229,6 @@ namespace moveit_rviz_plugin
         robot_state::RobotState goal = *planning_display_->getQueryGoalState();
         updateQueryStateHelper(goal, "<current>");
         planning_display_->setQueryGoalState(goal);
-    }
-
-    void MotionPlanningFrame::optionsCheckBoxClicked()
-    {
-        // Save the clicked options.
-        QList<QListWidgetItem*> items = ui_->active_actions_list->selectedItems();
-        saveOptionsFromView(items);
     }
 
 }
