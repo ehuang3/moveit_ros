@@ -191,7 +191,7 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::saveFormatToAction(apc_msgs::PrimitiveAction& action)
     {
-        saveFormatToAction(action, ui_->format_line_edit->text().toStdString());
+        saveFormatToAction(action, ui_->action_format_line_edit->text().toStdString());
     }
 
     void MotionPlanningFrame::saveFormatToAction(apc_msgs::PrimitiveAction& action, const std::string& format)
@@ -223,6 +223,76 @@ namespace moveit_rviz_plugin
         boost::replace_all(name, "%i", i);
         boost::replace_all(name, "%o", o);
         action.action_name = name;
+    }
+
+    void MotionPlanningFrame::saveFormatToPlan(apc_msgs::PrimitivePlan& plan)
+    {
+        saveFormatToPlan(plan, ui_->plan_format_line_edit->text().toStdString());
+    }
+
+    void MotionPlanningFrame::saveFormatToPlan(apc_msgs::PrimitivePlan& plan, const std::string& format)
+    {
+        // Get largest group.
+        robot_state::RobotStateConstPtr state = getQueryGoalState();
+        int max_count = 0;
+        std::string group;
+        for (int i = 0; i < plan.actions.size(); i++) {
+            int count = state->getJointModelGroup(plan.actions[i].group_id)->getVariableCount();
+            if (count > max_count) {
+                max_count = count;
+                group = plan.actions[i].group_id;
+            }
+        }
+        // Get frame in order of object then bin.
+        std::string frame;
+        for (int i = 0; i < plan.actions.size(); i++) {
+            if (plan.actions[i].frame_id.empty())
+                continue;
+            frame = plan.actions[i].frame_id;
+            if (plan.actions[i].frame_id.find("bin") != 0)
+                break;
+        }
+        // Get the first object.
+        std::string object;
+        for (int i = 0; i < plan.actions.size(); i++) {
+            object = plan.actions[i].object_id;
+            if (!object.empty())
+                break;
+        }
+        // Get the i number.
+        int count = 0;
+        // Construct %a token
+        std::string a = group;
+        // Construct %g token
+        std::string g;
+        std::string g_token;
+        std::istringstream g_iss(group);
+        while (std::getline(g_iss, g_token, '_'))
+            g.push_back(g_token[0]);
+        // Construct %i token
+        std::stringstream ss;
+        ss << count;
+        std::string i = ss.str();
+        // Construct %o token
+        std::string o;
+        std::string o_token;
+        std::istringstream o_iss(object);
+        while (std::getline(o_iss, o_token, '_'))
+            o.push_back(o_token[0]);
+        // Construct %f token
+        std::string f;
+        std::string f_token;
+        std::istringstream f_iss(frame);
+        while (std::getline(f_iss, f_token, '_'))
+            f.push_back(f_token[0]);
+        // Substitute args into format.
+        std::string name = format;
+        boost::replace_all(name, "%a", a);
+        boost::replace_all(name, "%g", g);
+        boost::replace_all(name, "%i", i);
+        boost::replace_all(name, "%o", o);
+        boost::replace_all(name, "%f", f);
+        plan.plan_name = name;
     }
 
     std::string MotionPlanningFrame::computeEefLink(const std::string& group)

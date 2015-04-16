@@ -322,6 +322,8 @@ private:
   void saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame);
   void saveFormatToAction(apc_msgs::PrimitiveAction& action);
   void saveFormatToAction(apc_msgs::PrimitiveAction& action, const std::string& format);
+  void saveFormatToPlan(apc_msgs::PrimitivePlan& plan);
+  void saveFormatToPlan(apc_msgs::PrimitivePlan& plan, const std::string& format);
   void saveObjectToAction(apc_msgs::PrimitiveAction& action);
   void saveObjectToAction(apc_msgs::PrimitiveAction& action, const std::string& object);
   void saveOptionsToAction(apc_msgs::PrimitiveAction& action);
