@@ -146,6 +146,9 @@ namespace moveit_rviz_plugin
             else if (!mixed && toplevel)
                 mixed = true;
 
+        if (mixed)
+            ROS_WARN("Mixed toplevel and children");
+
         // List of active actions.
         QListWidget* active_actions = ui_->active_actions_list;
 
@@ -155,32 +158,33 @@ namespace moveit_rviz_plugin
         // For loop to copy over the selected items.
         for (int i = 0; i < items.count(); i++)
         {
-            // Create list of data.
-            std::vector<QVariant> data;
+            // The selected actions.
+            std::vector<apc_msgs::PrimitiveAction> actions;
 
             // If the list is not mixed and the item is toplevel, add it's children's data.
             if (!mixed && toplevel)
                 for (int j = 0; j < items[i]->childCount(); j++)
-                    data.push_back(items[i]->child(j)->data(0, Qt::UserRole));
-            // Else if the list is mixed and items are not toplevel, add it's data.
+                    actions.push_back(getMessageFromUserData<apc_msgs::PrimitiveAction>(items[i]->child(j)->data(0, Qt::UserRole)));
+            // Else if the list is mixed or items are not toplevel, add selected item's data.
             else if (-1 == stored_plans->indexOfTopLevelItem(items[i]))
-                data.push_back(items[i]->data(0, Qt::UserRole));
+                actions.push_back(getMessageFromUserData<apc_msgs::PrimitiveAction>(items[i]->data(0, Qt::UserRole)));
 
             // Copy data over to actions list.
-            for (int j = 0; j < data.size(); j++)
+            for (int j = 0; j < actions.size(); j++)
             {
                 // Create a new list item.
                 QListWidgetItem* item = new QListWidgetItem;
                 item->setFlags(item->flags() | Qt::ItemIsEditable);
 
-                // Get the plan message from the stored data.
-                apc_msgs::PrimitivePlan plan = getMessageFromUserData<apc_msgs::PrimitivePlan>(data[j]);
-
                 // Get the display name from the plan.
-                QString text = plan.actions[0].action_name.c_str();
+                QString text = actions[j].action_name.c_str();
+
+                // Convert action to data.
+                QVariant data;
+                saveActionToData(actions[j], data);
 
                 // Set the into the new item.
-                item->setData(Qt::UserRole, data[j]);
+                item->setData(Qt::UserRole, data);
 
                 // Set the display name into the item.
                 item->setText(text);

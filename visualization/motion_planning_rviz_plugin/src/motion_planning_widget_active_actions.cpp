@@ -210,11 +210,18 @@ namespace moveit_rviz_plugin
         std::stringstream ss;
         ss << ui_->active_actions_list->count();
         std::string i = ss.str();
+        // Construct %o token.
+        std::string o;
+        std::string o_token;
+        std::istringstream o_iss(action.object_id);
+        while (std::getline(o_iss, o_token, '_'))
+            o.push_back(o_token[0]);
         // Substitute args into format.
         std::string name = format;
         boost::replace_all(name, "%a", a);
         boost::replace_all(name, "%g", g);
         boost::replace_all(name, "%i", i);
+        boost::replace_all(name, "%o", o);
         action.action_name = name;
     }
 

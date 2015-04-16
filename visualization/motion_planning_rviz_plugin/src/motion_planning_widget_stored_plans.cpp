@@ -53,9 +53,6 @@ namespace moveit_rviz_plugin
             // The stored plans in the view.
             QTreeWidget* stored_plans = ui_->stored_plans_tree;
 
-            // A primitive plan message.
-            apc_msgs::PrimitivePlan msg;
-
             // List of plans in the database.
             std::vector<std::string> database_names;
             primitive_plan_storage_->getKnownPrimitivePlans(database_names);
@@ -77,26 +74,16 @@ namespace moveit_rviz_plugin
                 // Get the toplevel item.
                 QTreeWidgetItem* root = stored_plans->topLevelItem(i);
 
+                // Get the primitive plan.
+                apc_msgs::PrimitivePlan plan = getMessageFromUserData<apc_msgs::PrimitivePlan>(root->data(0, Qt::UserRole));
+
                 // Build primitive plan message.
-                msg.plan_name = root->text(0).toStdString(); // TODO Unique plan names.
-                msg.actions.clear();
-                for (int j = 0; j < root->childCount(); j++)
-                {
-                    // Get the child.
-                    QTreeWidgetItem* child = root->child(j);
-
-                    // Get the message stored in the child.
-                    apc_msgs::PrimitivePlan plan = getMessageFromUserData<apc_msgs::PrimitivePlan>(child->data(0, Qt::UserRole));
-
-                    // Append primitive actions in child plan to primitive plan.
-                    for (int k = 0; k < plan.actions.size(); k++)
-                        msg.actions.push_back(plan.actions[k]);
-                }
+                plan.plan_name = root->text(0).toStdString(); // TODO Unique plan names.
 
                 // Store message in database.
                 try
                 {
-                    primitive_plan_storage_->addPrimitivePlan(msg, msg.plan_name);
+                    primitive_plan_storage_->addPrimitivePlan(plan, plan.plan_name);
                 }
                 catch (std::runtime_error &ex)
                 {
@@ -150,6 +137,11 @@ namespace moveit_rviz_plugin
 
             root->setText(0, QString(plan->plan_name.c_str()));
 
+            // Store overall plan in root node.
+            QVariant data;
+            setMessageToUserData<apc_msgs::PrimitivePlan>(data, *plan);
+            root->setData(0, Qt::UserRole, data);
+
             for (int j = 0; j < plan->actions.size(); j++)
             {
                 QTreeWidgetItem* child = new QTreeWidgetItem;
@@ -158,13 +150,8 @@ namespace moveit_rviz_plugin
                 // Set the child's name.
                 child->setText(0, QString(plan->actions[j].action_name.c_str()));
 
-                // Construct a plan to hold the action.
-                apc_msgs::PrimitivePlan child_plan;
-                child_plan.actions.push_back(plan->actions[j]);
-
                 // Store primitive action in the data.
-                QVariant data;
-                setMessageToUserData<apc_msgs::PrimitivePlan>(data, child_plan);
+                setMessageToUserData<apc_msgs::PrimitiveAction>(data, plan->actions[j]);
 
                 // Store data into the child node.
                 child->setData(0, Qt::UserRole, data);

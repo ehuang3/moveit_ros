@@ -76,14 +76,14 @@ namespace moveit_rviz_plugin
         // Save state and settings to action.
         apc_msgs::PrimitiveAction action;
         saveStartAndGoalToAction(action);
-        saveFormatToAction(action);
         saveFrameToAction(action);
         saveObjectToAction(action);
         saveOptionsToAction(action);
+        saveFormatToAction(action);
 
-        std::cout << "==================== Action ====================\n"
-                  << action
-                  << "================================================\n";
+        ROS_DEBUG_STREAM("==================== Action ====================\n"
+                         << action
+                         << "================================================\n");
 
         // Store action in variant.
         QVariant data;
