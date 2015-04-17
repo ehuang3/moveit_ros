@@ -174,19 +174,21 @@ private Q_SLOTS:
                          const apc_msgs::FollowPrimitivePlanResult& result);
 
   // Teleoperation widget helper slots.
-  void padlockButtonClicked();
+  void padlockButtonToggled(bool);
   void startRadioButtonClicked();
   void goalRadioButtonClicked();
   void updateGroupComboBox();
   void groupComboBoxActivated(int);
   void updateGroupComboBoxFromAction(const apc_msgs::PrimitiveAction& action);
   void updateFrameComboBox();
-  void frameComboBoxActivated(int);
+  void frameComboBoxActivated(const QString& text);
   void updateFrameComboBoxFromAction(const apc_msgs::PrimitiveAction& action);
   void updateObjectComboBox();
   void objectComboBoxActivated(int);
+  void objectComboBoxCurrentIndexChanged(const QString& text);
   void updateObjectComboBoxFromAction(const apc_msgs::PrimitiveAction& action);
   void updateOptionsCheckBoxesFromAction(const apc_msgs::PrimitiveAction& action);
+  void updateLockedStateFromAction(const apc_msgs::PrimitiveAction& action);
   void setStartToCurrentButtonClicked();
   void setGoalToCurrentButtonClicked();
 
@@ -253,7 +255,7 @@ private:
   // Teleoperation widget.
   void computePlanButtonClicked();
   bool computePlan(apc_msgs::PrimitivePlan& plan);
-  void loadPlanToDisplay(const moveit_msgs::RobotState& start_state,
+  void loadPlanToPreview(const moveit_msgs::RobotState& start_state,
                          const apc_msgs::PrimitivePlan& plan);
   void appendToTrajectory(trajectory_msgs::JointTrajectory& first,
                           const trajectory_msgs::JointTrajectory& second);
@@ -265,12 +267,6 @@ private:
   void updateWorkOrderTableWidget(rapidjson::Document& doc);
 
   // Teleoperation widget helper.
-  // void loadOptionsToView(QList<QListWidgetItem*> items, bool enable = true);
-  // void loadOptionsToView(QList<QTreeWidgetItem*> items, bool enable = true);
-  // void loadOptionsToView(std::vector<QVariant>& data, bool enable=true);
-  // void setTristateCheckBox(QCheckBox* checkbox, bool b, bool init);
-  // void saveOptionsFromView(QList<QListWidgetItem*> items);
-  // void saveOptionsFromView(std::vector<QVariant>& data);
   void updateBinContentsTableWidget(rapidjson::Document& doc);
   bool showQueryStartInteractiveMarkers();
   bool showQueryGoalInteractiveMarkers();

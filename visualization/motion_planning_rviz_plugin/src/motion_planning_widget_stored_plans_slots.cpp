@@ -66,8 +66,8 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::storedPlansTreeClicked(const QModelIndex& index)
     {
         // Load selected stored tree plans into waypoint display.
-        QList<QTreeWidgetItem*> actions = ui_->stored_plans_tree->selectedItems();
-        loadWaypointsToDisplay(actions);
+        // QList<QTreeWidgetItem*> actions = ui_->stored_plans_tree->selectedItems();
+        // loadWaypointsToDisplay(actions);
     }
 
     void MotionPlanningFrame::storedPlansItemClicked(QTreeWidgetItem* item, int col)
@@ -92,15 +92,33 @@ namespace moveit_rviz_plugin
         if (active_actions->count() == 0)
             return;
 
-        // Get all hightlighted items, or all items if none are highlighted.
+        // Get all hightlighted items, or all items if none are
+        // highlighted.
         QList<QListWidgetItem*> items = active_actions->selectedItems();
         if (items.count() == 0)
             for (int i = 0; i < active_actions->count(); i++)
                 items.push_back(active_actions->item(i));
 
-        // Construct a top level tree item.
+        // Convert items data into plan.
+        std::vector<QVariant> data;
+        for (int i = 0; i < items.count(); i++)
+            data.push_back(items[i]->data(Qt::UserRole));
+        apc_msgs::PrimitivePlan plan;
+        loadActionFromData(plan.actions, data);
+
+        // Build a descriptive name.
+        saveFormatToPlan(plan);
+
+        // Store plan in data.
+        QVariant plan_data;
+        setMessageToUserData<apc_msgs::PrimitivePlan>(plan_data, plan);
+
+        // Store plan in top level tree item and store individual
+        // actions in child elements.
         QTreeWidgetItem* root = new QTreeWidgetItem;
         root->setFlags(root->flags() | Qt::ItemIsEditable);
+        root->setData(0, Qt::UserRole, plan_data);
+        root->setText(0, QString::fromStdString(plan.plan_name));
         for (int i = 0; i < items.count(); i++)
         {
             QTreeWidgetItem* child = new QTreeWidgetItem;
@@ -112,12 +130,6 @@ namespace moveit_rviz_plugin
 
         // Tree of stored plans.
         QTreeWidget* stored_plans = ui_->stored_plans_tree;
-
-        // Build a descriptive name.
-        QString name = QString("plan: %1").arg(stored_plans->topLevelItemCount());
-
-        // Set plan name to display.
-        root->setText(0, name);
 
         // Add to tree list.
         stored_plans->addTopLevelItem(root);

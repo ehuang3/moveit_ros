@@ -46,24 +46,26 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::connectTeleopHelperSlots()
     {
-        connect( ui_->padlock_button,     SIGNAL( clicked() ), this, SLOT( padlockButtonClicked() ));
+        connect( ui_->padlock_button,     SIGNAL( toggled(bool) ), this, SLOT( padlockButtonToggled(bool) ));
         connect( ui_->start_radio_button, SIGNAL( clicked() ), this, SLOT( startRadioButtonClicked() ));
         connect( ui_->goal_radio_button,  SIGNAL( clicked() ), this, SLOT( goalRadioButtonClicked() ));
         connect( ui_->group_combo_box, SIGNAL( activated(int) ), this, SLOT( groupComboBoxActivated(int) ));
+        connect( ui_->frame_combobox,  SIGNAL( activated(const QString&) ),
+                 this, SLOT( frameComboBoxActivated(const QString&) ));
+        connect( ui_->object_combobox,  SIGNAL( currentIndexChanged(const QString&) ),
+                 this, SLOT( objectComboBoxCurrentIndexChanged(const QString&) ));
         connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
         connect( ui_->goal_to_current_button,  SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
         // connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         // connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         // connect( ui_->interpolate_cartesian_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-
     }
 
-    void MotionPlanningFrame::padlockButtonClicked()
+    void MotionPlanningFrame::padlockButtonToggled(bool checked)
     {
         // Update text to reflect locked state.
         const QString lock = QString::fromUtf8("\uF023");
         const QString unlock = QString::fromUtf8("\uF13E");
-        bool checked = ui_->padlock_button->isChecked();
         ui_->padlock_button->setText(checked ? lock : unlock);
 
         // Snap start to goal on unlock.
@@ -128,6 +130,8 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::updateFrameComboBox()
     {
         QComboBox* frame = ui_->frame_combobox;
+        // Save current text.
+        QString text = frame->currentText();
         // Clear combo box.
         frame->clear();
         // Add blank space.
@@ -145,30 +149,19 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < bin_contents->rowCount(); i++)
             if (frame->findText(bin_contents->item(i, 1)->text(), Qt::MatchExactly) == -1)
                 frame->addItem(bin_contents->item(i, 1)->text());
+        // Restore text.
+        frame->setCurrentIndex(frame->findText(text));
     }
 
-    void MotionPlanningFrame::frameComboBoxActivated(int)
+    void MotionPlanningFrame::frameComboBoxActivated(const QString& text)
     {
-        ROS_WARN("Frame combo box activated");
-        // QListWidget* active_actions_widget = ui_->active_actions_list;
-        // if (active_actions_widget->selectedItems().count() != 1)
-        // {
-        //     ROS_WARN("Cannot determine action from active action selection");
-        //     return;
-        // }
-
-        // if (!checked)
-        // {
-
-        // }
-
-        // QTableWidget* bin_contents_widget = ui_->bin_contents_table_widget;
-
-        // if (bin_contents_widget->selectedItems().count() != 1)
-        // {
-        //     ROS_WARN("Cannot determine frame from bin content selection");
-        //     return;
-        // }
+        // If the frame is an object, attach that object for
+        // convinience.
+        std::string frame = text.toStdString();
+        if (frame.empty() || frame.find("bin") == 0)
+            return;
+        int index = ui_->object_combobox->findText(text);
+        ui_->object_combobox->setCurrentIndex(index);
     }
 
     void MotionPlanningFrame::updateFrameComboBoxFromAction(const apc_msgs::PrimitiveAction& action)
@@ -182,6 +175,8 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::updateObjectComboBox()
     {
         QComboBox* object = ui_->object_combobox;
+        // Save current text.
+        QString text = object->currentText();
         // Clear combo box.
         object->clear();
         // Add blank space.
@@ -195,11 +190,22 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < bin_contents->rowCount(); i++)
             if (object->findText(bin_contents->item(i, 1)->text(), Qt::MatchExactly) == -1) // No duplicates.
                 object->addItem(bin_contents->item(i, 1)->text());
+        // Restore text.
+        object->setCurrentIndex(object->findText(text));
     }
 
-    void MotionPlanningFrame::objectComboBoxActivated(int)
+    void MotionPlanningFrame::objectComboBoxCurrentIndexChanged(const QString& text)
     {
-        ROS_WARN("Object combo box activated");
+        // If the current text is not an object, remove all attached objects from the robot state.
+        std::string object = text.toStdString();
+        if (!object.empty())
+            return;
+        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
+        robot_state::RobotState goal_state = *planning_display_->getQueryGoalState();
+        start_state.clearAttachedBodies();
+        goal_state.clearAttachedBodies();
+        planning_display_->setQueryStartState(start_state);
+        planning_display_->setQueryGoalState(goal_state);
     }
 
     void MotionPlanningFrame::updateObjectComboBoxFromAction(const apc_msgs::PrimitiveAction& action)
@@ -215,6 +221,11 @@ namespace moveit_rviz_plugin
         ui_->monitor_contact_checkbox->setChecked(action.monitor_contact);
         ui_->monitor_profile_checkbox->setChecked(action.monitor_haptic_profile);
         ui_->interpolate_cartesian_checkbox->setChecked(action.interpolate_cartesian);
+    }
+
+    void MotionPlanningFrame::updateLockedStateFromAction(const apc_msgs::PrimitiveAction& action)
+    {
+        ui_->padlock_button->setChecked(action.eef_locked);
     }
 
     void MotionPlanningFrame::setStartToCurrentButtonClicked()

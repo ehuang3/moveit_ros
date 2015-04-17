@@ -80,6 +80,7 @@ namespace moveit_rviz_plugin
         saveObjectToAction(action);
         saveOptionsToAction(action);
         saveFormatToAction(action);
+        saveLockedStateToAction(action);
 
         ROS_DEBUG_STREAM("==================== Action ====================\n"
                          << action
@@ -107,8 +108,8 @@ namespace moveit_rviz_plugin
         active_actions_list->setCurrentItem(item);
 
         // Load all actions into waypoint display.
-        QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
-        loadWaypointsToDisplay(actions);
+        // QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
+        // loadWaypointsToDisplay(actions);
     }
 
     void MotionPlanningFrame::deleteActionButtonClicked()
@@ -155,8 +156,8 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::activeActionsListClicked(const QModelIndex& index)
     {
         // Load all actions into waypoint display.
-        QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
-        loadWaypointsToDisplay(actions);
+        // QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
+        // loadWaypointsToDisplay(actions);
     }
 
     void MotionPlanningFrame::activeActionsItemClicked(QListWidgetItem* item)
@@ -170,6 +171,9 @@ namespace moveit_rviz_plugin
     {
         apc_msgs::PrimitiveAction action;
         loadActionFromData(action, item->data(Qt::UserRole));
+
+        // Set this first as start gets snapped to goal on unlock.
+        updateLockedStateFromAction(action);
 
         // Load the currently selected item into the query start and goal state.
         loadStartAndGoalFromAction(action);

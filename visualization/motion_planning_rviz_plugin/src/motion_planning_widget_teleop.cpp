@@ -47,7 +47,7 @@
 
 namespace moveit_rviz_plugin
 {
-    void MotionPlanningFrame::loadPlanToDisplay(const moveit_msgs::RobotState& start_state,
+    void MotionPlanningFrame::loadPlanToPreview(const moveit_msgs::RobotState& start_state,
                                                 const apc_msgs::PrimitivePlan& plan)
     {
         // Get a robot model.
@@ -199,9 +199,11 @@ namespace moveit_rviz_plugin
         {
             moveit_msgs::RobotState start_state;
             robot_state::robotStateToRobotStateMsg(*planning_display_->getQueryStartState(), start_state);
-            loadPlanToDisplay(start_state, plan);
+            loadPlanToPreview(start_state, plan);
         }
     }
+
+
 
     bool MotionPlanningFrame::computePlan(apc_msgs::PrimitivePlan& plan)
     {
