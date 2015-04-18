@@ -62,12 +62,13 @@
 #include <std_msgs/Bool.h>
 #include <std_msgs/Empty.h>
 #include <apc_msgs/FollowPrimitivePlanAction.h>
+#include <apc_msgs/WorldState.h>
 #include <map>
 #include <string>
 #define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
 #include <rapidjson/document.h>
 #include <robot_calibration/robot.h>
-
+#include <moveit/motion_planning_rviz_plugin/exception.h>
 
 #include <string.h>
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -100,6 +101,11 @@ namespace moveit_rviz_plugin
 class MotionPlanningDisplay;
 
 const std::string OBJECT_RECOGNITION_ACTION = "/recognize_objects";
+
+  // Convenience typedef for map from frame and object keys to poses.
+  typedef std::map<std::string, Eigen::Affine3d, std::less<std::string>,
+                   Eigen::aligned_allocator<std::pair<const std::string, Eigen::Affine3d> > >
+  KeyPoseMap;
 
 class MotionPlanningFrame : public QWidget
 {
@@ -253,6 +259,159 @@ private:
   void connectStoredPlansSlots();
 
   // Teleoperation widget.
+
+  /**
+   * @brief Extracts the frames and object poses from the current
+   * planning scene. Each pose is associated with the unique
+   * identifying key of its frame or object.
+   *
+   * @return  The current frame/object poses.
+   */
+  KeyPoseMap computeWorldKeyPoseMap();
+
+  /**
+   * @brief Certain frame and object IDs are ambiguous, such as "bin"
+   * or "oreo_mega_stuf" in the presence of duplicates. This function
+   * computes the unique frame key of the frame nearest to the input
+   * link given the robot and world states.
+   *
+   * @param frame_id  The frame ID. May be ambiguous, like "bin".
+   * @param link_id  The robot link we evaluate nearest to.
+   * @param robot  The robot state.
+   * @param world  The world state.
+   *
+   * @return  The frame key nearest to the link.
+   */
+  std::string computeNearestFrameKey(const std::string& frame_id,
+                                     const std::string& link_id,
+                                     const robot_state::RobotState& robot,
+                                     const KeyPoseMap& world);
+
+  /**
+   * @brief Sets the input joint angles to the robot state. The ith
+   * joint position in 'point' will be set to the joint with the ith
+   * name in 'joint_names'.
+   *
+   * @param robot  The robot state to modify.
+   * @param joint_names  The joints to set.
+   * @param point  The joint angle values to set.
+   */
+  void setStateFromPoint(robot_state::RobotState& robot,
+                         const std::vector<std::string>& joint_names,
+                         const trajectory_msgs::JointTrajectoryPoint& point);
+
+  /**
+   * @brief Sets the robot state using IK so that the given link is
+   * located at the given world to link transform.
+   *
+   * @param robot  The robot state to set.
+   * @param link_id  The link to snap.
+   * @param group_id  The group to perform IK with.
+   * @param T_frame_world  The transform from world to frame.
+   * @param pose_link_frame  The transform from frame to link.
+   */
+  void setStateFromIK(robot_state::RobotState& robot,
+                      const std::string& link_id,
+                      const std::string& group_id,
+                      const Eigen::Affine3d& T_frame_world,
+                      const geometry_msgs::Pose& pose_link_frame);
+
+  /**
+   * @brief Certain frame and object IDs are ambiguous, such as "bin"
+   * or "oreo_mega_stuf" in the presence of duplicates. This function
+   * computes the unique object key nearest to the input link given
+   * the robot and world states.
+   *
+   * @param object_id  The object ID.
+   * @param link_id  The robot link we evaluate nearest to.
+   * @param robot  The robot state.
+   * @param world  The world state.
+   *
+   * @return The object key nearest to the link.
+   */
+  std::string computeNearestObjectKey(const std::string& object_id,
+                                      const std::string& link_id,
+                                      const robot_state::RobotState& robot,
+                                      const KeyPoseMap& world);
+
+  /**
+   * @brief Certain frame and object IDs are ambiguous, such as "bin"
+   * or "oreo_mega_stuf" in the presence of duplicates. This function
+   * computes the nearest frame and object keys (which are unique)
+   * given a starting state and a plan to follow. The computed keys
+   * are stored in the input plan.
+   *
+   * @param start  The starting state of the robot.
+   * @param world  The starting frame/object poses.
+   * @param plan  The plan we will compute frame and object keys for.
+   *
+   * @return  The frame/object poses at the end of plan execution.
+   */
+  KeyPoseMap computeNearestFrameAndObjectKeys(const robot_state::RobotState& start,
+                                              const KeyPoseMap& world,
+                                              apc_msgs::PrimitivePlan& plan);
+
+  /**
+   * @brief This function appends the input robot state to the
+   * action's joint trajectory. Only the joint angles of joints named
+   * in the action joint trajectory are appended.
+   *
+   * @param state  The input robot state.
+   * @param action  The action to modify.
+   */
+  void appendNamedJointsToActionJointTrajectory(const robot_state::RobotState& state,
+                                                apc_msgs::PrimitiveAction& action);
+
+  /**
+   * @brief Over the course of a plan, objects may move when actions
+   * are taken. Given an input plan with frame and object keys, this
+   * function tracks object motion over each action and computes the
+   * correct joint angle trajectory points relative to those object
+   * displacements. The trajetory points are written into the input
+   * plan.
+   *
+   * @param start  The starting state of the robot.
+   * @param world  The starting frame/object poses.
+   * @param plan  The plan we will compute joint trajectory points
+   *              for. Note that frame and object keys must exist.
+   *
+   * @return  The frame/object poses at the end of plan execution.
+   */
+  KeyPoseMap computeActionJointTrajectoryPoints(const robot_state::RobotState& start,
+                                                const KeyPoseMap& world,
+                                                apc_msgs::PrimitivePlan& plan);
+
+
+  /**
+   * @brief Copies frame/object keys and poses to world state
+   * message. Note that this function will attempt to extract
+   * frame/object IDs from keys and will throw an exception on failure
+   * to do so.
+   *
+   * @param keypose  The keys and poses to copy.
+   * @param state  The output world state.
+   */
+  void setWorldKeyPoseToWorldStateMessage(const KeyPoseMap& keypose,
+                                          apc_msgs::WorldState& state);
+
+  /**
+   * @brief Compute a dense motion plan given the input sparse
+   * plan. The dense motion plan is computed using the input sparse
+   * joint angle trajectories. If needed, additional actions are
+   * inserted to connect previous action goal states to the next
+   * action start states. This function makes ROS services calls to
+   * the external trajopt planner.
+   *
+   * @param start  The starting state of the robot.
+   * @param world  The starting frame/object poses.
+   * @param plan  The input plan.
+   *
+   * @return  The frame/object poses at the end of plan execution.
+   */
+  KeyPoseMap computeDenseMotionPlan(const robot_state::RobotState& start,
+                                    const KeyPoseMap& world,
+                                    apc_msgs::PrimitivePlan& plan);
+
   void computePlanButtonClicked();
   bool computePlan(apc_msgs::PrimitivePlan& plan);
   void loadPlanToPreview(const moveit_msgs::RobotState& start_state,
