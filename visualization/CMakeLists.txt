@@ -34,6 +34,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosconsole
   object_recognition_msgs
   apc_msgs
+  apc_path
   actionlib
   actionlib_msgs
   robot_calibration

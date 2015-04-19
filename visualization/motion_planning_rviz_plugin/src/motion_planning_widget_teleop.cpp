@@ -44,6 +44,8 @@
 #include <moveit/robot_state/conversions.h>
 #include <apc_msgs/ComputeDenseMotion.h>
 #include <boost/xpressive/xpressive.hpp>
+#include <apc_path/Path.h>
+#include <apc_path/Trajectory.h>
 
 
 namespace moveit_rviz_plugin
@@ -196,8 +198,8 @@ namespace moveit_rviz_plugin
         APC_ASSERT(action.joint_trajectory.joint_names.size() > 0,
                    "Missing joint names in action %s joint trajectory", action.action_name.c_str());
         trajectory_msgs::JointTrajectoryPoint point;
-        const std::vector<std::string>& joint_names = action.joint_trajectory.joint_names;
-        for (int i = 0; joint_names.size(); i++) {
+        std::vector<std::string> joint_names = action.joint_trajectory.joint_names;
+        for (int i = 0; i < joint_names.size(); i++) {
             int index = state.getJointModel(joint_names[i])->getFirstVariableIndex();
             double angle = state.getVariablePosition(index);
             point.positions.push_back(angle);
@@ -279,7 +281,7 @@ namespace moveit_rviz_plugin
             // distinguish keys from IDs. A temporary fix would be to limit the
             // distinguishing token to "_[0-9]{1,2}".
             using namespace boost::xpressive;
-            sregex rex = sregex::compile("^([A-Za-z]+(\\_[A-Za-z0-9]+)*?)([\\_][0-9]+)?");
+            sregex rex = sregex::compile("^([A-Za-z]+(\\_[A-Za-z0-9]+)*?)([\\_][0-9]{1,2})?");
             smatch what;
             APC_ASSERT(regex_match(iter->first, what, rex),
                        "Failed to extract ID of %s", iter->first.c_str());
@@ -361,11 +363,14 @@ namespace moveit_rviz_plugin
             srv.request.action = action;
 
             APC_ASSERT(_compute_dense_motion_client.call(srv),
-                       "Failed to call dense motion planning service");
+                       "Failed call to dense motion planning service");
             APC_ASSERT(srv.response.collision_free,
                        "Failed to find collision free trajectory");
             APC_ASSERT(srv.response.valid,
                        "Failed to find valid trajectory");
+
+            // Copy returned action to plan.
+            action = srv.response.action;
 
             // Move robot state to goal position.
             if (action.frame_id.empty()) {
@@ -382,6 +387,54 @@ namespace moveit_rviz_plugin
         }
 
         return world_state;
+    }
+
+    void MotionPlanningFrame::computeSmoothedPath(apc_msgs::PrimitivePlan& plan)
+    {
+        #pragma omp parallel for
+        for (int i = 0; i < plan.actions.size(); i++) {
+            apc_msgs::PrimitiveAction& action = plan.actions[i];
+            // Get the number of degrees of freedom requested in this action.
+            const int n_dof = action.joint_trajectory.joint_names.size();
+            // Convert trajectory into a path, a.k.a. list of eigen vectors.
+            std::list<Eigen::VectorXd> P;
+            // Add the trajectory.
+            Eigen::VectorXd p(n_dof);
+            {
+                const trajectory_msgs::JointTrajectory& T = action.joint_trajectory;
+                for (int i = 0; i < T.points.size(); i++)
+                {
+                    // Convert trajectory point to eigen vector.
+                    for (int j = 0; j < p.rows(); j++)
+                        p[j] = T.points[i].positions[j];
+                    P.push_back(p);
+                }
+            }
+            // Create velocity and acceleration limits.
+            const Eigen::VectorXd max_vel   = 1.0 * Eigen::VectorXd::Ones(n_dof);
+            const Eigen::VectorXd max_accel = 0.5 * Eigen::VectorXd::Ones(n_dof);
+            // Pass path through Toby's code.
+            Trajectory T(Path(P, 0.1), max_vel, max_accel);
+            // Abort if the trajectory is not valid.
+            APC_ASSERT(T.isValid(),
+                       "Failed to smooth trajectory for %s", action.action_name.c_str());
+            // Insert smoothed trajectory back into aciton.
+            const trajectory_msgs::JointTrajectoryPoint start = action.joint_trajectory.points.front();
+            const trajectory_msgs::JointTrajectoryPoint end = action.joint_trajectory.points.back();
+            action.joint_trajectory.points.clear();
+            const double dt = 0.10;
+            const double duration = T.getDuration();
+            double t = 0.0;
+            action.joint_trajectory.points.push_back(start);
+            while ( (t += dt) < duration) {
+                trajectory_msgs::JointTrajectoryPoint point;
+                p = T.getPosition(t);
+                for (int i = 0; i < p.size(); i++)
+                    point.positions.push_back(p[i]);
+                action.joint_trajectory.points.push_back(point);
+            }
+            action.joint_trajectory.points.push_back(end);
+        }
     }
 
     void MotionPlanningFrame::loadPlanToPreview(const moveit_msgs::RobotState& start_state,
@@ -532,6 +585,8 @@ namespace moveit_rviz_plugin
         saveActionToData(plan.actions, data);
         for (int i = 0; i < plan.actions.size(); i++) {
             const apc_msgs::PrimitiveAction& action = plan.actions[i];
+            if (action.action_name == "vvvvv")
+                continue;
             QListWidgetItem* item = new QListWidgetItem;
             item->setFlags(item->flags() | Qt::ItemIsEditable);
             item->setData(Qt::UserRole, data[i]);
@@ -555,7 +610,7 @@ namespace moveit_rviz_plugin
         }
 
         // Get the starting state.
-        robot_state::RobotState start_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+        const robot_state::RobotState start_state = planning_display_->getPlanningSceneRO()->getCurrentState();
 
         // Compute the motion plan.
         try {
@@ -563,9 +618,10 @@ namespace moveit_rviz_plugin
             computeNearestFrameAndObjectKeys(start_state, world_state, plan);
             computeActionJointTrajectoryPoints(start_state, world_state, plan);
             computeDenseMotionPlan(start_state, world_state, plan);
+            computeSmoothedPath(plan);
             *primitive_plan_ = plan;
-            planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::loadPrimitivePlanToActiveActions, this, plan),
-                                                "Load plan to active actions");
+            // planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::loadPrimitivePlanToActiveActions, this, plan),
+            //                                     "Load plan to active actions");
         } catch (std::logic_error& error) {
             ROS_ERROR("Caught exception %s", error.what());
             return;
@@ -573,9 +629,9 @@ namespace moveit_rviz_plugin
 
         // Copy trajectory over to display.
         {
-            moveit_msgs::RobotState start_state;
-            robot_state::robotStateToRobotStateMsg(*planning_display_->getQueryStartState(), start_state);
-            loadPlanToPreview(start_state, plan);
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(start_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, plan);
         }
     }
 

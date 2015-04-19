@@ -414,6 +414,15 @@ private:
                                     const KeyPoseMap& world,
                                     apc_msgs::PrimitivePlan& plan);
 
+
+  /**
+   * @brief Computes a smooth path for all joint trajectories in the
+   * plan while respecting velocity and acceleration limits.
+   *
+   * @param plan  The plan to smooth.
+   */
+  void computeSmoothedPath(apc_msgs::PrimitivePlan& plan);
+
   /**
    * @brief Returns the current active actions (in the GUI) as a
    * primitive plan.
