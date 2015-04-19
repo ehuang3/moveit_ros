@@ -165,6 +165,8 @@ private:
 
   boost::shared_ptr<robot_calibration::Robotd> _kiva_pod;
 
+  ros::ServiceClient _compute_dense_motion_client;
+
 private Q_SLOTS:
   // APC tab.
 
@@ -412,8 +414,29 @@ private:
                                     const KeyPoseMap& world,
                                     apc_msgs::PrimitivePlan& plan);
 
+  /**
+   * @brief Returns the current active actions (in the GUI) as a
+   * primitive plan.
+   *
+   * @return The aggregated actions.
+   */
+  apc_msgs::PrimitivePlan getPrimitivePlanFromActiveActions();
+
+  /**
+   * @brief Load the input plan into the active actions list (in the
+   * GUI). This function is only safe to call in the Qt main thread.
+   *
+   * @param plan  The plan to load.
+   */
+  void loadPrimitivePlanToActiveActions(const apc_msgs::PrimitivePlan& plan);
+
+  /**
+   * @brief This function takes the currently active actions and
+   * computes a dense trajectory plan for them. The plan is reloaded
+   * into the active actions when it is finished generating.
+   */
   void computePlanButtonClicked();
-  bool computePlan(apc_msgs::PrimitivePlan& plan);
+
   void loadPlanToPreview(const moveit_msgs::RobotState& start_state,
                          const apc_msgs::PrimitivePlan& plan);
   void appendToTrajectory(trajectory_msgs::JointTrajectory& first,
@@ -679,8 +702,6 @@ private:
   long unsigned int known_collision_objects_version_;
   bool first_time_;
   ros::ServiceClient clear_octomap_service_client_;
-
-  ros::ServiceClient motion_plan_client_;
 
   // Convenience typdef for attached objects.
   typedef std::vector<std::pair<std::string, bool> > AttachedObjects;

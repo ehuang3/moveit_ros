@@ -44,7 +44,7 @@
 #include <rviz/frame_manager.h>
 
 #include <std_srvs/Empty.h>
-#include <apc_msgs/GetMotionPlan.h>
+#include <apc_msgs/ComputeDenseMotion.h>
 
 #include <QMessageBox>
 #include <QInputDialog>
@@ -167,8 +167,8 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   object_recognition_client_.reset(new actionlib::SimpleActionClient<object_recognition_msgs::ObjectRecognitionAction>(OBJECT_RECOGNITION_ACTION, false));
   object_recognition_subscriber_ = nh_.subscribe("recognized_object_array", 1, &MotionPlanningFrame::listenDetectedObjects, this);
 
-  // Setup primitive planning service client.
-  motion_plan_client_ = nh_.serviceClient<apc_msgs::GetMotionPlan>("motion_planning_service");
+  // Setup trajopt service client.
+  _compute_dense_motion_client = nh_.serviceClient<apc_msgs::ComputeDenseMotion>("motion_planning_service");
 
   if(object_recognition_client_)
   {

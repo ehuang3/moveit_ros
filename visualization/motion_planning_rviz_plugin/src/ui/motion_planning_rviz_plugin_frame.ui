@@ -274,7 +274,7 @@
                      </widget>
                     </item>
                     <item row="1" column="0">
-                     <widget class="QPushButton" name="execute_goals_button">
+                     <widget class="QPushButton" name="execute_button">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                         <horstretch>0</horstretch>
@@ -287,7 +287,7 @@
                      </widget>
                     </item>
                     <item row="0" column="0">
-                     <widget class="QPushButton" name="plan_goals_button">
+                     <widget class="QPushButton" name="plan_button">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                         <horstretch>0</horstretch>
@@ -1608,14 +1608,14 @@ background-color: rgb(212, 208, 200);</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_9">
               <item>
-               <widget class="QPushButton" name="plan_button">
+               <widget class="QPushButton" name="plan_stupid_button">
                 <property name="text">
                  <string>&amp;Plan</string>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="execute_button">
+               <widget class="QPushButton" name="execute_stupid_button">
                 <property name="enabled">
                  <bool>false</bool>
                 </property>
@@ -3013,7 +3013,7 @@ background-color: rgb(212, 208, 200);</string>
   <connection>
    <sender>pushButton_8</sender>
    <signal>clicked()</signal>
-   <receiver>plan_goals_button</receiver>
+   <receiver>plan_button</receiver>
    <slot>click()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -3045,7 +3045,7 @@ background-color: rgb(212, 208, 200);</string>
   <connection>
    <sender>pushButton_9</sender>
    <signal>clicked()</signal>
-   <receiver>execute_goals_button</receiver>
+   <receiver>execute_button</receiver>
    <slot>click()</slot>
    <hints>
     <hint type="sourcelabel">

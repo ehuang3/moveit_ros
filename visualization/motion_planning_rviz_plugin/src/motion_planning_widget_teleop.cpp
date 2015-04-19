@@ -42,7 +42,6 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <moveit/kinematic_constraints/utils.h>
 #include <moveit/robot_state/conversions.h>
-#include <apc_msgs/GetMotionPlan.h>
 #include <apc_msgs/ComputeDenseMotion.h>
 #include <boost/xpressive/xpressive.hpp>
 
@@ -274,13 +273,18 @@ namespace moveit_rviz_plugin
             // Get key.
             std::string key = iter->first;
 
-            // Get ID.
+            // Get ID. Note that this regex is not great, it will fail to
+            // produce the right ID when given "stanley_66_052" (instead of
+            // "stanley_66_052_0") because it looks for a trailing "_[0-9]+" to
+            // distinguish keys from IDs. A temporary fix would be to limit the
+            // distinguishing token to "_[0-9]{1,2}".
             using namespace boost::xpressive;
-            sregex rex = sregex::compile("^([:alpha:_]+)(_[:digit:]+)??");
+            sregex rex = sregex::compile("^([A-Za-z]+(\\_[A-Za-z0-9]+)*?)([\\_][0-9]+)?");
             smatch what;
             APC_ASSERT(regex_match(iter->first, what, rex),
                        "Failed to extract ID of %s", iter->first.c_str());
             std::string id = what[1];
+            // ROS_DEBUG_STREAM("key: " << key << " id: " << id);
 
             // Construct frame state message.
             apc_msgs::FrameState frame;
@@ -356,7 +360,7 @@ namespace moveit_rviz_plugin
             setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
             srv.request.action = action;
 
-            APC_ASSERT(motion_plan_client_.call(srv),
+            APC_ASSERT(_compute_dense_motion_client.call(srv),
                        "Failed to call dense motion planning service");
             APC_ASSERT(srv.response.collision_free,
                        "Failed to find collision free trajectory");
@@ -497,11 +501,8 @@ namespace moveit_rviz_plugin
         return;
     }
 
-    void MotionPlanningFrame::computePlanButtonClicked()
+    apc_msgs::PrimitivePlan MotionPlanningFrame::getPrimitivePlanFromActiveActions()
     {
-        // Reset last computed plan.
-        primitive_plan_.reset(new apc_msgs::PrimitivePlan);
-
         // Get the list of active goals (waypoints) to follow.
         QListWidget* active_actions = ui_->active_actions_list;
 
@@ -512,20 +513,62 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < active_actions->count(); i++)
         {
             // Get the plan stored in the active action item.
-            apc_msgs::PrimitivePlan stored_plan =
-                getMessageFromUserData<apc_msgs::PrimitivePlan>(active_actions->item(i)->data(Qt::UserRole));
+            apc_msgs::PrimitiveAction stored_action =
+                getMessageFromUserData<apc_msgs::PrimitiveAction>(active_actions->item(i)->data(Qt::UserRole));
 
-            // Append each action stored in the active action item.
-            for (int j = 0; j < stored_plan.actions.size(); j++)
-                plan.actions.push_back(stored_plan.actions[j]);
+            // Append the active action item if it is not an connecting action.
+            if (stored_action.action_name != "vvvvv")
+                plan.actions.push_back(stored_action);
         }
 
-        // Compute trajectory and save on success.
-        if (computePlan(plan))
+        return plan;
+    }
+
+    void MotionPlanningFrame::loadPrimitivePlanToActiveActions(const apc_msgs::PrimitivePlan& plan)
+    {
+        QListWidget* active_actions = ui_->active_actions_list;
+        active_actions->clear();
+        std::vector<QVariant> data;
+        saveActionToData(plan.actions, data);
+        for (int i = 0; i < plan.actions.size(); i++) {
+            const apc_msgs::PrimitiveAction& action = plan.actions[i];
+            QListWidgetItem* item = new QListWidgetItem;
+            item->setFlags(item->flags() | Qt::ItemIsEditable);
+            item->setData(Qt::UserRole, data[i]);
+            item->setText(QString::fromStdString(action.action_name));
+            active_actions->insertItem(i, item);
+        }
+    }
+
+    void MotionPlanningFrame::computePlanButtonClicked()
+    {
+        // Reset last computed plan.
+        primitive_plan_.reset(new apc_msgs::PrimitivePlan);
+
+        // Aggregate the active actions into a plan.
+        apc_msgs::PrimitivePlan plan = getPrimitivePlanFromActiveActions();
+
+        // Clear all keys in the plan.
+        for (int i = 0; i < plan.actions.size(); i++) {
+            plan.actions[i].frame_key = "";
+            plan.actions[i].object_key = "";
+        }
+
+        // Get the starting state.
+        robot_state::RobotState start_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+
+        // Compute the motion plan.
+        try {
+            KeyPoseMap world_state = computeWorldKeyPoseMap();
+            computeNearestFrameAndObjectKeys(start_state, world_state, plan);
+            computeActionJointTrajectoryPoints(start_state, world_state, plan);
+            computeDenseMotionPlan(start_state, world_state, plan);
             *primitive_plan_ = plan;
-        else
-        {
-            ROS_ERROR("Failed to compute TRAJOPT plan for active actions");
+            planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::loadPrimitivePlanToActiveActions, this, plan),
+                                                "Load plan to active actions");
+        } catch (std::logic_error& error) {
+            ROS_ERROR("Caught exception %s", error.what());
+            return;
         }
 
         // Copy trajectory over to display.
@@ -534,65 +577,6 @@ namespace moveit_rviz_plugin
             robot_state::robotStateToRobotStateMsg(*planning_display_->getQueryStartState(), start_state);
             loadPlanToPreview(start_state, plan);
         }
-    }
-
-
-
-    bool MotionPlanningFrame::computePlan(apc_msgs::PrimitivePlan& plan)
-    {
-        // Create a motion plan service object.
-        apc_msgs::GetMotionPlan srv;
-
-        ROS_INFO("Computing motion plan using trajectory optimization");
-
-        // Get the planning scene message.
-        {
-            const planning_scene_monitor::LockedPlanningSceneRO& locked_scene = planning_display_->getPlanningSceneRO();
-            locked_scene->getPlanningSceneMsg(srv.request.scene);
-        }
-
-        // Set start state to the current state.
-        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-        {
-            const planning_scene_monitor::LockedPlanningSceneRO &ps = planning_display_->getPlanningSceneRO();
-            start_state = ps->getCurrentState();
-        }
-        planning_display_->setQueryStartState(start_state);
-
-        // Create goal state.
-        robot_state::RobotState goal_state = *planning_display_->getQueryGoalState();
-
-        // Run plan through trajectory optimization.
-        for (int i = 0; i < plan.actions.size(); i++)
-        {
-            // Construct robot goal state.
-            // FIXME loadStateFromAction(goal_state, plan.actions[i]);
-
-            // Write planning arguments into service message.
-            robot_state::robotStateToRobotStateMsg(start_state, srv.request.start_state);
-            robot_state::robotStateToRobotStateMsg(goal_state,  srv.request.goal_state);
-
-            // Call motion planning service and wait.
-            if(!motion_plan_client_.call(srv))
-            {
-                ROS_ERROR("Failed to call service GetMotionPlan");
-                return false;
-            }
-
-            if (!srv.response.valid)
-            {
-                ROS_ERROR("Failed to compute valid TRAJOPT plan");
-                return false;
-            }
-
-            // Write plan to output.
-            plan.actions[i].joint_trajectory = srv.response.plan.actions[0].joint_trajectory;
-
-            // Set next start state to this goal state.
-            start_state = goal_state;
-        }
-
-        return true;
     }
 
     void MotionPlanningFrame::computeExecuteButtonClicked()
