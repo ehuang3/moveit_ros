@@ -54,6 +54,7 @@ namespace moveit_rviz_plugin
                  this, SLOT( frameComboBoxActivated(const QString&) ));
         connect( ui_->object_combobox,  SIGNAL( currentIndexChanged(const QString&) ),
                  this, SLOT( objectComboBoxCurrentIndexChanged(const QString&) ));
+        connect( ui_->grasp_checkbox,  SIGNAL( toggled(bool) ), this, SLOT( graspCheckBoxToggled(bool) ));
         connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
         connect( ui_->goal_to_current_button,  SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
         // connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
@@ -196,16 +197,19 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::objectComboBoxCurrentIndexChanged(const QString& text)
     {
-        // If the current text is not an object, remove all attached objects from the robot state.
-        std::string object = text.toStdString();
-        if (!object.empty())
-            return;
-        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-        robot_state::RobotState goal_state = *planning_display_->getQueryGoalState();
-        start_state.clearAttachedBodies();
-        goal_state.clearAttachedBodies();
-        planning_display_->setQueryStartState(start_state);
-        planning_display_->setQueryGoalState(goal_state);
+        std::string object_id = text.toStdString();
+
+        ROS_DEBUG("Object ID index changed to %s", object_id.c_str());
+
+        // If the selected object is void, uncheck the grasp checkbox and disable it.
+        if (object_id.empty()) {
+            ui_->grasp_checkbox->setChecked(false);
+            ui_->grasp_checkbox->setEnabled(false);
+        }
+        // If the selected object is not void, enable the grasp checkbox.
+        else {
+            ui_->grasp_checkbox->setEnabled(true);
+        }
     }
 
     void MotionPlanningFrame::updateObjectComboBoxFromAction(const apc_msgs::PrimitiveAction& action)
@@ -221,11 +225,40 @@ namespace moveit_rviz_plugin
         ui_->monitor_contact_checkbox->setChecked(action.monitor_contact);
         ui_->monitor_profile_checkbox->setChecked(action.monitor_haptic_profile);
         ui_->interpolate_cartesian_checkbox->setChecked(action.interpolate_cartesian);
+        ui_->grasp_checkbox->setChecked(action.grasp);
     }
 
     void MotionPlanningFrame::updateLockedStateFromAction(const apc_msgs::PrimitiveAction& action)
     {
         ui_->padlock_button->setChecked(action.eef_locked);
+    }
+
+    void MotionPlanningFrame::graspCheckBoxToggled(bool grasp) {
+        // If grasp is disabled, remove any attached objects from the robot state.
+        if (!grasp) {
+            robot_state::RobotState start_state = *planning_display_->getQueryStartState();
+            robot_state::RobotState goal_state = *planning_display_->getQueryGoalState();
+            start_state.clearAttachedBodies();
+            goal_state.clearAttachedBodies();
+            planning_display_->setQueryStartState(start_state);
+            planning_display_->setQueryGoalState(goal_state);
+        }
+        // If grasp is enabled, attach the object to the robot state.
+        else {
+            std::string object_id = ui_->object_combobox->currentText().toStdString();
+            robot_state::RobotState start_state = *planning_display_->getQueryStartState();
+            robot_state::RobotState end_state = *planning_display_->getQueryGoalState();
+            KeyPoseMap world_state = this->computeWorldKeyPoseMap();
+            std::string group_id = planning_display_->getCurrentPlanningGroup();
+            try {
+                computeAttachNearestObjectToStateMatchingId(object_id, group_id, world_state, start_state);
+                computeAttachNearestObjectToStateMatchingId(object_id, group_id, world_state, end_state);
+            } catch (std::exception& error) {
+                ROS_ERROR("Caught exception in %s", error.what());
+            }
+            planning_display_->setQueryStartState(start_state);
+            planning_display_->setQueryGoalState(end_state);
+        }
     }
 
     void MotionPlanningFrame::setStartToCurrentButtonClicked()

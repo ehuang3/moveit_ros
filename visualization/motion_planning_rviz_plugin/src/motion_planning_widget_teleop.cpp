@@ -100,7 +100,7 @@ namespace moveit_rviz_plugin
         return nearest_frame;
     }
 
-    void MotionPlanningFrame::setStateFromPoint(robot_state::RobotState& robot,
+    bool MotionPlanningFrame::setStateFromPoint(robot_state::RobotState& robot,
                                                 const std::vector<std::string>& joint_names,
                                                 const trajectory_msgs::JointTrajectoryPoint& point)
     {
@@ -109,15 +109,22 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < joint_names.size(); i++)
             robot.setJointPositions(joint_names[i], &point.positions[i]);
         robot.update();
+        return true;
     }
 
-    void MotionPlanningFrame::setStateFromIK(robot_state::RobotState& robot,
+    bool MotionPlanningFrame::setStateFromIK(robot_state::RobotState& robot,
                                              const std::string& link_id,
                                              const std::string& group_id,
                                              const Eigen::Affine3d& T_frame_world,
                                              const geometry_msgs::Pose& pose_link_frame)
     {
         APC_ASSERT(link_id.size() > 0, "Failed to provide input link");
+
+        // If the group does not have an IK solver, return false.
+        bool solver = robot.getJointModelGroup(group_id)->getSolverInstance();
+        if (!solver) {
+            return false;
+        }
 
         // Back out the desired link transform in global coordinates.
         Eigen::Affine3d T_frame_link;
@@ -128,9 +135,137 @@ namespace moveit_rviz_plugin
         const moveit::core::JointModelGroup* jmg = robot.getJointModelGroup(group_id);
         geometry_msgs::Pose pose_link_world;
         tf::poseEigenToMsg(T_link_world, pose_link_world);
-        APC_ASSERT(robot.setFromIK(jmg, pose_link_world, link_id),
-                   "Failed to set %s to pose using %s IK", link_id.c_str(), group_id.c_str());
+        robot.setFromIK(jmg, pose_link_world, link_id);
+        // APC_ASSERT(robot.setFromIK(jmg, pose_link_world, link_id),
+        //            "Failed to set %s to pose using %s IK", link_id.c_str(), group_id.c_str());
         robot.update();
+
+        return true;
+    }
+
+    bool MotionPlanningFrame::setStateFromIkUsingAction(robot_state::RobotState& robot_state,
+                                                        const KeyPoseMap& world_state,
+                                                        const apc_msgs::PrimitiveAction& action,
+                                                        const int pose_index,
+                                                        bool use_joint_angles_if_no_ik_solver)
+    {
+        // Query the group for an IK solver.
+        bool solver = robot_state.getJointModelGroup(action.group_id)->getSolverInstance();
+        APC_ASSERT(use_joint_angles_if_no_ik_solver || solver,
+                   "Failed to set states from action %s without an IK solver", action.action_name.c_str());
+        if (solver) {
+            APC_ASSERT(!action.frame_key.empty(),
+                       "Failed to find frame key from action %s", action.action_name.c_str());
+            return setStateFromIK(robot_state, action.eef_link_id, action.group_id, world_state.find(action.frame_key)->second,
+                                  action.eef_trajectory.poses[pose_index]);
+        }
+        if (use_joint_angles_if_no_ik_solver && !solver) {
+            return setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.front());
+        }
+        return false;
+    }
+
+    bool MotionPlanningFrame::setAttachedObjectFromAction(robot_state::RobotState& robot_state,
+                                                          const KeyPoseMap& world_state,
+                                                          const apc_msgs::PrimitiveAction& action,
+                                                          const int index)
+    {
+        APC_ASSERT(!action.object_key.empty(),
+                   "Missing object key for object ID %s in action %s", action.object_id.c_str(), action.action_name.c_str());
+        APC_ASSERT(world_state.count(action.object_key) > 0,
+                   "Missing object key %s in world state", action.object_key.c_str());
+        APC_ASSERT(action.eef_trajectory.poses.size() > index,
+                   "Index %d out of bounds for end-effector trajectory in action %s",
+                   index, action.action_name.c_str());
+        // Clear attached bodies.
+        robot_state.clearAttachedBodies();
+        // Get the actual transform from world to object and the
+        // desired transform from end-effector to object.
+        Eigen::Affine3d T_object_world = world_state.find(action.object_key)->second;
+        Eigen::Affine3d T_object_eef;
+        tf::poseMsgToEigen(action.eef_trajectory.poses[index], T_object_eef);
+        // Get object shapes and shape poses from the world and conver
+        // them to the desired end-effector link frame.
+        planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+        collision_detection::CollisionWorld::ObjectConstPtr object = ps->getWorld()->getObject(object_key);
+        APC_ASSERT(object,
+                   "Failed to find object key %s in world", object_key.c_str());
+        std::vector<shapes::ShapeConstPtr> object_shapes = object->shapes_;
+        EigenSTL::vector_Affine3d object_poses = object->shape_poses_;
+        for (int i = 0; i < object_poses.size(); i++)
+            object_poses[i] = T_object_eef * object_poses[0].inverse() * object_poses[i];
+        // Attach object to state.
+        moveit_msgs::AttachedCollisionObject aco; // For dummy arguments.
+        robot_state.attachBody(object_id, object_shapes, object_poses, aco.touch_links, eef_link_id, aco.detach_posture);
+        robot_state.update();
+    }
+
+    bool MotionPlanningFrame::setStateFromAction(robot_state::RobotState& robot_state,
+                                                 const KeyPoseMap& world_state,
+                                                 const apc_msgs::PrimitiveAction& action,
+                                                 const int index,
+                                                 bool use_joint_angles_if_no_ik_solver)
+    {
+        // 1. If there is no frame ID, set state based on the joint
+        // angles provided in the action.
+        if (action.frame_id.empty()) {
+            APC_ASSERT(action.joint_trajectory.points.size() > index,
+                       "Index %d out of bounds for joint trajectory in action %s",
+                       index, action.action_name.c_str());
+            setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points[index]);
+        }
+
+        // 2. If there is a frame ID, set the state based on IK to the
+        // desired pose. The IK may not reach all poses, so we should
+        // also set joint angles of the joints not IK-able.
+        if (!action.frame_id.empty()) {
+            APC_ASSERT(!action.frame_key.empty(),
+                       "Missing frame key for frame ID %s in action %s", action.frame_id.c_str(), action.action_name.c_str());
+            const kinematics::KinematicsBaseConstPtr solver = robot_state.getJointModelGroup(action.group_id)->getSolverInstance();
+            APC_ASSERT(use_joint_angles_if_no_ik_solver || solver,
+                       "Missing IK solver for group %s in action %s", action.group_id.c_str(), action.action_name.c_str());
+            if (solver) {
+                // For each joint not solveable by the IK solver, set that joint's position manually.
+                trajectory_msgs::JointTrajectory no_ik;
+                no_ik.points.resize(1);
+                const std::vector<std::string>& group_joint_names = action.joint_trajectory.joint_names;
+                const std::vector<std::string>& solver_joint_names = solver->getJointNames();
+                for (int i = 0; i < action.joint_trajectory.joint_names.size(); i++) {
+                    if (std::find(solver_joint_names.begin(), solver_joint_names.end(), group_joint_names[i]) ==
+                        solver_joint_names.end()) {
+                        APC_ASSERT(action.joint_trajectory.points.size() > index,
+                                   "Index %d out of bounds for joint trajectory in action %s",
+                                   index, action.action_name.c_str());
+                        no_ik.joint_names.push_back(group_joint_names[i]);
+                        no_ik.points[0].positions.push_back(action.joint_trajectory.points[index].positions[i]);
+                    }
+                }
+                if (no_ik.joint_names.size() > 0) {
+                    ROS_DEBUG_STREAM("No IK for\n" << no_ik);
+                    setStateFromPoint(robot_state, no_ik.joint_names, no_ik.points[0]);
+                }
+                // Set the remaining joints using IK.
+                APC_ASSERT(!action.eef_link_id.empty(),
+                           "Missing IK link for frame ID %s in action %s", action.frame_id.c_str(), action.action_name.c_str());
+                APC_ASSERT(action.eef_trajectory.poses.size() > index,
+                           "Index %d out of bounds for end-effector trajectory in action %s",
+                           index, action.action_name.c_str());
+                APC_ASSERT(world_state.count(action.frame_key) > 0,
+                           "Missing frame key %s in world state", action.frame_key.c_str());
+                setStateFromIK(robot_state, action.eef_link_id, action.group_id, world_state.find(action.frame_key)->second,
+                               action.eef_trajectory.poses[index]);
+            } else if (use_joint_angles_if_no_ik_solver) {
+                APC_ASSERT(action.joint_trajectory.points.size() > index,
+                           "Index %d out of bounds for joint trajectory in action %s",
+                           index, action.action_name.c_str());
+                setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points[index]);
+            }
+        }
+
+        // 3. If there is an object to attach, attach that object.
+        if (!action.object_id.empty()) {
+            setObjectFromAction(robot_state, world_state, action, index);
+        }
     }
 
     std::string MotionPlanningFrame::computeNearestObjectKey(const std::string& object_id,
@@ -149,7 +284,15 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < plan.actions.size(); i++)
             APC_ASSERT(plan.actions[i].frame_key.empty() && plan.actions[i].object_key.empty(),
                        "Plan frame/object keys already exist");
+        // Compute the nearest keys.
+        return computeNearestFrameAndObjectKeysPartial(start, world, plan);
+    }
 
+    // TODO Write partial version of this function.
+    KeyPoseMap MotionPlanningFrame::computeNearestFrameAndObjectKeysPartial(const robot_state::RobotState& start,
+                                                                            const KeyPoseMap& world,
+                                                                            apc_msgs::PrimitivePlan& plan)
+    {
         // Copy starting conditions.
         robot_state::RobotState robot_state = start;
         KeyPoseMap world_state = world;
@@ -157,29 +300,28 @@ namespace moveit_rviz_plugin
         // For each action..
         for (int i = 0; i < plan.actions.size(); i++) {
             apc_msgs::PrimitiveAction& action = plan.actions[i];
-
-            if (action.frame_id.empty()) {
-                setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.front());
-            } else {
+            // Compute a frame key if a frame ID is specified.
+            if (!action.frame_id.empty() && action.frame_key.empty()) {
                 action.frame_key = computeNearestFrameKey(action.frame_id, action.eef_link_id, robot_state, world_state);
-                setStateFromIK(robot_state, action.eef_link_id, action.group_id, world_state[action.frame_key],
-                               action.eef_trajectory.poses.front());
             }
-
-            if (!action.object_id.empty()) {
+            // Set the state using IK if the frame ID is specified, using joint angles otherwise.
+            if (!action.frame_id.empty()) {
+                setStateFromIkUsingAction(robot_state, world_state, action, 0, true);
+            } else {
+                setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.front());
+            }
+            // Compute an object key if an object ID is specified.
+            if (!action.object_id.empty() && action.object_key.empty()) {
                 action.object_key = computeNearestObjectKey(action.object_id, action.attached_link_id, robot_state, world_state);
-                // if (action.frame_key != action.object_key)
-                // TODO Assert
+                // TODO Assert that the object is at the correct location to attach.
             }
-
             // Move robot state to goal position.
             if (action.frame_id.empty()) {
                 setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
             } else {
-                setStateFromIK(robot_state, action.eef_link_id, action.group_id, world_state[action.frame_key],
-                               action.eef_trajectory.poses.back());
+                // Try setting state from IK, reverting to joint angles on failure.
+                setStateFromIkUsingAction(robot_state, world_state, action, action.eef_trajectory.poses.size()-1, true);
             }
-
             // Move object to goal position.
             if (!action.object_id.empty()) {
                 Eigen::Affine3d T_link_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
@@ -187,6 +329,17 @@ namespace moveit_rviz_plugin
                 tf::poseMsgToEigen(action.object_trajectory.poses.back(), T_object_link);
                 world_state[action.object_key] = T_link_world * T_object_link;
             }
+        }
+
+        // Assert that all frames and object keys have been filled out.
+        for (int i = 0; i < plan.actions.size(); i++) {
+            const apc_msgs::PrimitiveAction& action = plan.actions[i];
+            APC_ASSERT(action.frame_id.empty() || !action.frame_key.empty(),
+                       "Failed to assign a frame key to frame ID %s for action %s",
+                       action.frame_id.c_str(), action.action_name.c_str());
+            APC_ASSERT(action.object_id.empty() || !action.object_key.empty(),
+                       "Failed to assign a object key to object ID %s for action %s",
+                       action.object_id.c_str(), action.action_name.c_str());
         }
 
         return world_state;
@@ -243,8 +396,8 @@ namespace moveit_rviz_plugin
                 action.joint_trajectory.points.clear();
                 // Rebuild joint trajectory.
                 for (int j = 0; j < action.eef_trajectory.poses.size(); j++) {
-                    setStateFromIK(robot_state, action.eef_link_id, action.group_id, world_state[action.frame_key],
-                                   action.eef_trajectory.poses[j]);
+                    // Try setting state from IK, reverting to joint angles on failure.
+                    setStateFromIkUsingAction(robot_state, world_state, action, j, true);
                     appendNamedJointsToActionJointTrajectory(robot_state, action);
                 }
             }
@@ -306,6 +459,44 @@ namespace moveit_rviz_plugin
         }
     }
 
+    void MotionPlanningFrame::computeFullyConnectedPlan(const robot_state::RobotState& start,
+                                                        apc_msgs::PrimitivePlan& plan)
+    {
+        // Insert additional actions to connect the previous robot
+        // state to the next start state.
+        std::vector<apc_msgs::PrimitiveAction> actions;
+        robot_state::RobotState prev_state = start;
+        robot_state::RobotState next_state = start;
+        for (int i = 0; i < plan.actions.size(); i++) {
+
+            setStateFromPoint(next_state, plan.actions[i].joint_trajectory.joint_names,
+                              plan.actions[i].joint_trajectory.points.front());
+
+            if (next_state.distance(prev_state) > 1e-10) {
+                ROS_DEBUG("Inserting action to connect previous robot state with next robot state");
+                apc_msgs::PrimitiveAction action;
+                action.action_name = "vvvvv";
+                action.group_id = plan.actions[i].group_id;
+                action.joint_trajectory.joint_names = plan.actions[i].joint_trajectory.joint_names;
+
+                appendNamedJointsToActionJointTrajectory(prev_state, action);
+                appendNamedJointsToActionJointTrajectory(next_state, action);
+
+                setStateFromPoint(prev_state, action.joint_trajectory.joint_names,
+                                  action.joint_trajectory.points.back());
+                APC_ASSERT(next_state.distance(prev_state) <= 1e-10,
+                           "Failed to connect previous robot state with next state");
+
+                actions.push_back(action);
+            }
+
+            setStateFromPoint(prev_state, plan.actions[i].joint_trajectory.joint_names,
+                              plan.actions[i].joint_trajectory.points.back());
+            actions.push_back(plan.actions[i]);
+        }
+        plan.actions = actions;
+    }
+
     KeyPoseMap MotionPlanningFrame::computeDenseMotionPlan(const robot_state::RobotState& start,
                                                            const KeyPoseMap& world,
                                                            apc_msgs::PrimitivePlan& plan)
@@ -318,44 +509,11 @@ namespace moveit_rviz_plugin
         apc_msgs::ComputeDenseMotion srv;
         setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
 
-        // Insert additional actions to connect the previous robot
-        // state to the next start state.
-        {
-            std::vector<apc_msgs::PrimitiveAction> actions;
-            robot_state::RobotState prev_state = start;
-            robot_state::RobotState next_state = start;
-            for (int i = 0; i < plan.actions.size(); i++) {
-
-                setStateFromPoint(next_state, plan.actions[i].joint_trajectory.joint_names,
-                                  plan.actions[i].joint_trajectory.points.front());
-
-                if (next_state.distance(prev_state) > 1e-10) {
-                    ROS_DEBUG("Inserting action to connect previous robot state with next robot state");
-                    apc_msgs::PrimitiveAction action;
-                    action.action_name = "vvvvv";
-                    action.group_id = plan.actions[i].group_id;
-                    action.joint_trajectory.joint_names = plan.actions[i].joint_trajectory.joint_names;
-
-                    appendNamedJointsToActionJointTrajectory(prev_state, action);
-                    appendNamedJointsToActionJointTrajectory(next_state, action);
-
-                    setStateFromPoint(prev_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
-                    APC_ASSERT(next_state.distance(prev_state) <= 1e-10,
-                               "Failed to connect previous robot state with next state");
-
-                    actions.push_back(action);
-                }
-
-                setStateFromPoint(prev_state, plan.actions[i].joint_trajectory.joint_names,
-                                  plan.actions[i].joint_trajectory.points.back());
-                actions.push_back(plan.actions[i]);
-            }
-            plan.actions = actions;
-        }
-
         // For each action..
         for (int i = 0; i < plan.actions.size(); i++) {
             apc_msgs::PrimitiveAction& action = plan.actions[i];
+
+            ROS_DEBUG("Computing dense trajectory for action %s", action.action_name.c_str());
 
             // Fill out dense motion planning request.
             robot_state::robotStateToRobotStateMsg(robot_state, srv.request.robot_state);
@@ -379,10 +537,13 @@ namespace moveit_rviz_plugin
 
             // Move object to goal position.
             if (!action.object_id.empty()) {
+                Eigen::Affine3d T_object_world = world_state[action.object_key];
                 Eigen::Affine3d T_link_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
                 Eigen::Affine3d T_object_link;
                 tf::poseMsgToEigen(action.object_trajectory.poses.back(), T_object_link);
                 world_state[action.object_key] = T_link_world * T_object_link;
+                ROS_DEBUG_STREAM("Moving object %s from\n" << T_object_world.matrix() <<
+                                 "to\n" << world_state[action.object_key].matrix());
             }
         }
 
@@ -617,6 +778,7 @@ namespace moveit_rviz_plugin
             KeyPoseMap world_state = computeWorldKeyPoseMap();
             computeNearestFrameAndObjectKeys(start_state, world_state, plan);
             computeActionJointTrajectoryPoints(start_state, world_state, plan);
+            computeFullyConnectedPlan(start_state, plan);
             computeDenseMotionPlan(start_state, world_state, plan);
             computeSmoothedPath(plan);
             *primitive_plan_ = plan;

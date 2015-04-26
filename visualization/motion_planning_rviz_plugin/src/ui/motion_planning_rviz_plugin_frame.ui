@@ -191,6 +191,9 @@
                 <property name="defaultDropAction">
                  <enum>Qt::MoveAction</enum>
                 </property>
+                <property name="selectionMode">
+                 <enum>QAbstractItemView::ContiguousSelection</enum>
+                </property>
                 <property name="headerHidden">
                  <bool>true</bool>
                 </property>
@@ -444,63 +447,8 @@ background-color: rgb(212, 208, 200);</string>
                   <property name="bottomMargin">
                    <number>9</number>
                   </property>
-                  <item row="4" column="4">
-                   <widget class="QPushButton" name="pushButton_4">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="text">
-                     <string>Goal to Start</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="4">
-                   <widget class="QPushButton" name="goal_to_current_button">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="text">
-                     <string>Goal to Current</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="4">
-                   <widget class="QPushButton" name="start_to_current_button">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="text">
-                     <string>Start to Current</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="1" column="2" rowspan="4">
                    <layout class="QGridLayout" name="gridLayout_35">
-                    <item row="2" column="1">
-                     <widget class="QCheckBox" name="monitor_contact_checkbox">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="text">
-                       <string>Contact</string>
-                      </property>
-                      <property name="tristate">
-                       <bool>true</bool>
-                      </property>
-                     </widget>
-                    </item>
                     <item row="1" column="0">
                      <widget class="QLabel" name="label_16">
                       <property name="sizePolicy">
@@ -566,25 +514,6 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="3" column="1" colspan="2">
-                     <widget class="QCheckBox" name="interpolate_cartesian_checkbox">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="text">
-                       <string>Cartesian</string>
-                      </property>
-                      <property name="checked">
-                       <bool>false</bool>
-                      </property>
-                      <property name="tristate">
-                       <bool>true</bool>
-                      </property>
-                     </widget>
-                    </item>
                     <item row="3" column="0">
                      <widget class="QLabel" name="label_21">
                       <property name="sizePolicy">
@@ -599,7 +528,7 @@ background-color: rgb(212, 208, 200);</string>
                        </font>
                       </property>
                       <property name="text">
-                       <string>Interpolate:</string>
+                       <string>Special:</string>
                       </property>
                       <property name="alignment">
                        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -622,15 +551,96 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="0" column="1" colspan="2">
-                     <widget class="QComboBox" name="frame_combobox"/>
+                    <item row="3" column="1">
+                     <widget class="QCheckBox" name="grasp_checkbox">
+                      <property name="text">
+                       <string>Grasp</string>
+                      </property>
+                     </widget>
                     </item>
                     <item row="1" column="1" colspan="2">
                      <widget class="QComboBox" name="object_combobox"/>
                     </item>
+                    <item row="0" column="1" colspan="2">
+                     <widget class="QComboBox" name="frame_combobox"/>
+                    </item>
+                    <item row="2" column="1">
+                     <widget class="QCheckBox" name="monitor_contact_checkbox">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="text">
+                       <string>Contact</string>
+                      </property>
+                      <property name="tristate">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="3" column="2">
+                     <widget class="QCheckBox" name="interpolate_cartesian_checkbox">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="text">
+                       <string>SO(3)</string>
+                      </property>
+                      <property name="checked">
+                       <bool>false</bool>
+                      </property>
+                      <property name="tristate">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
                    </layout>
                   </item>
-                  <item row="3" column="4">
+                  <item row="4" column="5">
+                   <widget class="QPushButton" name="pushButton_4">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="text">
+                     <string>Goal to Start</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="5">
+                   <widget class="QPushButton" name="goal_to_current_button">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="text">
+                     <string>Goal to Current</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="5">
+                   <widget class="QPushButton" name="start_to_current_button">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="text">
+                     <string>Start to Current</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="3" column="5">
                    <widget class="QPushButton" name="pushButton_12">
                     <property name="sizePolicy">
                      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -762,7 +772,7 @@ background-color: rgb(212, 208, 200);</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="1" column="3" rowspan="4">
+                  <item row="1" column="4" rowspan="4">
                    <widget class="Line" name="line_2">
                     <property name="orientation">
                      <enum>Qt::Vertical</enum>
@@ -1001,7 +1011,7 @@ background-color: rgb(212, 208, 200);</string>
                      <string>Check Plan</string>
                     </property>
                     <property name="checked">
-                     <bool>true</bool>
+                     <bool>false</bool>
                     </property>
                    </widget>
                   </item>

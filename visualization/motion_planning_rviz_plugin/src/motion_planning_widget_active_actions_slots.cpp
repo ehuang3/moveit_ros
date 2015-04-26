@@ -138,7 +138,37 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::replaceActionButtonClicked()
     {
-        ROS_WARN("replaceActionButtonClicked");
+        if (ui_->active_actions_list->selectedItems().count() == 0) {
+            ROS_WARN("No items selected to replace");
+            return;
+        }
+        if (ui_->active_actions_list->selectedItems().count() > 1) {
+            ROS_WARN("Too many items selected to replace");
+            return;
+        }
+
+        // Save state and settings to action.
+        apc_msgs::PrimitiveAction action;
+        saveStartAndGoalToAction(action);
+        saveFrameToAction(action);
+        saveObjectToAction(action);
+        saveOptionsToAction(action);
+        saveFormatToAction(action);
+        saveLockedStateToAction(action);
+
+        ROS_DEBUG_STREAM("==================== Action ====================\n"
+                         << action
+                         << "================================================\n");
+
+        // Store action in variant.
+        QVariant data;
+        saveActionToData(action, data);
+
+        // Write to selected item.
+        ui_->active_actions_list->selectedItems()[0]->setData(Qt::UserRole, data);
+
+        // Set item name to action name.
+        ui_->active_actions_list->selectedItems()[0]->setText(QString::fromStdString(action.action_name));
     }
 
     void MotionPlanningFrame::renameAllActionsButtonClicked()
@@ -172,11 +202,18 @@ namespace moveit_rviz_plugin
         apc_msgs::PrimitiveAction action;
         loadActionFromData(action, item->data(Qt::UserRole));
 
-        // Set this first as start gets snapped to goal on unlock.
-        updateLockedStateFromAction(action);
+        try {
+            // Set this first as start gets snapped to goal on unlock.
+            updateLockedStateFromAction(action);
 
-        // Load the currently selected item into the query start and goal state.
-        loadStartAndGoalFromAction(action);
+            // Load the currently selected item into the query start and goal state.
+            loadStartAndGoalFromAction(action);
+
+        } catch (std::exception& error) {
+            ROS_ERROR("Caught exception in %s",
+                      error.what());
+            return;
+        }
 
         // Load the action into the GUI.
         updateGroupComboBoxFromAction(action);

@@ -83,6 +83,7 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::runAPCButtonClicked()
     {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeRunAPCButtonClicked, this), "run APC");
     }
 
     void MotionPlanningFrame::randomizeBinsButtonClicked()

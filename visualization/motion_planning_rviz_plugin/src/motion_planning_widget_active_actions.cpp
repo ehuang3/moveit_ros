@@ -142,51 +142,47 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::appendStateToAction(apc_msgs::PrimitiveAction& action,
                                                   const robot_state::RobotState& state)
     {
-        if (action.group_id.empty())
-        {
-            ROS_ERROR("No group provided in action");
-        }
+        APC_ASSERT(!action.group_id.empty(), "Failed to find group in action");
+
         const moveit::core::JointModelGroup* jmg = state.getJointModelGroup(action.group_id);
-        if (!jmg)
-        {
-            ROS_ERROR("Failed to get joint model group %s", action.group_id.c_str());
-            return;
-        }
-        // Get the goal joint tolerance.
-        double goal_joint_tolerance = move_group_->getGoalJointTolerance();
-        // Construct goal constraints only for the joint model group.
-        moveit_msgs::Constraints constraints = kinematic_constraints::constructGoalConstraints(state,
-                                                                                               jmg,
-                                                                                               goal_joint_tolerance);
-        // Warn the user if the number of joints in the joint group
-        // doesn't match previous points in the trajectory.
-        int num_state_joints  = jmg->getActiveJointModelNames().size();
-        int num_action_joints = action.joint_trajectory.joint_names.size();
-        if (num_action_joints == 0)
-        {
-            action.joint_trajectory.joint_names = jmg->getActiveJointModelNames();
-        }
-        else if (num_state_joints != num_action_joints)
-        {
-            ROS_ERROR("Mismatch in number of joints when appending state to action");
-            return;
-        }
-        else
-        {
-            for (int i = 0; i < jmg->getActiveJointModelNames().size(); i++)
-                // if (std::find(action.joint_trajectory.joint_names.begin(),
-                //               action.joint_trajectory.joint_names.end(),
-                //               jmg->getJointModelNames()[i]) == action.joint_trajectory.joint_names.end())
-                if (jmg->getActiveJointModelNames()[i] != action.joint_trajectory.joint_names[i])
-                {
-                    ROS_ERROR("Mismatch in joint names (or joint order) when appending state to action");
-                    return;
-                }
+        APC_ASSERT(jmg, "Failed to get joint model group %s", action.group_id.c_str());
+
+        // Append joint angles of state to the joint trajectory.
+        std::vector<std::string> joint_names = jmg->getVariableNames(); //jmg->getActiveJointModelNames();
+        std::vector<std::string> variable_names = jmg->getVariableNames();
+
+        // Set joint variable names if they are missing.
+        if (action.joint_trajectory.joint_names.size() == 0) {
+            action.joint_trajectory.joint_names = joint_names;
         }
 
+        // Append joint angles of state to the joint trajectory.
+        Eigen::VectorXd variable_values;
+        state.copyJointGroupPositions(jmg, variable_values);
         trajectory_msgs::JointTrajectoryPoint point;
-        state.copyJointGroupPositions(jmg, point.positions);
+        int appended = 0;
+        for (int i = 0; i < variable_values.size(); i++) {
+            if (std::find(joint_names.begin(), joint_names.end(), variable_names[i]) != joint_names.end()) {
+                point.positions.push_back(variable_values[i]);
+                appended++;
+            }
+        }
         action.joint_trajectory.points.push_back(point);
+
+        // Assert that the number of joint names in the input action
+        // match the number positions in the point.
+        APC_ASSERT(appended == action.joint_trajectory.joint_names.size(),
+                   "Mismatch in number of positions when appending state to action");
+
+        // Assert that the joint names match the active joints of the
+        // group.
+        const std::vector<std::string>& action_joint_names = action.joint_trajectory.joint_names;
+        for (int i = 0; i < action_joint_names.size(); i++)
+            APC_ASSERT(std::find(joint_names.begin(), joint_names.end(), action_joint_names[i]) != joint_names.end(),
+                       "Failed to find joint %s in group %s", action_joint_names[i].c_str(), action.group_id.c_str());
+        for (int i = 0; i < joint_names.size(); i++)
+            APC_ASSERT(std::find(action_joint_names.begin(), action_joint_names.end(), joint_names[i]) != action_joint_names.end(),
+                       "Failed to find joint %s in group %s", joint_names[i].c_str(), action.group_id.c_str());
     }
 
     void MotionPlanningFrame::saveFormatToAction(apc_msgs::PrimitiveAction& action)
@@ -299,11 +295,7 @@ namespace moveit_rviz_plugin
     {
         const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
         const moveit::core::JointModelGroup* jmg = planning_display_->getQueryStartState()->getJointModelGroup(group);
-        if (!jmg)
-        {
-            ROS_ERROR("Failed to find group: %s", group.c_str());
-            return "";
-        }
+        APC_ASSERT(jmg, "Failed to get joint model group %s", group.c_str());
 
         std::string eef_link;
         const std::vector<srdf::Model::EndEffector> &eef = srdf->getEndEffectors();
@@ -312,15 +304,13 @@ namespace moveit_rviz_plugin
             if (jmg->hasLinkModel(eef[i].parent_link_) ||
                 jmg->getName() == eef[i].parent_group_)
                 active_eef.push_back(eef[i]);
+        APC_ASSERT(active_eef.size() <= 1,
+                   "More than one end-effector found");
         if (active_eef.size() == 0) // Use last link as "eef".
             eef_link = jmg->getLinkModelNames().back();
         else if (active_eef.size() == 1) // Use last link as "eef".
             eef_link = active_eef[0].parent_link_;
-        else if (active_eef.size() > 1)
-        {
-            ROS_ERROR("More than one end-effector found");
-            return "";
-        }
+
         return eef_link;
     }
 
@@ -330,11 +320,8 @@ namespace moveit_rviz_plugin
         ROS_DEBUG_FUNCTION;
 
         const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
-        if (!_kiva_pod)
-        {
-            ROS_ERROR("KIVA Pod not loaded!");
-            return "";
-        }
+        APC_ASSERT(_kiva_pod,
+                   "Failed to get KIVA pod");
 
         // Get world transform of link.
         Eigen::Affine3d T_link = state.getGlobalLinkTransform(link);
@@ -398,6 +385,9 @@ namespace moveit_rviz_plugin
                 }
             }
 
+        APC_ASSERT(!nearest_object.empty(),
+                   "Failed to find a key for object %s in world", object.c_str());
+
         ROS_DEBUG("nearest object: %s", nearest_object.c_str());
         ROS_DEBUG("min dist: %.4f", min_dist);
         ROS_DEBUG_FUNCTION;
@@ -426,6 +416,9 @@ namespace moveit_rviz_plugin
 
         if (frame.find("bin") == 0)
             T_frame_world = T_frame_world * _kiva_pod->getGlobalTransform(frame);
+
+        // APC_ASSERT(world->hasObject(frame),
+        //            "Failed to find frame %s in world", frame.c_str());
 
         ROS_DEBUG_STREAM("T_frame_world:\n" << T_frame_world.matrix());
         ROS_DEBUG_FUNCTION;
@@ -562,6 +555,7 @@ namespace moveit_rviz_plugin
         options["interpolate_cartesian"] = ui_->interpolate_cartesian_checkbox->isChecked();
         options["monitor_contact"] = ui_->monitor_contact_checkbox->isChecked();
         options["monitor_haptic_profile"] = ui_->monitor_profile_checkbox->isChecked();
+        options["grasp"] = ui_->grasp_checkbox->isChecked();
         saveOptionsToAction(action, options);
     }
 
@@ -576,6 +570,7 @@ namespace moveit_rviz_plugin
         action.interpolate_cartesian = options.find("interpolate_cartesian")->second;
         action.monitor_contact = options.find("monitor_contact")->second;
         action.monitor_haptic_profile = options.find("monitor_haptic_profile")->second;
+        action.grasp = options.find("grasp")->second;
     }
 
     void MotionPlanningFrame::saveActionToData(const std::vector<apc_msgs::PrimitiveAction>& actions,
@@ -823,17 +818,54 @@ namespace moveit_rviz_plugin
             // Get the group name.
             group = action.group_id;
 
-            // Load action into state.
-            loadStartAndGoalFromAction(start_waypoint, goal_waypoint, action);
+            try {
 
-            // Update the dirty transforms, etc.
-            start_waypoint.update();
-            goal_waypoint.update();
+                // Load action into state.
+                loadStartAndGoalFromAction(start_waypoint, goal_waypoint, action);
 
-            // Add waypoint.
-            planning_display_->addDisplayWaypoint(start_waypoint, group, link_names, focus);
-            planning_display_->addDisplayWaypoint(goal_waypoint, group, link_names, focus);
+                // Update the dirty transforms, etc.
+                start_waypoint.update();
+                goal_waypoint.update();
+
+                // Add waypoint.
+                planning_display_->addDisplayWaypoint(start_waypoint, group, link_names, focus);
+                planning_display_->addDisplayWaypoint(goal_waypoint, group, link_names, focus);
+
+            } catch (std::exception& error) {
+                ROS_ERROR("Caught exception in %s", error.what());
+            }
+
         }
+    }
+
+    void MotionPlanningFrame::computeAttachNearestObjectToStateMatchingId(const std::string& object_id,
+                                                                          const std::string& group_id,
+                                                                          const KeyPoseMap& world_state,
+                                                                          robot_state::RobotState& robot_state)
+    {
+        // Remove any previously attached bodies.
+        robot_state.clearAttachedBodies();
+        // Get the end-effector link.
+        std::string eef_link_id = computeEefLink(group_id);
+        // Get an object key of object ID in the world.
+        std::string object_key = computeNearestObjectKey(object_id, eef_link_id, robot_state, world_state);
+        // Get object transform relative to the end-effector link.
+        Eigen::Affine3d T_object_world = world_state.find(object_key)->second;
+        Eigen::Affine3d T_eef_inv = robot_state.getGlobalLinkTransform(eef_link_id).inverse();
+        Eigen::Affine3d T_object_eef = T_eef_inv * T_object_world;
+
+        // Attach object to robot state.
+        planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+        collision_detection::CollisionWorld::ObjectConstPtr object = ps->getWorld()->getObject(object_key);
+        APC_ASSERT(object,
+                   "Failed to find object key %s in world", object_key.c_str());
+        std::vector<shapes::ShapeConstPtr> object_shapes = object->shapes_;
+        EigenSTL::vector_Affine3d object_poses = object->shape_poses_;
+        for (int i = 0; i < object_poses.size(); i++)
+            object_poses[i] = T_object_eef * object_poses[0].inverse() * object_poses[i];
+        moveit_msgs::AttachedCollisionObject aco; // For dummy arguments.
+        robot_state.attachBody(object_id, object_shapes, object_poses, aco.touch_links, eef_link_id, aco.detach_posture);
+        robot_state.update();
     }
 
 }
