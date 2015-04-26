@@ -717,49 +717,20 @@ namespace moveit_rviz_plugin
                                                          robot_state::RobotState& goal,
                                                          const apc_msgs::PrimitiveAction& action)
     {
+        // Duplicate action.
+        apc_msgs::PrimitivePlan plan;
+        plan.actions.push_back(action);
+        // Get input variables.
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
         int num_points = action.joint_trajectory.points.size();
-        const std::vector<std::string>& joint_names = action.joint_trajectory.joint_names;
-        if (joint_names.size() == 0 || num_points == 0)
-        {
-            ROS_ERROR("Invalid action: No joint trajectory to load!");
-            return;
-        }
-
-        // Next snap start and goal states to joint trajectory points.
-        const trajectory_msgs::JointTrajectoryPoint start_point = action.joint_trajectory.points.front();
-        const trajectory_msgs::JointTrajectoryPoint goal_point  = action.joint_trajectory.points.back();
-        // If it's "bin", do IK from current state instead of recorded
-        // as it's closer to the nearest bin by definition.
-        if (action.frame_id != "bin")
-        {
-            snapStateToPoint(start, joint_names, start_point);
-            snapStateToPoint(goal, joint_names, goal_point);
-        }
-
-        // Next snap start and goal states to the frame. Note that we
-        // must provide the same transform from from world to frame to
-        // both snaps.
-        if (!action.frame_id.empty() && !action.eef_link_id.empty())
-        {
-            int num_eef = action.eef_trajectory.poses.size();
-            // Use compute the frame nearest the *start* state. Or
-            // else, the goal state will shift itself around.
-            Eigen::Affine3d T_frame_world = computeNearestFrame(action.frame_id, action.group_id, start);
-            Eigen::Affine3d T_frame_start;
-            Eigen::Affine3d T_frame_goal;
-            geometry_msgs::Pose pose_start = action.eef_trajectory.poses[0];
-            geometry_msgs::Pose pose_goal = action.eef_trajectory.poses[num_eef-1];
-            tf::poseMsgToEigen(pose_start, T_frame_start);
-            tf::poseMsgToEigen(pose_goal, T_frame_goal);
-
-            snapStateToFrame(start, T_frame_world, action.eef_link_id, T_frame_start, action.group_id);
-            snapStateToFrame(goal, T_frame_world, action.eef_link_id, T_frame_goal, action.group_id);
-        }
-
-        // Attach manipulated objects.
-        int num_object_poses = action.object_trajectory.poses.size();
-        attachObjectToState(start, action.object_id, action.attached_link_id, action.object_trajectory.poses[0]);
-        attachObjectToState(goal, action.object_id, action.attached_link_id, action.object_trajectory.poses[num_object_poses-1]);
+        // Set frame and object keys (if needed).
+        computeNearestFrameAndObjectKeysPartial(start, world_state, plan);
+        // Set states from action.
+        setStateFromAction(start, world_state, plan.actions[0], 0, true);
+        setStateFromAction(goal, world_state, plan.actions[0], num_points-1, true);
+        // Update
+        start.update();
+        goal.update();
     }
 
     void MotionPlanningFrame::loadStartAndGoalFromAction(const apc_msgs::PrimitiveAction& action)

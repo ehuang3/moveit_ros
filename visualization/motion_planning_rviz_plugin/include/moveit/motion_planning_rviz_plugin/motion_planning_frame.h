@@ -417,15 +417,17 @@ private:
                                                      apc_msgs::PrimitivePlan& plan);
 
   /**
-   * @brief This function appends the input robot state to the
+   * @brief This function sets the input robot state to the 'index' point
    * action's joint trajectory. Only the joint angles of joints named
    * in the action joint trajectory are appended.
    *
    * @param state  The input robot state.
    * @param action  The action to modify.
+   * @param index  The index of the joint trajectory to modify.
    */
-  void appendNamedJointsToActionJointTrajectory(const robot_state::RobotState& state,
-                                                apc_msgs::PrimitiveAction& action);
+  void setStateToActionJointTrajectory(const robot_state::RobotState& state,
+                                       apc_msgs::PrimitiveAction& action,
+                                       int index);
 
   /**
    * @brief Over the course of a plan, objects may move when actions
