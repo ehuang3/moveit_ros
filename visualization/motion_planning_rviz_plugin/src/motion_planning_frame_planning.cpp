@@ -382,5 +382,4 @@ void MotionPlanningFrame::remoteUpdateGoalStateCallback(const std_msgs::EmptyCon
   }
 }
 
-  
 }

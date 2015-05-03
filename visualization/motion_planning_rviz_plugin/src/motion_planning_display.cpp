@@ -88,7 +88,9 @@ MotionPlanningDisplay::MotionPlanningDisplay() :
   frame_dock_(NULL),
   menu_handler_start_(new interactive_markers::MenuHandler),
   menu_handler_goal_(new interactive_markers::MenuHandler),
-  int_marker_display_(NULL)
+  int_marker_display_(NULL),
+  show_query_start_(true),
+  show_query_goal_(true)
 {
   // Category Groups
   plan_category_  = new rviz::Property("Planning Request", QVariant(), "", this);
@@ -739,7 +741,7 @@ void MotionPlanningDisplay::drawQueryStartState()
       
       // update link poses
       query_robot_start_->update(state);
-      query_robot_start_->setVisible(true);
+      query_robot_start_->setVisible(show_query_start_);
       
       // update link colors
       std::vector<std::string> collision_links;
@@ -866,7 +868,7 @@ void MotionPlanningDisplay::drawQueryGoalState()
       
       // update link poses
       query_robot_goal_->update(state);
-      query_robot_goal_->setVisible(true);
+      query_robot_goal_->setVisible(show_query_goal_);
 
       // update link colors
       std::vector<std::string> collision_links;
@@ -1337,6 +1339,23 @@ void MotionPlanningDisplay::setQueryStateHelper(bool use_start_state, const std:
 void MotionPlanningDisplay::populateMenuHandler(boost::shared_ptr<interactive_markers::MenuHandler>& mh)
 {
   typedef interactive_markers::MenuHandler immh;
+
+  immh::EntryHandle eef_fixed =
+    mh->insert("EEF Fixed", boost::bind(&MotionPlanningDisplay::toggleEndEffectorMarkerFixedOrientation, this));
+  immh::EntryHandle joint_symmetry =
+    mh->insert("Joint Symmetry", boost::bind(&MotionPlanningDisplay::toggleJointMarkerSymmetry, this));
+
+  bool fixed = true;
+  if (query_start_state_)
+    fixed = query_start_state_->getEndEffectorFixedOrientation();
+  mh->setCheckState(eef_fixed, (fixed ? immh::CHECKED : immh::UNCHECKED));
+
+  bool symmetric = true;
+  if (query_start_state_)
+    symmetric = query_start_state_->getJointMarkerSymmetry();
+  mh->setCheckState(joint_symmetry, (symmetric ? immh::CHECKED : immh::UNCHECKED));
+
+
   std::vector<std::string> state_names;
   state_names.push_back("random");
   state_names.push_back("current");
@@ -1357,7 +1376,7 @@ void MotionPlanningDisplay::populateMenuHandler(boost::shared_ptr<interactive_ma
     mh->insert(menu_states, state_names[i],
                boost::bind(&MotionPlanningDisplay::setQueryStateHelper, this, is_start, state_names[i]));
   }
-  
+
   //  // Group commands, which end up being the same for both interaction handlers
   //  const std::vector<std::string>& group_names = getRobotModel()->getJointModelGroupNames();
   //  immh::EntryHandle menu_groups = mh->insert("Planning Group", immh::FeedbackCallback());
@@ -1365,6 +1384,23 @@ void MotionPlanningDisplay::populateMenuHandler(boost::shared_ptr<interactive_ma
   //    mh->insert(menu_groups, group_names[i],
   //               boost::bind(&MotionPlanningDisplay::changePlanningGroup, this, group_names[i]));
 
+}
+
+void MotionPlanningDisplay::toggleEndEffectorMarkerFixedOrientation()
+{
+  bool fixed = query_start_state_->getEndEffectorFixedOrientation();
+  ROS_DEBUG_STREAM("Toggling EEF orientation to " << (!fixed ? "fixed" : "free"));
+  query_start_state_->setEndEffectorFixedOrientation(!fixed);
+  query_goal_state_->setEndEffectorFixedOrientation(!fixed);
+  addMainLoopJob(boost::bind(&MotionPlanningDisplay::changedPlanningGroup, this));
+}
+
+void MotionPlanningDisplay::toggleJointMarkerSymmetry()
+{
+  bool symmetric = query_start_state_->getJointMarkerSymmetry();
+  ROS_DEBUG_STREAM("Toggling joint symmetry to " << (!symmetric ? "on" : "off"));
+  query_start_state_->setJointMarkerSymmetry(!symmetric);
+  query_goal_state_->setJointMarkerSymmetry(!symmetric);
 }
 
 void MotionPlanningDisplay::onRobotModelLoaded()
@@ -1715,6 +1751,30 @@ void MotionPlanningDisplay::visualizePlaceLocations(const std::vector<geometry_m
     place_locations_display_[i]->setScale(extents);
     place_locations_display_[i]->setPosition(center);
   }
+}
+
+void MotionPlanningDisplay::setQueryStartVisualEnabled(bool enable)
+{
+  show_query_start_ = enable;
+  drawQueryStartState();
+}
+
+void MotionPlanningDisplay::setQueryGoalVisualEnabled(bool enable)
+{
+  show_query_goal_ = enable;
+  drawQueryGoalState();
+}
+
+void MotionPlanningDisplay::setEefMarkersActive(bool active)
+{
+  robot_interaction_->setEndEffectorMarkersActive(active);
+  changedPlanningGroup();
+}
+
+void MotionPlanningDisplay::setJointMarkersActive(bool active)
+{
+  robot_interaction_->setJointMarkersActive(active);
+  changedPlanningGroup();
 }
 
 

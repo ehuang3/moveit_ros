@@ -63,6 +63,17 @@ void PlanningSceneRender::clear()
   render_shapes_->clear();
 }
 
+void PlanningSceneRender::resetObjectVisibilities()
+{
+  show_object_.clear();
+}
+
+void PlanningSceneRender::setObjectVisibility(const std::string& object_key,
+                         bool visible)
+{
+  show_object_[object_key] = visible;
+}
+
 void PlanningSceneRender::renderPlanningScene(const planning_scene::PlanningSceneConstPtr &scene,
                                               const rviz::Color &default_env_color,
                                               const rviz::Color &default_attached_color,
@@ -93,6 +104,9 @@ void PlanningSceneRender::renderPlanningScene(const planning_scene::PlanningScen
   const std::vector<std::string> &ids = scene->getWorld()->getObjectIds();
   for (std::size_t i = 0 ; i < ids.size() ; ++i)
   {
+    if (show_object_.find(ids[i]) != show_object_.end() && !show_object_[ids[i]])
+      continue;
+
     collision_detection::CollisionWorld::ObjectConstPtr o = scene->getWorld()->getObject(ids[i]);
     rviz::Color color = default_env_color;
     float alpha = default_scene_alpha;

@@ -680,5 +680,21 @@ void PlanningSceneDisplay::fixedFrameChanged()
   calculateOffsetPosition();
 }
 
+void PlanningSceneDisplay::setSceneRobotVisualEnabled(bool enable) {
+  if (isEnabled() && planning_scene_robot_)
+  {
+    planning_scene_robot_->setVisible(enable);
+    planning_scene_robot_->setVisualVisible(enable);
+  }
+}
+
+void PlanningSceneDisplay::setObjectVisibility(const std::string& object_key, bool visible)
+{
+  if (!planning_scene_render_) {
+    ROS_ERROR("Failed to set object %s visibility: No planning scene renderer", object_key.c_str());
+    return;
+  }
+  planning_scene_render_->setObjectVisibility(object_key, visible);
+}
 
 } // namespace moveit_rviz_plugin

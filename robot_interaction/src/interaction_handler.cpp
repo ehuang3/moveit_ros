@@ -44,6 +44,7 @@
 #include <interactive_markers/menu_handler.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
+#include <boost/xpressive/xpressive.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/math/constants/constants.hpp>
 #include <algorithm>
@@ -68,6 +69,8 @@ InteractionHandler::InteractionHandler(
 ,kinematic_options_map_(robot_interaction->getKinematicOptionsMap())
 ,display_meshes_(true)
 ,display_controls_(true)
+,joint_markers_symmetric_(true)
+,end_effector_fixed_orientation_(true)
 {
   setRobotInteraction(robot_interaction.get());
 }
@@ -84,6 +87,8 @@ InteractionHandler::InteractionHandler(
 ,kinematic_options_map_(robot_interaction->getKinematicOptionsMap())
 ,display_meshes_(true)
 ,display_controls_(true)
+,joint_markers_symmetric_(true)
+,end_effector_fixed_orientation_(true)
 {
   setRobotInteraction(robot_interaction.get());
 }
@@ -101,6 +106,8 @@ InteractionHandler::InteractionHandler(
 ,kinematic_options_map_(new KinematicOptionsMap)
 ,display_meshes_(true)
 ,display_controls_(true)
+,joint_markers_symmetric_(true)
+,end_effector_fixed_orientation_(true)
 {
 }
 
@@ -117,6 +124,8 @@ InteractionHandler::InteractionHandler(
 ,kinematic_options_map_(new KinematicOptionsMap)
 ,display_meshes_(true)
 ,display_controls_(true)
+,joint_markers_symmetric_(true)
+,end_effector_fixed_orientation_(true)
 {
 }
 
@@ -474,23 +483,36 @@ void InteractionHandler::updateStateJoint(
       // Set joint angle to buffer.
       vals[vj->joint_name] = angle_feedback;
 
-      // Handle mimic joints.
+      // Handle mimic joints. There are two cases: 1) the joint model
+      // knows it's mimic joint and 2) the joint model is a mimc joint
+      // and we need to find the other joint model who owns it.
       const JointModel *joint_mimic = joint_model->getMimic();
-
-      // Mimic the motion.
-      if (joint_mimic)
+      if (joint_mimic) {
         vals[joint_mimic->getName()] = angle_feedback;
+      } else {
+        for (int i = 0; i < state->getRobotModel()->getJointModelCount(); i++) {
+          const JointModel* jm = state->getRobotModel()->getJointModel(i);
+          if (jm->getMimic() == joint_model)
+            vals[jm->getName()] = angle_feedback;
+        }
+      }
 
-      // std::cout << "offset: " << vj->offset << std::endl;
-      // std::cout << "joint: " << vj->joint_name << std::endl;
-      // std::cout << "tf child:\n" << tf_child.matrix() << std::endl;
-      // std::cout << "tf joint:\n" << tf_joint.matrix() << std::endl;
-      // std::cout << "tf link:\n"  << tf_link.matrix()  << std::endl;
-      // std::cout << "tf fback:\n"  << tf_feedback.matrix()  << std::endl;
-      // std::cout << "aa fback: " << aa_feedback.angle() << ", " << aa_feedback.axis().transpose() << std::endl;
-      // std::cout << "angle raw: " << raw_angle_feedback << std::endl;
-      // std::cout << "angle fback: " << angle_feedback << std::endl;
-      // std::cout << "joint axis: " << joint_axis.transpose() << std::endl;
+      // Handle symmetric commands.
+      if (joint_markers_symmetric_) {
+        // Check for joint names that satisfy symmetry requirements.
+        using namespace boost::xpressive;
+        sregex rex = sregex::compile("^(crichton_)(left_|right_)((finger_[12])|(thumb_))((2_joint)|(3_joint))");
+        smatch what;
+        if(regex_match(vj->joint_name, what, rex)) {
+          // Construct symmetric joint names and set their values.
+          std::string finger_1 = what[1] + what[2] + "finger_1" + what[6];
+          std::string finger_2 = what[1] + what[2] + "finger_2" + what[6];
+          std::string thumb    = what[1] + what[2] + "thumb_" + what[6];
+          vals[finger_1] = angle_feedback;
+          vals[finger_2] = angle_feedback;
+          vals[thumb] = angle_feedback;
+        }
+      }
     }
   state->setVariablePositions(vals);
   state->update();
@@ -552,6 +574,7 @@ bool InteractionHandler::transformFeedbackPose(const visualization_msgs::Interac
 {
   tpose.header = feedback->header;
   tpose.pose = feedback->pose;
+  ROS_INFO_STREAM("tpose.pose:\n" << tpose.pose);
   if (feedback->header.frame_id != planning_frame_)
   {
     if (tf_)
@@ -561,11 +584,18 @@ bool InteractionHandler::transformFeedbackPose(const visualization_msgs::Interac
         tf::poseStampedMsgToTF(tpose, spose);
         // Express feedback (marker) pose in planning frame
         tf_->transformPose(planning_frame_, spose, spose);
+
+        geometry_msgs::PoseStamped fpose;
+        tf::poseStampedTFToMsg(spose, fpose);
+        ROS_INFO_STREAM("pose in " << planning_frame_ << ":\n" << fpose);
+
         // Apply inverse of offset to bring feedback pose back into the end-effector support link frame
         tf::Transform tf_offset;
         tf::poseMsgToTF(offset, tf_offset);
         spose.setData(spose * tf_offset.inverse());
         tf::poseStampedTFToMsg(spose, tpose);
+
+        ROS_INFO_STREAM("pose in eef link frame:\n" << tpose);
       }
       catch (tf::TransformException& e)
       {
@@ -736,5 +766,24 @@ bool InteractionHandler::getControlsVisible() const
   return display_controls_;
 }
 
+bool InteractionHandler::getEndEffectorFixedOrientation() const
+{
+  return end_effector_fixed_orientation_;
+}
+
+bool InteractionHandler::getJointMarkerSymmetry() const
+{
+  return joint_markers_symmetric_;
+}
+
+void InteractionHandler::setEndEffectorFixedOrientation(bool fixed)
+{
+  end_effector_fixed_orientation_ = fixed;
+}
+
+void InteractionHandler::setJointMarkerSymmetry(bool symmetric)
+{
+  joint_markers_symmetric_ = symmetric;
+}
 
 }

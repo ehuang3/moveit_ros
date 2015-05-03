@@ -104,6 +104,10 @@ public:
   planning_scene_monitor::LockedPlanningSceneRW getPlanningSceneRW();
   const planning_scene_monitor::PlanningSceneMonitorPtr& getPlanningSceneMonitor();
 
+  void setSceneRobotVisualEnabled(bool enable);
+  void setObjectVisibility(const std::string& object_key, bool visible);
+
+
 private Q_SLOTS:
 
   // ******************************************************************************************

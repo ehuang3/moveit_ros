@@ -97,6 +97,25 @@ public:
     return topic_;
   }
 
+
+  /**
+   * @brief Activate or deactivate the end-effector markers. The
+   * active components will have to be regenerated outside of this
+   * function call for the changes to propogate.
+   *
+   * @param active  Activate if true.
+   */
+  void setEndEffectorMarkersActive(bool active);
+
+  /**
+   * @brief Activate or deactivate the joint markers. The active
+   * components will have to be regenerated outside of this function
+   * call for the changes to propogate.
+   *
+   * @param active  Activate if true.
+   */
+  void setJointMarkersActive(bool active);
+
   /// add an interaction.
   /// An interaction is a marker that can be used to manipulate the robot
   /// state. 
@@ -252,6 +271,9 @@ private:
   // options for doing IK
   // Locking is done internally
   KinematicOptionsMapPtr kinematic_options_map_;
+
+  bool eef_markers_active_;
+  bool joint_markers_active_;
 
 public:
   // DEPRECATED.  This is included for backwards compatibility.

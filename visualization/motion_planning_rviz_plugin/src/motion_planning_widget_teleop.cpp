@@ -66,10 +66,12 @@ namespace moveit_rviz_plugin
             map[object_keys[i]] = world->getObject(object_keys[i])->shape_poses_[0];
 
         // Construct the bin poses of the KIVA pod.
-        APC_ASSERT(_kiva_pod, "Failed to get KIVA pod model");
-        for (char c = 'A'; c <= 'L'; c++) {
-            std::string bin = std::string("bin_") + c;
-            map[bin] = map["kiva_pod"] * _kiva_pod->getGlobalTransform(bin);
+        if (_kiva_pod) {
+            // APC_ASSERT(_kiva_pod, "Failed to get KIVA pod model");
+            for (char c = 'A'; c <= 'L'; c++) {
+                std::string bin = std::string("bin_") + c;
+                map[bin] = map["kiva_pod"] * _kiva_pod->getGlobalTransform(bin);
+            }
         }
 
         return map;
@@ -498,6 +500,9 @@ namespace moveit_rviz_plugin
     {
         // Copy starting conditions.
         robot_state::RobotState robot_state = start;
+        robot_state.enforceBounds(); // Do this because if we start outside of
+                                     // the joint limits, we should still drive
+                                     // the motors back inside the joint limits.
         KeyPoseMap world_state = world;
 
         // Create motion planning service message.

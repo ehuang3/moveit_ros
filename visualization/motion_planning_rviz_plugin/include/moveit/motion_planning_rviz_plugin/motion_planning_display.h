@@ -154,6 +154,14 @@ class MotionPlanningDisplay : public PlanningSceneDisplay
 
   void previewTrail();
 
+  void setQueryStartVisualEnabled(bool enable);
+  void setQueryGoalVisualEnabled(bool enable);
+  void setEefMarkersActive(bool active);
+  void setJointMarkersActive(bool active);
+
+  void toggleEndEffectorMarkerFixedOrientation();
+  void toggleJointMarkerSymmetry();
+
 
 Q_SIGNALS:
   void timeToShowNewTrail();
@@ -346,6 +354,9 @@ protected:
   rviz::BoolProperty* show_workspace_property_;
 
   rviz::Display *int_marker_display_;
+
+  bool show_query_start_;
+  bool show_query_goal_;
 };
 
 } // namespace moveit_rviz_plugin

@@ -46,6 +46,19 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::connectTeleopHelperSlots()
     {
+        connect( ui_->display_current_button,     SIGNAL( toggled(bool) ), this, SLOT( displayCurrentButtonToggled(bool) ));
+        connect( ui_->display_start_button,     SIGNAL( toggled(bool) ), this, SLOT( displayStartButtonToggled(bool) ));
+        connect( ui_->display_goal_button,     SIGNAL( toggled(bool) ), this, SLOT( displayGoalButtonToggled(bool) ));
+        connect( ui_->display_eef_button,     SIGNAL( toggled(bool) ), this, SLOT( displayEefButtonToggled(bool) ));
+        connect( ui_->display_joints_button,     SIGNAL( toggled(bool) ), this, SLOT( displayJointsButtonToggled(bool) ));
+        connect( ui_->display_shelf_button,     SIGNAL( toggled(bool) ), this, SLOT( displayKivaPodButtonToggled(bool) ));
+        connect( ui_->display_objects_button,     SIGNAL( toggled(bool) ), this, SLOT( displayObjectsButtonToggled(bool) ));
+
+        connect( ui_->current_to_start_button, SIGNAL( clicked() ), this, SLOT( setCurrentToStartButtonClicked() ));
+        connect( ui_->current_to_goal_button,  SIGNAL( clicked() ), this, SLOT( setCurrentToGoalButtonClicked() ));
+        connect( ui_->start_to_goal_button, SIGNAL( clicked() ), this, SLOT( setStartToGoalButtonClicked() ));
+        connect( ui_->goal_to_start_button,  SIGNAL( clicked() ), this, SLOT( setGoalToStartButtonClicked() ));
+
         connect( ui_->padlock_button,     SIGNAL( toggled(bool) ), this, SLOT( padlockButtonToggled(bool) ));
         connect( ui_->start_radio_button, SIGNAL( clicked() ), this, SLOT( startRadioButtonClicked() ));
         connect( ui_->goal_radio_button,  SIGNAL( clicked() ), this, SLOT( goalRadioButtonClicked() ));
@@ -55,11 +68,78 @@ namespace moveit_rviz_plugin
         connect( ui_->object_combobox,  SIGNAL( currentIndexChanged(const QString&) ),
                  this, SLOT( objectComboBoxCurrentIndexChanged(const QString&) ));
         connect( ui_->grasp_checkbox,  SIGNAL( toggled(bool) ), this, SLOT( graspCheckBoxToggled(bool) ));
-        connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
-        connect( ui_->goal_to_current_button,  SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
+
         // connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         // connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
         // connect( ui_->interpolate_cartesian_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+    }
+
+    void MotionPlanningFrame::displayCurrentButtonToggled(bool checked)
+    {
+        planning_display_->setSceneRobotVisualEnabled(checked);
+    }
+
+    void MotionPlanningFrame::displayStartButtonToggled(bool checked)
+    {
+        planning_display_->setQueryStartVisualEnabled(checked);
+    }
+
+    void MotionPlanningFrame::displayGoalButtonToggled(bool checked)
+    {
+        planning_display_->setQueryGoalVisualEnabled(checked);
+    }
+
+    void MotionPlanningFrame::displayEefButtonToggled(bool checked)
+    {
+        planning_display_->setEefMarkersActive(checked);
+    }
+
+    void MotionPlanningFrame::displayJointsButtonToggled(bool checked)
+    {
+        planning_display_->setJointMarkersActive(checked);
+    }
+
+    void MotionPlanningFrame::displayKivaPodButtonToggled(bool checked)
+    {
+        planning_display_->setObjectVisibility("kiva_pod", checked);
+        planning_display_->queueRenderSceneGeometry();
+    }
+
+    void MotionPlanningFrame::displayObjectsButtonToggled(bool checked)
+    {
+        std::vector<std::string> object_keys = planning_display_->getPlanningSceneRO()->getWorld()->getObjectIds();
+        for (int i = 0; i < object_keys.size(); i++) {
+            if (object_keys[i] == "kiva_pod")
+                continue;
+            planning_display_->setObjectVisibility(object_keys[i], checked);
+        }
+        planning_display_->queueRenderSceneGeometry();
+    }
+
+    void MotionPlanningFrame::setCurrentToStartButtonClicked()
+    {
+        robot_state::RobotState start = *planning_display_->getQueryStartState();
+        updateQueryStateHelper(start, "<current>");
+        planning_display_->setQueryStartState(start);
+    }
+
+    void MotionPlanningFrame::setCurrentToGoalButtonClicked()
+    {
+        robot_state::RobotState goal = *planning_display_->getQueryGoalState();
+        updateQueryStateHelper(goal, "<current>");
+        planning_display_->setQueryGoalState(goal);
+    }
+
+    void MotionPlanningFrame::setStartToGoalButtonClicked()
+    {
+        robot_state::RobotState start = *planning_display_->getQueryStartState();
+        planning_display_->setQueryGoalState(start);
+    }
+
+    void MotionPlanningFrame::setGoalToStartButtonClicked()
+    {
+        robot_state::RobotState goal = *planning_display_->getQueryGoalState();
+        planning_display_->setQueryStartState(goal);
     }
 
     void MotionPlanningFrame::padlockButtonToggled(bool checked)
@@ -261,18 +341,6 @@ namespace moveit_rviz_plugin
         }
     }
 
-    void MotionPlanningFrame::setStartToCurrentButtonClicked()
-    {
-        robot_state::RobotState start = *planning_display_->getQueryStartState();
-        updateQueryStateHelper(start, "<current>");
-        planning_display_->setQueryStartState(start);
-    }
 
-    void MotionPlanningFrame::setGoalToCurrentButtonClicked()
-    {
-        robot_state::RobotState goal = *planning_display_->getQueryGoalState();
-        updateQueryStateHelper(goal, "<current>");
-        planning_display_->setQueryGoalState(goal);
-    }
 
 }

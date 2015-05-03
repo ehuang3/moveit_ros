@@ -175,6 +175,9 @@ private:
 
   ros::ServiceClient _compute_dense_motion_client;
 
+  bool show_kiva_pod_;
+  bool show_objects_;
+
 private Q_SLOTS:
   // APC tab.
 
@@ -190,6 +193,17 @@ private Q_SLOTS:
                          const apc_msgs::FollowPrimitivePlanResult& result);
 
   // Teleoperation widget helper slots.
+  void displayCurrentButtonToggled(bool checked);
+  void displayStartButtonToggled(bool checked);
+  void displayGoalButtonToggled(bool checked);
+  void displayEefButtonToggled(bool checked);
+  void displayJointsButtonToggled(bool checked);
+  void displayKivaPodButtonToggled(bool checked);
+  void displayObjectsButtonToggled(bool checked);
+  void setCurrentToStartButtonClicked();
+  void setCurrentToGoalButtonClicked();
+  void setStartToGoalButtonClicked();
+  void setGoalToStartButtonClicked();
   void padlockButtonToggled(bool);
   void startRadioButtonClicked();
   void goalRadioButtonClicked();
@@ -206,8 +220,7 @@ private Q_SLOTS:
   void updateOptionsCheckBoxesFromAction(const apc_msgs::PrimitiveAction& action);
   void updateLockedStateFromAction(const apc_msgs::PrimitiveAction& action);
   void graspCheckBoxToggled(bool grasp);
-  void setStartToCurrentButtonClicked();
-  void setGoalToCurrentButtonClicked();
+
 
   // Pick and place widget slots.
   void runAPCButtonClicked();

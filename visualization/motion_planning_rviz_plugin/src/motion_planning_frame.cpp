@@ -61,7 +61,9 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   context_(context),
   ui_(new Ui::MotionPlanningUI()),
   first_time_(true),
-  clear_octomap_service_client_(nh_.serviceClient<std_srvs::Empty>(move_group::CLEAR_OCTOMAP_SERVICE_NAME))
+  clear_octomap_service_client_(nh_.serviceClient<std_srvs::Empty>(move_group::CLEAR_OCTOMAP_SERVICE_NAME)),
+  show_kiva_pod_(true),
+  show_objects_(true)
 {
   // set up the GUI
   ui_->setupUi(this);
