@@ -63,6 +63,8 @@
 #include <std_msgs/Empty.h>
 #include <apc_msgs/FollowPrimitivePlanAction.h>
 #include <apc_msgs/WorldState.h>
+#include <apc_msgs/RunDPM.h>
+#include <apc_msgs/RunICP.h>
 #include <map>
 #include <string>
 #define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
@@ -237,6 +239,10 @@ private Q_SLOTS:
   void processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback& feedback);
 
   // Vision widget slots.
+  void runDpmButtonClicked();
+  void runIcpButtonClicked();
+  void runVisionButtonClicked();
+  void saveSnapshotButtonClicked();
 
   // Calibration widget slots.
 
@@ -713,6 +719,19 @@ private:
   void updateInteractiveMarkerForItem(float wall_dt);
 
   // Vision widget.
+  std::vector<std::string> computeObjectIdsInBinFromJson(const std::string& bin_id);
+  void KinectRGBSubscriberCallback();
+  void KinectPointCloudSubscriberCallback();
+  void computeRunDpmButtonClicked();
+  void computeRunDpm(const sensor_msgs::Image& image,
+                     const std::vector<std::string>& target_object_ids,
+                     const std::vector<std::string>& bin_object_ids,
+                     const std::string& bin_id);
+  void computeRunDpm(const sensor_msgs::Image& image,
+                     const std::vector<std::string>& target_object_ids,
+                     const std::vector<std::string>& bin_object_ids);
+  void computeRunDpm(apc_msgs::RunDPM& run_dpm_srv);
+  void computeIcp(apc_msgs::RunICP& run_icp_srv);
 
   // Vision widget helper.
 

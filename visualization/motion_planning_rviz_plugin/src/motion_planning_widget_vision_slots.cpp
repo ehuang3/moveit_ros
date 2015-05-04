@@ -45,4 +45,20 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::connectVisionSlots()
     {
     }
+
+    void MotionPlanningFrame::runDpmButtonClicked()
+    {
+    }
+
+    void MotionPlanningFrame::runIcpButtonClicked()
+    {
+    }
+
+    void MotionPlanningFrame::runVisionButtonClicked()
+    {
+    }
+
+    void MotionPlanningFrame::saveSnapshotButtonClicked()
+    {
+    }
 }

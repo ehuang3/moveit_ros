@@ -39,8 +39,71 @@
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
 #include "ui_motion_planning_rviz_plugin_frame.h"
+#include <algorithm>
 
 namespace moveit_rviz_plugin
 {
+
+    std::vector<std::string> MotionPlanningFrame::computeObjectIdsInBinFromJson(const std::string& bin_id)
+    {
+        std::vector<std::string> object_ids;
+        // Get the bin contents table widget.
+        QTableWidget* widget = ui_->bin_contents_table_widget;
+        for (int i = 0; i < widget->rowCount(); i++) {
+            std::string bin = widget->item(i, 0)->text().toStdString();
+            if (bin.compare(bin_id) == 0) {
+                object_ids.push_back(widget->item(i,1)->text().toStdString());
+            }
+        }
+        return object_ids;
+    }
+
+    void MotionPlanningFrame::KinectRGBSubscriberCallback()
+    {
+    }
+
+    void MotionPlanningFrame::KinectPointCloudSubscriberCallback()
+    {
+    }
+
+    void MotionPlanningFrame::computeRunDpmButtonClicked()
+    {
+        // Read in image.
+
+        // Build bin object list.
+        // std::vector<std::string> bin_objects = computeObjectIdsInBinFromJson(bin_id);
+    }
+
+    void MotionPlanningFrame::computeRunDpm(const sensor_msgs::Image& image,
+                                            const std::vector<std::string>& target_object_ids,
+                                            const std::vector<std::string>& bin_object_ids,
+                                            const std::string& bin_id)
+    {
+        // Downsample image to bin area.
+
+        // Call service.
+        computeRunDpm(image, target_object_ids, bin_object_ids);
+    }
+
+    void MotionPlanningFrame::computeRunDpm(const sensor_msgs::Image& image,
+                                            const std::vector<std::string>& target_object_ids,
+                                            const std::vector<std::string>& bin_object_ids)
+    {
+        apc_msgs::RunDPM srv;
+        srv.request.image = image;
+        srv.request.target_objects = target_object_ids;
+        srv.request.bin_objects = bin_object_ids;
+        computeRunDpm(srv);
+    }
+
+    void MotionPlanningFrame::computeRunDpm(apc_msgs::RunDPM& run_dpm_srv)
+    {
+
+    }
+
+    void MotionPlanningFrame::computeIcp(apc_msgs::RunICP& run_icp_srv)
+    {
+
+    }
 
 }
