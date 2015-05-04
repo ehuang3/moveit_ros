@@ -960,6 +960,12 @@ void MotionPlanningDisplay::publishInteractiveMarkers(bool pose_update)
     }
     else
     {
+      // populateMenuHandler(menu_handler_start_);
+      // populateMenuHandler(menu_handler_goal_);
+      // query_start_state_->setMenuHandler(menu_handler_start_);
+      // query_goal_state_->setMenuHandler(menu_handler_goal_);
+
+
       robot_interaction_->clearInteractiveMarkers();
       if (show_start)
         robot_interaction_->addInteractiveMarkers(query_start_state_, query_marker_scale_property_->getFloat());
@@ -1354,7 +1360,6 @@ void MotionPlanningDisplay::populateMenuHandler(boost::shared_ptr<interactive_ma
   if (query_start_state_)
     symmetric = query_start_state_->getJointMarkerSymmetry();
   mh->setCheckState(joint_symmetry, (symmetric ? immh::CHECKED : immh::UNCHECKED));
-
 
   std::vector<std::string> state_names;
   state_names.push_back("random");

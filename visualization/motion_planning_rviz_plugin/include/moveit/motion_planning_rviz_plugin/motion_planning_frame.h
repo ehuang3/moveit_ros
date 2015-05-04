@@ -484,6 +484,16 @@ private:
   void computeFullyConnectedPlan(const robot_state::RobotState& start,
                                  apc_msgs::PrimitivePlan& plan);
 
+
+  /**
+   * @brief Checks whether the action moves an object.
+   *
+   * @param action  The action to check.
+   *
+   * @return  True if the action moves an object.
+   */
+  bool doesActionMoveAnItem(const apc_msgs::PrimitiveAction& action);
+
   /**
    * @brief Compute a dense motion plan given the input sparse
    * plan. The dense motion plan is computed using the input sparse

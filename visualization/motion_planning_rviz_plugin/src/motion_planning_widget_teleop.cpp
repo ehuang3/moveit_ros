@@ -460,7 +460,6 @@ namespace moveit_rviz_plugin
                               plan.actions[i].joint_trajectory.points.front());
 
             if (next_state.distance(prev_state) > 1e-10) {
-                ROS_DEBUG("Inserting action to connect previous robot state with next robot state");
                 apc_msgs::PrimitiveAction action;
                 action.action_name = "vvvvv";
                 action.group_id = plan.actions[i].group_id;
@@ -471,20 +470,46 @@ namespace moveit_rviz_plugin
 
                 // If the next action is a grasp, the connecting action we've
                 // created may come into contact with the grasp object. To avoid
-                // this problem, we set object frame and key and grasp into the
-                // connecting action. FIXME No longer necessary.
-                // if (plan.actions[i].grasp) {
-                //     action.grasp = plan.actions[i].grasp;
-                //     action.object_id = plan.actions[i].object_id;
-                //     action.object_key = plan.actions[i].object_key;
-                // }
+                // this problem, we set object frame and key into the connecting
+                // action. FIXME
+                if (plan.actions[i].grasp) {
+                    // action.grasp = plan.actions[i].grasp;
+                    action.object_id = plan.actions[i].object_id;
+                    action.object_key = plan.actions[i].object_key;
+                }
+
+                ROS_DEBUG("Inserting action %s to connect previous robot state with next robot state",
+                          action.action_name.c_str());
 
                 setStateFromPoint(prev_state, action.joint_trajectory.joint_names,
                                   action.joint_trajectory.points.back());
-                APC_ASSERT(next_state.distance(prev_state) <= 1e-10,
-                           "Failed to connect previous robot state with next state");
+
+                // Compute distance between previous and next states.
+                // Assert that they are less than epsilon.
+                const std::vector<const moveit::core::JointModel*> joint_models =
+                    prev_state.getRobotModel()->getActiveJointModels();
+                for (int j = 0; j < joint_models.size(); j++) {
+                    int pi = joint_models[j]->getFirstVariableIndex();
+                    int ni = joint_models[j]->getFirstVariableIndex();
+                    double pd = prev_state.getVariablePosition(pi);
+                    double nd = next_state.getVariablePosition(pi);
+                    std::stringstream iss;
+                    iss << action << "next action\n" << plan.actions[i];
+                    APC_ASSERT(joint_models[j]->distance(&pd, &nd) <= 1e-10,
+                               "Failed to connect previous robot state with next state\n"
+                               "joint %s prev %f next %f\n"
+                               "action\n %s",
+                               joint_models[j]->getName().c_str(), pd, nd, iss.str().c_str());
+                }
 
                 actions.push_back(action);
+            }
+            // The next start state is not epsilon away, but the end state of
+            // that trajectory may be distant. Therefore, update the next state
+            // to the values at the end of the trajectory.
+            else {
+                setStateFromPoint(next_state, plan.actions[i].joint_trajectory.joint_names,
+                                  plan.actions[i].joint_trajectory.points.back());
             }
 
             setStateFromPoint(prev_state, plan.actions[i].joint_trajectory.joint_names,
@@ -492,6 +517,18 @@ namespace moveit_rviz_plugin
             actions.push_back(plan.actions[i]);
         }
         plan.actions = actions;
+    }
+
+    bool MotionPlanningFrame::doesActionMoveAnItem(const apc_msgs::PrimitiveAction& action)
+    {
+        // If we do not have sufficient information to reason about
+        // this, return false.
+        if (action.object_id.empty() || action.object_key.empty() ||
+            action.attached_link_id.empty() || action.object_trajectory.poses.empty())
+            return false;
+        // APC_ASSERT(false,
+        //            "Remind Eric to write this piece of code");
+        return true;
     }
 
     KeyPoseMap MotionPlanningFrame::computeDenseMotionPlan(const robot_state::RobotState& start,
@@ -536,7 +573,7 @@ namespace moveit_rviz_plugin
             }
 
             // Move object to goal position.
-            if (!action.object_id.empty()) {
+            if (doesActionMoveAnItem(action)) {
                 Eigen::Affine3d T_object_world = world_state[action.object_key];
                 Eigen::Affine3d T_link_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
                 Eigen::Affine3d T_object_link;
