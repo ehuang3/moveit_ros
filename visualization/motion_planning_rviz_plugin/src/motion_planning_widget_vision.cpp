@@ -129,7 +129,7 @@ namespace moveit_rviz_plugin
         // Get crichton origin to kinect.
         tf::StampedTransform tf_optical_world;
         ros::Time t = ros::Time::now();
-        APC_ASSERT(_tf_listener.waitForTransform(target_frame, source_frame, t, ros::Duration(1.0)),
+        APC_ASSERT(_tf_listener.waitForTransform(target_frame, source_frame, t, ros::Duration(10.0)),
                    "Failed to wait for transform");
         _tf_listener.lookupTransform(target_frame, source_frame, t, tf_optical_world);
         geometry_msgs::TransformStamped spose_optical_world;
