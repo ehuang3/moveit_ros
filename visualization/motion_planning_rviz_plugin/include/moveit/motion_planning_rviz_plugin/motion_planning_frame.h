@@ -177,6 +177,10 @@ private:
 
   ros::ServiceClient _compute_dense_motion_client;
 
+  ros::ServiceClient _run_vision_client;
+
+  tf::TransformListener _tf_listener;
+
   bool show_kiva_pod_;
   bool show_objects_;
 
@@ -732,6 +736,8 @@ private:
                      const std::vector<std::string>& bin_object_ids);
   void computeRunDpm(apc_msgs::RunDPM& run_dpm_srv);
   void computeIcp(apc_msgs::RunICP& run_icp_srv);
+  void computeRunVisionButtonClicked();
+  void computeRunVision();
 
   // Vision widget helper.
 
@@ -754,10 +760,10 @@ private:
   void saveStartAndGoalToAction(apc_msgs::PrimitiveAction& action);
   void appendStateToAction(apc_msgs::PrimitiveAction& action, const robot_state::RobotState& state);
   std::string computeEefLink(const std::string& group);
-  std::string computeNearestBin(std::string group, robot_state::RobotState& state);
-  std::string computeNearestObject(const std::string& object, const std::string& group, robot_state::RobotState& state);
+  std::string computeNearestBin(std::string group, const robot_state::RobotState& state);
+  std::string computeNearestObject(const std::string& object, const std::string& group, const robot_state::RobotState& state);
   Eigen::Affine3d computeFrame(const std::string& frame);
-  Eigen::Affine3d computeNearestFrame(const std::string& frame, const std::string& group, robot_state::RobotState& state);
+  Eigen::Affine3d computeNearestFrame(const std::string& frame, const std::string& group, const robot_state::RobotState& state);
   void saveFrameToAction(apc_msgs::PrimitiveAction& action);
   void saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame);
   void saveFormatToAction(apc_msgs::PrimitiveAction& action);
@@ -765,7 +771,8 @@ private:
   void saveFormatToPlan(apc_msgs::PrimitivePlan& plan);
   void saveFormatToPlan(apc_msgs::PrimitivePlan& plan, const std::string& format);
   void saveObjectToAction(apc_msgs::PrimitiveAction& action);
-  void saveObjectToAction(apc_msgs::PrimitiveAction& action, const std::string& object);
+  void saveObjectToAction(apc_msgs::PrimitiveAction& action, const std::string& object_id,
+                          const robot_state::RobotState& start_state, const robot_state::RobotState& goal_state);
   void saveOptionsToAction(apc_msgs::PrimitiveAction& action);
   void saveOptionsToAction(apc_msgs::PrimitiveAction& action, const std::map<std::string, bool>& options);
   void saveActionToData(const std::vector<apc_msgs::PrimitiveAction>& actions, std::vector<QVariant>& data);

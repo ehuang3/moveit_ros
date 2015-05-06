@@ -44,6 +44,7 @@ namespace moveit_rviz_plugin
 {
     void MotionPlanningFrame::connectVisionSlots()
     {
+        connect( ui_->run_vision_button,    SIGNAL( clicked() ), this, SLOT( runVisionButtonClicked() ));
     }
 
     void MotionPlanningFrame::runDpmButtonClicked()
@@ -56,6 +57,7 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::runVisionButtonClicked()
     {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeRunVisionButtonClicked, this), "run vision");
     }
 
     void MotionPlanningFrame::saveSnapshotButtonClicked()
