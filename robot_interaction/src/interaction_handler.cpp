@@ -574,7 +574,7 @@ bool InteractionHandler::transformFeedbackPose(const visualization_msgs::Interac
 {
   tpose.header = feedback->header;
   tpose.pose = feedback->pose;
-  ROS_INFO_STREAM("tpose.pose:\n" << tpose.pose);
+  // ROS_INFO_STREAM("tpose.pose:\n" << tpose.pose);
   if (feedback->header.frame_id != planning_frame_)
   {
     if (tf_)
@@ -587,7 +587,7 @@ bool InteractionHandler::transformFeedbackPose(const visualization_msgs::Interac
 
         geometry_msgs::PoseStamped fpose;
         tf::poseStampedTFToMsg(spose, fpose);
-        ROS_INFO_STREAM("pose in " << planning_frame_ << ":\n" << fpose);
+        // ROS_INFO_STREAM("pose in " << planning_frame_ << ":\n" << fpose);
 
         // Apply inverse of offset to bring feedback pose back into the end-effector support link frame
         tf::Transform tf_offset;
@@ -595,7 +595,7 @@ bool InteractionHandler::transformFeedbackPose(const visualization_msgs::Interac
         spose.setData(spose * tf_offset.inverse());
         tf::poseStampedTFToMsg(spose, tpose);
 
-        ROS_INFO_STREAM("pose in eef link frame:\n" << tpose);
+        // ROS_INFO_STREAM("pose in eef link frame:\n" << tpose);
       }
       catch (tf::TransformException& e)
       {

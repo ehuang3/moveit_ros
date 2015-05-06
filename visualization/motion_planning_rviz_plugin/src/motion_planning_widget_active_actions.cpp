@@ -315,7 +315,7 @@ namespace moveit_rviz_plugin
     }
 
     std::string MotionPlanningFrame::computeNearestBin(std::string link,
-                                                       robot_state::RobotState& state)
+                                                       const robot_state::RobotState& state)
     {
         ROS_DEBUG_FUNCTION;
 
@@ -358,7 +358,7 @@ namespace moveit_rviz_plugin
 
     std::string MotionPlanningFrame::computeNearestObject(const std::string& object,
                                                           const std::string& link,
-                                                          robot_state::RobotState& state)
+                                                          const robot_state::RobotState& state)
     {
         ROS_DEBUG_FUNCTION;
 
@@ -428,7 +428,7 @@ namespace moveit_rviz_plugin
 
     Eigen::Affine3d MotionPlanningFrame::computeNearestFrame(const std::string& frame,
                                                              const std::string& group,
-                                                             robot_state::RobotState& state)
+                                                             const robot_state::RobotState& state)
     {
         ROS_DEBUG_FUNCTION;
 
@@ -474,16 +474,14 @@ namespace moveit_rviz_plugin
             action.group_id = planning_display_->getCurrentPlanningGroup();
 
         // Handle start and goal.
-        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-        robot_state::RobotState goal_state  = *planning_display_->getQueryGoalState();
-        if (ui_->padlock_button->isChecked())
-            start_state = goal_state;
-
-        // Get frame location of "bin", "bin_%alpha", or "<object>".
-        Eigen::Affine3d T_frame = computeNearestFrame(frame, action.group_id, start_state);
+        robot_state::RobotState start_state = *getQueryStartState();
+        robot_state::RobotState goal_state  = *getQueryGoalState();
 
         // Find active end-effector.
         std::string eef_link = computeEefLink(action.group_id);
+
+        // Get frame location of "bin", "bin_%alpha", or "<object>".
+        Eigen::Affine3d T_frame = computeNearestFrame(frame, action.group_id, start_state);
 
         // Get the frame transform relative to the end-effector link.
         Eigen::Affine3d T_start_world = start_state.getGlobalLinkTransform(eef_link);
@@ -507,46 +505,64 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::saveObjectToAction(apc_msgs::PrimitiveAction& action)
     {
-        saveObjectToAction(action, ui_->object_combobox->currentText().toStdString());
+        saveObjectToAction(action, ui_->object_combobox->currentText().toStdString(),
+                           *getQueryStartState(),
+                           *getQueryGoalState());
     }
 
     void MotionPlanningFrame::saveObjectToAction(apc_msgs::PrimitiveAction& action,
-                                                 const std::string& object)
+                                                 const std::string& object_id,
+                                                 const robot_state::RobotState& start_state,
+                                                 const robot_state::RobotState& goal_state)
     {
         // Clear attached object information.
         action.object_id = "";
         action.attached_link_id = "";
         action.object_trajectory.poses.clear();
 
-        if (object.empty())
+        if (object_id.empty())
             return;
         if (action.group_id.empty())
             action.group_id = planning_display_->getCurrentPlanningGroup();
 
-        // Handle start and goal.
-        robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-        robot_state::RobotState goal_state  = *planning_display_->getQueryGoalState();
-        if (ui_->padlock_button->isChecked())
-            start_state = goal_state;
-
-        // Get frame location of "bin", "bin_%alpha", or "<object>".
-        Eigen::Affine3d T_object = computeNearestFrame(object, action.group_id, start_state);
-
-        // Find active end-effector.
+        Eigen::Affine3d T_object_start_link;
+        Eigen::Affine3d T_object_goal_link;
         std::string eef_link = computeEefLink(action.group_id);
-
-        // Get object transform relative to the end-effector link.
-        Eigen::Affine3d T_start_inv = start_state.getGlobalLinkTransform(eef_link).inverse();
-        Eigen::Affine3d T_object_start = T_start_inv * T_object;
-        Eigen::Affine3d T_goal_inv = goal_state.getGlobalLinkTransform(eef_link).inverse();
-        Eigen::Affine3d T_object_goal = T_start_inv * T_object;
+        // If the start state and goal state have attached objects
+        // matching this object ID, we extract the object poses from
+        // the attached objects instead of from the nearest.
+        if (start_state.getAttachedBody(object_id)) {
+            ROS_DEBUG("Saving attached bodies to action");
+            APC_ASSERT(goal_state.getAttachedBody(object_id),
+                       "Failed to find corresponding attached body %s on goal state", object_id.c_str());
+            APC_ASSERT(eef_link == start_state.getAttachedBody(object_id)->getAttachedLink()->getName(),
+                       "Mismatch between attached link %s and computed link %s",
+                       start_state.getAttachedBody(object_id)->getAttachedLink()->getName().c_str(),
+                       eef_link.c_str());
+            APC_ASSERT(eef_link == goal_state.getAttachedBody(object_id)->getAttachedLink()->getName(),
+                       "Mismatch between attached link %s and computed link %s",
+                       goal_state.getAttachedBody(object_id)->getAttachedLink()->getName().c_str(),
+                       eef_link.c_str());
+            T_object_start_link = start_state.getAttachedBody(object_id)->getFixedTransforms()[0];
+            T_object_goal_link = goal_state.getAttachedBody(object_id)->getFixedTransforms()[0];
+        }
+        // Else, we compute the relative poses to the nearest instance of object ID.
+        else {
+            ROS_DEBUG("Saving nearest bodies to action");
+            Eigen::Affine3d T_object = computeNearestFrame(object_id, action.group_id, start_state);
+            // Get object transform relative to the end-effector link.
+            Eigen::Affine3d T_start_inv = start_state.getGlobalLinkTransform(eef_link).inverse();
+            T_object_start_link = T_start_inv * T_object;
+            Eigen::Affine3d T_goal_inv = goal_state.getGlobalLinkTransform(eef_link).inverse();
+            T_object_goal_link = T_start_inv * T_object;
+        }
 
         // Write to object.
-        action.object_id = object;
+        action.object_id = object_id;
         action.attached_link_id = eef_link;
         action.object_trajectory.poses.resize(2);
-        tf::poseEigenToMsg(T_object_start, action.object_trajectory.poses[0]);
-        tf::poseEigenToMsg(T_object_goal, action.object_trajectory.poses[1]);
+        tf::poseEigenToMsg(T_object_start_link, action.object_trajectory.poses[0]);
+        tf::poseEigenToMsg(T_object_goal_link, action.object_trajectory.poses[1]);
     }
 
     void MotionPlanningFrame::saveOptionsToAction(apc_msgs::PrimitiveAction& action)

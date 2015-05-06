@@ -153,8 +153,8 @@ namespace moveit_rviz_plugin
                    "Missing object key for object ID %s in action %s", action.object_id.c_str(), action.action_name.c_str());
         APC_ASSERT(world_state.count(action.object_key) > 0,
                    "Missing object key %s in world state", action.object_key.c_str());
-        APC_ASSERT(action.eef_trajectory.poses.size() > index,
-                   "Index %d out of bounds for end-effector trajectory in action %s",
+        APC_ASSERT(action.object_trajectory.poses.size() > index,
+                   "Index %d out of bounds for object trajectory in action %s",
                    index, action.action_name.c_str());
         // Clear attached bodies.
         robot_state.clearAttachedBodies();
@@ -162,7 +162,7 @@ namespace moveit_rviz_plugin
         // desired transform from end-effector to object.
         Eigen::Affine3d T_object_world = world_state.find(action.object_key)->second;
         Eigen::Affine3d T_object_eef;
-        tf::poseMsgToEigen(action.eef_trajectory.poses[index], T_object_eef);
+        tf::poseMsgToEigen(action.object_trajectory.poses[index], T_object_eef);
         // Get object shapes and shape poses from the world and conver
         // them to the desired end-effector link frame.
         planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
@@ -176,7 +176,7 @@ namespace moveit_rviz_plugin
         // Attach object to state.
         moveit_msgs::AttachedCollisionObject aco; // For dummy arguments.
         robot_state.attachBody(action.object_id, object_shapes, object_poses, aco.touch_links,
-                               action.eef_link_id, aco.detach_posture);
+                               action.attached_link_id, aco.detach_posture);
         robot_state.update();
     }
 

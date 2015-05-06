@@ -118,28 +118,36 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::setCurrentToStartButtonClicked()
     {
+        const planning_scene_monitor::LockedPlanningSceneRO &ps = planning_display_->getPlanningSceneRO();
         robot_state::RobotState start = *planning_display_->getQueryStartState();
-        updateQueryStateHelper(start, "<current>");
+        robot_state::RobotState current = ps->getCurrentState();
+        start.setVariablePositions(current.getVariablePositions());
         planning_display_->setQueryStartState(start);
     }
 
     void MotionPlanningFrame::setCurrentToGoalButtonClicked()
     {
+        const planning_scene_monitor::LockedPlanningSceneRO &ps = planning_display_->getPlanningSceneRO();
         robot_state::RobotState goal = *planning_display_->getQueryGoalState();
-        updateQueryStateHelper(goal, "<current>");
+        robot_state::RobotState current = ps->getCurrentState();
+        goal.setVariablePositions(current.getVariablePositions());
         planning_display_->setQueryGoalState(goal);
     }
 
     void MotionPlanningFrame::setStartToGoalButtonClicked()
     {
         robot_state::RobotState start = *planning_display_->getQueryStartState();
-        planning_display_->setQueryGoalState(start);
+        robot_state::RobotState goal = *planning_display_->getQueryGoalState();
+        goal.setVariablePositions(start.getVariablePositions());
+        planning_display_->setQueryGoalState(goal);
     }
 
     void MotionPlanningFrame::setGoalToStartButtonClicked()
     {
+        robot_state::RobotState start = *planning_display_->getQueryStartState();
         robot_state::RobotState goal = *planning_display_->getQueryGoalState();
-        planning_display_->setQueryStartState(goal);
+        start.setVariablePositions(goal.getVariablePositions());
+        planning_display_->setQueryStartState(start);
     }
 
     void MotionPlanningFrame::padlockButtonToggled(bool checked)
@@ -322,12 +330,14 @@ namespace moveit_rviz_plugin
             goal_state.clearAttachedBodies();
             planning_display_->setQueryStartState(start_state);
             planning_display_->setQueryGoalState(goal_state);
+            // Enable object combobox when grasp is unchecked.
+            ui_->object_combobox->setEnabled(true);
         }
         // If grasp is enabled, attach the object to the robot state.
         else {
             std::string object_id = ui_->object_combobox->currentText().toStdString();
-            robot_state::RobotState start_state = *planning_display_->getQueryStartState();
-            robot_state::RobotState end_state = *planning_display_->getQueryGoalState();
+            robot_state::RobotState start_state = *getQueryStartState();
+            robot_state::RobotState end_state = *getQueryGoalState();
             KeyPoseMap world_state = this->computeWorldKeyPoseMap();
             std::string group_id = planning_display_->getCurrentPlanningGroup();
             try {
@@ -338,6 +348,8 @@ namespace moveit_rviz_plugin
             }
             planning_display_->setQueryStartState(start_state);
             planning_display_->setQueryGoalState(end_state);
+            // Disable object combobox when grasp is checked.
+            ui_->object_combobox->setEnabled(false);
         }
     }
 

@@ -77,8 +77,8 @@ namespace moveit_rviz_plugin
         apc_msgs::PrimitiveAction action;
         saveStartAndGoalToAction(action);
         saveFrameToAction(action);
-        saveObjectToAction(action);
         saveOptionsToAction(action);
+        saveObjectToAction(action);
         saveFormatToAction(action);
         saveLockedStateToAction(action);
 

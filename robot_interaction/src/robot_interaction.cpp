@@ -106,6 +106,9 @@ void RobotInteraction::decideActiveComponents(const std::string &group, Interact
   decideActiveEndEffectors(group, style);
   decideActiveJoints(group);
 
+  if (!eef_markers_active_ && !joint_markers_active_)
+    return;
+
   if (active_eef_.empty() && active_vj_.empty() && active_generic_.empty())
     ROS_INFO_NAMED("robot_interaction",
                    "No active joints or end effectors found for group '%s'. "
