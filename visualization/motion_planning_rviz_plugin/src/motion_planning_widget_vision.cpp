@@ -161,6 +161,7 @@ namespace moveit_rviz_plugin
             tf::poseEigenToMsg(T_bin_optical, run_vision.request.bins[bin_index].bin_pose);
             run_vision.request.bins[bin_index].header.frame_id = target_frame;
         }
+        run_vision.camera_id = "primesense";
         // Run service.
         APC_ASSERT(_run_vision_client.call(run_vision),
                    "Failed call run vision service");
