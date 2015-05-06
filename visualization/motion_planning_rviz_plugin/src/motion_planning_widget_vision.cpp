@@ -124,21 +124,26 @@ namespace moveit_rviz_plugin
                    "Failed to get KIVA pod model");
         KeyPoseMap world_state = computeWorldKeyPoseMap();
         apc_msgs::RunVision run_vision;
-        std::string target_frame = "kinect2_cool_ir_optical_frame";
+        std::string target_frame = "crichton_origin";
         std::string source_frame = "crichton_origin";
         // Get crichton origin to kinect.
-        tf::StampedTransform tf_optical_world;
-        ros::Time t = ros::Time::now();
-        APC_ASSERT(_tf_listener.waitForTransform(target_frame, source_frame, t, ros::Duration(2.0)),
-                   "Failed to wait for transform");
-        _tf_listener.lookupTransform(target_frame, source_frame, t, tf_optical_world);
-        geometry_msgs::TransformStamped spose_optical_world;
-        tf::transformStampedTFToMsg(tf_optical_world, spose_optical_world);
-        Eigen::Affine3d T_optical_world;
-        tf::transformMsgToEigen(spose_optical_world.transform, T_optical_world);
+        // tf::StampedTransform tf_optical_world;
+        // ros::Time t = ros::Time::now();
+        // APC_ASSERT(_tf_listener.waitForTransform(target_frame, source_frame, t, ros::Duration(2.0)),
+        //            "Failed to wait for transform");
+        // _tf_listener.lookupTransform(target_frame, source_frame, t, tf_optical_world);
+        // geometry_msgs::TransformStamped spose_optical_world;
+        // tf::transformStampedTFToMsg(tf_optical_world, spose_optical_world);
+        // Eigen::Affine3d T_optical_world;
+        // tf::transformMsgToEigen(spose_optical_world.transform, T_optical_world);
         // Build bin information.
         APC_ASSERT(ui_->bin_contents_table_widget->rowCount() > 0,
                    "Failed to find any items in the bins");
+        Eigen::Affine3d T_pod_world;
+        {
+            T_pod_world = planning_display_->getPlanningSceneRO()->getWorld()->getObject("kiva_pod")->shape_poses_[0];
+        }
+
         QTableWidget* bin_contents = ui_->bin_contents_table_widget;
         for (int i = 0; i < bin_contents->rowCount(); i++) {
             std::string bin_id = bin_contents->item(i, 0)->text().toStdString();
@@ -156,9 +161,10 @@ namespace moveit_rviz_plugin
             run_vision.request.bins[bin_index].bin_size.x = box->size[0];
             run_vision.request.bins[bin_index].bin_size.y = box->size[1];
             run_vision.request.bins[bin_index].bin_size.z = box->size[2];
-            Eigen::Affine3d T_bin_world = _kiva_pod->getGlobalTransform(bin_id);
-            Eigen::Affine3d T_bin_optical = T_optical_world.inverse() * T_bin_world;
-            tf::poseEigenToMsg(T_bin_optical, run_vision.request.bins[bin_index].bin_pose);
+            Eigen::Affine3d T_bin_pod = _kiva_pod->getGlobalTransform(bin_id);
+            Eigen::Affine3d T_bin_world = T_pod_world.inverse() * _kiva_pod->getGlobalTransform(bin_id);
+            // Eigen::Affine3d T_bin_optical = T_optical_world.inverse() * T_bin_world;
+            tf::poseEigenToMsg(T_bin_world, run_vision.request.bins[bin_index].bin_pose);
             run_vision.request.bins[bin_index].header.frame_id = target_frame;
         }
         run_vision.request.camera_id = "kinect_lower";
