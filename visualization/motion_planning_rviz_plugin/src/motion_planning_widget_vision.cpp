@@ -124,12 +124,12 @@ namespace moveit_rviz_plugin
                    "Failed to get KIVA pod model");
         KeyPoseMap world_state = computeWorldKeyPoseMap();
         apc_msgs::RunVision run_vision;
-        std::string target_frame = "camera_depth_optical_frame";
+        std::string target_frame = "kinect2_cool_ir_optical_frame";
         std::string source_frame = "crichton_origin";
         // Get crichton origin to kinect.
         tf::StampedTransform tf_optical_world;
         ros::Time t = ros::Time::now();
-        APC_ASSERT(_tf_listener.waitForTransform(target_frame, source_frame, t, ros::Duration(10.0)),
+        APC_ASSERT(_tf_listener.waitForTransform(target_frame, source_frame, t, ros::Duration(2.0)),
                    "Failed to wait for transform");
         _tf_listener.lookupTransform(target_frame, source_frame, t, tf_optical_world);
         geometry_msgs::TransformStamped spose_optical_world;
@@ -161,7 +161,7 @@ namespace moveit_rviz_plugin
             tf::poseEigenToMsg(T_bin_optical, run_vision.request.bins[bin_index].bin_pose);
             run_vision.request.bins[bin_index].header.frame_id = target_frame;
         }
-        run_vision.request.camera_id = "primesense";
+        run_vision.request.camera_id = "kinect_lower";
         // Run service.
         APC_ASSERT(_run_vision_client.call(run_vision),
                    "Failed call run vision service");
