@@ -161,10 +161,12 @@ namespace moveit_rviz_plugin
             run_vision.request.bins[bin_index].bin_size.x = box->size[0];
             run_vision.request.bins[bin_index].bin_size.y = box->size[1];
             run_vision.request.bins[bin_index].bin_size.z = box->size[2];
+
+            // Set the transform from shelf to world and transform from bin to shelf.
+            apc_msgs::BinInfo& bin = run_vision.request.bins[bin_index];
+            tf::poseEigenToMsg(T_pod_world, bin.pose_shelf_frame);
             Eigen::Affine3d T_bin_pod = _kiva_pod->getGlobalTransform(bin_id);
-            Eigen::Affine3d T_bin_world = T_pod_world.inverse() * _kiva_pod->getGlobalTransform(bin_id);
-            // Eigen::Affine3d T_bin_optical = T_optical_world.inverse() * T_bin_world;
-            tf::poseEigenToMsg(T_bin_world, run_vision.request.bins[bin_index].bin_pose);
+            tf::poseEigenToMsg(T_bin_pod, bin.pose_bin_shelf);
             run_vision.request.bins[bin_index].header.frame_id = target_frame;
         }
         run_vision.request.camera_id = "kinect_lower";
