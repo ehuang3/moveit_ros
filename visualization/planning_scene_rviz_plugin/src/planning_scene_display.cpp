@@ -531,6 +531,10 @@ void PlanningSceneDisplay::loadRobotModel()
   if (planning_scene_monitor_)
     planning_scene_monitor_->addUpdateCallback(boost::bind(&PlanningSceneDisplay::sceneMonitorReceivedUpdate, this, _1));
 
+  // Emit planning scene monitor updated signal.
+  if (planning_scene_monitor_)
+    planningSceneDisplayLoaded();
+
   model_is_loading_ = false;
 }
 

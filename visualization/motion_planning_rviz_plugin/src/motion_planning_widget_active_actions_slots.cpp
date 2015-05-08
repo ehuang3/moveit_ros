@@ -203,6 +203,8 @@ namespace moveit_rviz_plugin
         loadActionFromData(action, item->data(Qt::UserRole));
 
         try {
+            ROS_DEBUG_STREAM("Loading action:\n" << action);
+
             // Set this first as start gets snapped to goal on unlock.
             updateLockedStateFromAction(action);
 

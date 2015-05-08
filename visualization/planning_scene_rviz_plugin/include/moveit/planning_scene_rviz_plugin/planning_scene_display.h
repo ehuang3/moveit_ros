@@ -107,6 +107,9 @@ public:
   void setSceneRobotVisualEnabled(bool enable);
   void setObjectVisibility(const std::string& object_key, bool visible);
 
+Q_SIGNALS:
+
+  void planningSceneDisplayLoaded();
 
 private Q_SLOTS:
 

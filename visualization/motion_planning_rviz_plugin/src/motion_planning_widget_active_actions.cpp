@@ -281,6 +281,9 @@ namespace moveit_rviz_plugin
         std::istringstream f_iss(frame);
         while (std::getline(f_iss, f_token, '_'))
             f.push_back(f_token[0]);
+        // Construct %F token
+        std::string F;
+        F = frame;
         // Substitute args into format.
         std::string name = format;
         boost::replace_all(name, "%a", a);
@@ -288,6 +291,7 @@ namespace moveit_rviz_plugin
         boost::replace_all(name, "%i", i);
         boost::replace_all(name, "%o", o);
         boost::replace_all(name, "%f", f);
+        boost::replace_all(name, "%F", F);
         plan.plan_name = name;
     }
 
@@ -853,6 +857,49 @@ namespace moveit_rviz_plugin
         moveit_msgs::AttachedCollisionObject aco; // For dummy arguments.
         robot_state.attachBody(object_id, object_shapes, object_poses, aco.touch_links, eef_link_id, aco.detach_posture);
         robot_state.update();
+    }
+
+    void MotionPlanningFrame::loadPlanToActiveActions(const apc_msgs::PrimitivePlan& plan)
+    {
+        // List of active actions.
+        QListWidget* active_actions = ui_->active_actions_list;
+
+        // Clear actions.
+        active_actions->clear();
+
+        // Active action's currently selected row or else the last row.
+        int row = 0;
+
+        // The actions.
+        const std::vector<apc_msgs::PrimitiveAction>& actions = plan.actions;
+
+        // Copy data over to actions list.
+        for (int j = 0; j < actions.size(); j++)
+        {
+            if (actions[j].action_name == "vvvvv")
+                continue;
+
+            // Create a new list item.
+            QListWidgetItem* item = new QListWidgetItem;
+            item->setFlags(item->flags() | Qt::ItemIsEditable);
+
+            // Get the display name from the plan.
+            QString text = actions[j].action_name.c_str();
+
+            // Convert action to data.
+            QVariant data;
+            saveActionToData(actions[j], data);
+
+            // Set the into the new item.
+            item->setData(Qt::UserRole, data);
+
+            // Set the display name into the item.
+            item->setText(text);
+
+            // Insert item into the actions list.
+            active_actions->insertItem(++row, item);
+        }
+
     }
 
 }

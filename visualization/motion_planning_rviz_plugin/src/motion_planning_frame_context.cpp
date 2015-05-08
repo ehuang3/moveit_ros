@@ -196,7 +196,7 @@ void MotionPlanningFrame::computeDatabaseConnectButtonClickedHelper(int mode)
           loadStoredStates(".*"); // automatically populate the 'Stored States' tab with all states
 
           // Populate the 'Stored Plans' tab with all the plans. ; FIXME This should append, not overwrite...
-          // computeLoadPlansButtonClicked();
+          computeLoadPlansButtonClicked();
 
           if (move_group_)
           {

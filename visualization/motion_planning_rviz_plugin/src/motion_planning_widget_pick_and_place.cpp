@@ -131,6 +131,7 @@ namespace moveit_rviz_plugin
     }
 
     std::vector<apc_msgs::PrimitivePlan> MotionPlanningFrame::findMatchingPlansAny(const std::string& database,
+                                                                                   const std::string& plan_expr,
                                                                                    const std::string& group_expr,
                                                                                    const std::string& frame_expr,
                                                                                    const std::string& object_expr,
@@ -147,7 +148,8 @@ namespace moveit_rviz_plugin
             moveit_warehouse::PrimitivePlanWithMetadata meta_plan;
             APC_ASSERT(primitive_plan_storage_->getPrimitivePlan(meta_plan, plan_names[i]),
                        "Failed to get plan %s", plan_names[i].c_str());
-            apc_msgs::PrimitivePlan plan = *meta_plan;
+            const apc_msgs::PrimitivePlan& plan = *meta_plan;
+            bool match_plan   = matchRegex(plan.plan_name, plan_expr);
             bool match_group  = false;
             bool match_frame  = false;
             bool match_object = false;
@@ -162,120 +164,250 @@ namespace moveit_rviz_plugin
                 match_eef    |= matchEef(action.group_id, eef_expr);
                 match_grasp  |= action.grasp == grasp;
             }
-            if (match_group && match_frame && match_object && match_eef && match_grasp) {
+            if (match_plan && match_group && match_frame && match_object && match_eef && match_grasp) {
                 matched_plans.push_back(plan);
             }
         }
         APC_ASSERT(matched_plans.size() > 0,
                    "Failed to find any matching plans. Inputs are\n"
+                   "        plan: %s\n"
                    "       group: %s\n"
                    "       frame: %s\n"
                    "      object: %s\n"
                    "end-effector: %s\n"
                    "       grasp: %s",
-                   group_expr.c_str(), frame_expr.c_str(), object_expr.c_str(), eef_expr.c_str(), (grasp ? "true" : "false"));
+                   plan_expr.c_str(), group_expr.c_str(), frame_expr.c_str(), object_expr.c_str(), eef_expr.c_str(),
+                   (grasp ? "true" : "false"));
         return matched_plans;
     }
 
-    apc_msgs::PrimitivePlan MotionPlanningFrame::computePickAndPlaceForItem(const std::string& bin_id,
-                                                                            const std::string& item_id,
-                                                                            const robot_state::RobotState& start,
-                                                                            const KeyPoseMap& world)
+    void MotionPlanningFrame::retrieveStartingPoses(std::vector<apc_msgs::PrimitivePlan>& starting_poses)
+    {
+        starting_poses = findMatchingPlansAny("", "start.*");
+    }
+
+    void MotionPlanningFrame::computeReachableStartingPoses(std::vector<apc_msgs::PrimitivePlan>& valid_starts,
+                                                            const robot_state::RobotState& robot_state,
+                                                            const KeyPoseMap& world_state)
+    {
+        // Find all plans with "start" in the plan name.
+        std::vector<apc_msgs::PrimitivePlan> starting_poses;
+        retrieveStartingPoses(starting_poses);
+
+        // Verify plans from current robot state to plan state.
+        valid_starts.clear();
+#pragma omp parallel num_threads(8)
+        {
+#pragma omp for
+            for (int i = 0; i < starting_poses.size(); i++) {
+                try {
+                    ROS_DEBUG("Testing starting pose: %s", starting_poses[i].plan_name.c_str());
+                    // On failure an exception is thrown.
+                    ROS_DEBUG("Testing starting pose: %s", starting_poses[i].plan_name.c_str());
+                    computePlan(starting_poses[i], robot_state, world_state, i % 8);
+                    // This line will only be reached if the plan was valid.
+#pragma omp critical
+                    {
+                        valid_starts.push_back(starting_poses[i]);
+                    }
+                } catch (std::exception& error) {
+                    ROS_DEBUG("Starting pose failed with %s", error.what());
+                }
+            }
+        }
+
+        APC_ASSERT(valid_starts.size() > 0,
+                   "No reachable starting poses!");
+    }
+
+    void MotionPlanningFrame::retrieveBinPoses(std::vector<apc_msgs::PrimitivePlan>& bin_poses,
+                                               const std::string& bin_id)
+    {
+        bin_poses = findMatchingPlansAny("", ".*", ".*", bin_id);
+    }
+
+    void MotionPlanningFrame::computeReachableBinPoses(std::vector<apc_msgs::PrimitivePlan>& valid_bins,
+                                                       const std::string& bin_id,
+                                                       const robot_state::RobotState& start_state,
+                                                       const KeyPoseMap& world_state)
+    {
+        // Find all reachable starting poses.
+        std::vector<apc_msgs::PrimitivePlan> starting_poses;
+        computeReachableStartingPoses(starting_poses, start_state, world_state);
+
+        // Verify the bins reachable from the starting poses.
+        std::vector<apc_msgs::PrimitivePlan> bin_poses;
+        retrieveBinPoses(bin_poses, bin_id);
+        valid_bins.clear();
+        for (int i = 0; i < bin_poses.size(); i++) {
+            bool valid = false;
+
+#pragma omp parallel num_threads(8) shared(valid)
+            {
+#pragma omp for
+                for (int j = 0; j < starting_poses.size(); j++) {
+                    if (valid) {
+                        continue;
+                    }
+
+                    // Get the next bin pose.
+                    apc_msgs::PrimitivePlan bin_pose = bin_poses[i];
+
+                    robot_state::RobotState robot_state = start_state;
+                    // Set robot state to the starting pose. We do this by setting
+                    // the robot state to the end state of each individual action.
+                    for (int k = 0; k < starting_poses[j].actions.size(); k++) {
+                        const apc_msgs::PrimitiveAction& action = starting_poses[j].actions[k];
+                        int num_pts = action.joint_trajectory.points.size();
+                        setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
+                        // setStateFromAction(robot_state, world_state, action, num_pts - 1);
+                    }
+                    // Compute the trajectory from starting pose to bin. If it
+                    // works, add the plan from starting pose to bin pose to the
+                    // valid bin poses.
+                    try {
+                        ROS_DEBUG("Testing bin pose: %s", bin_poses[i].plan_name.c_str());
+                        // On failure an exception is thrown.
+                        computePlan(bin_pose, robot_state, world_state, j % 8);
+
+                        // This line will only be reached if the bin pose was valid.
+
+                        // Build the full starting to bin pose trajectory, then
+                        // break because only one valid trajectory to that bin pose
+                        // is needed.
+#pragma omp critical
+                        {
+                            if (!valid) {
+                                valid = true;
+                                valid_bins.push_back(apc_msgs::PrimitivePlan());
+                                valid_bins.back() = starting_poses[j];
+                                valid_bins.back().actions.insert(valid_bins.back().actions.end(),
+                                                                 bin_pose.actions.begin(),
+                                                                 bin_pose.actions.end());
+                            }
+                        }
+
+                    } catch (std::exception& error) {
+                        ROS_DEBUG("Starting pose failed with %s", error.what());
+                    }
+                } // omp for
+            } // omp parallel
+
+        }
+
+        APC_ASSERT(valid_bins.size() > 0,
+                   "No reachable poses for bin %s!", bin_id.c_str());
+    }
+
+    void MotionPlanningFrame::computePickAndPlaceForItem(apc_msgs::PrimitivePlan& item_plan,
+                                                         const std::string& bin_id,
+                                                         const std::string& item_id,
+                                                         const robot_state::RobotState& start,
+                                                         const KeyPoseMap& world)
     {
         std::exception except;
 
         // Get the items keys matching item ids in the bin.
         std::vector<std::string> target_keys = findItemKeysInBinMatchingItemID(bin_id, item_id, world);
 
-        // Get the end-effectors for this robot.
-        std::vector<std::string> eef_list;// = getEndEffectors();
-        // TODO Pick based on side (use dot product).
-        eef_list.push_back(".*left.*");   // regex
-        // eef_list.push_back(".*right.*");  // FIXME Use right hand later
+        // Get the reachable bin poses to the target bin.
+        std::vector<apc_msgs::PrimitivePlan> bin_poses;
+        computeReachableBinPoses(bin_poses, bin_id, start, world);
 
-        // For each starting positions of each end-effector..
-        for (int e = 0; e < eef_list.size(); e++) {
-            const std::string& eef = eef_list[e];
-            std::vector<apc_msgs::PrimitivePlan> entering_poses =
-                findMatchingPlansAny("",     // default db
-                                     ".*",   // any groups
-                                     "bin",  // frame
-                                     "",     // no object
-                                     eef,    // which eef
-                                     false); // no grasp
-            std::vector<apc_msgs::PrimitivePlan> object_grasps =
-                findMatchingPlansAny("",          // default db
-                                     ".*",        // any groups
-                                     item_id,     // object
-                                     item_id,     // object
-                                     eef,         // which eef
-                                     true);       // grasp
-            std::vector<apc_msgs::PrimitivePlan> leaving_poses =
-                findMatchingPlansAny("",          // default db
-                                     ".*",        // any groups
-                                     "bin",       // frame
-                                     item_id,     // object
-                                     eef,         // which eef
-                                     true);       // grasp
+        item_plan = bin_poses[0];
 
-            // Brute force search over all plans and pick the first one that works.
-            apc_msgs::PrimitivePlan plan;
-            for (int i = 0; i < entering_poses.size(); i++) {
-                // Get the pre-pick entering pose.
-                apc_msgs::PrimitivePlan entering_pose = entering_poses[i];
-                // Insert the appropriate frame keys where possible.
-                for (int j = 0; j < entering_pose.actions.size(); j++) {
-                    if (entering_pose.actions[j].frame_id == "bin")
-                        entering_pose.actions[j].frame_key = bin_id;
-                }
-                // Continue search over object grasps.
-                for (int j = 0; j < object_grasps.size(); j++) {
-                    // Get the current object grasp.
-                    apc_msgs::PrimitivePlan object_grasp = object_grasps[j];
-                    // But apply the grasp over each object key separately.
-                    for (int k = 0; k < target_keys.size(); k++) {
-                        for (int l = 0; l < entering_pose.actions.size(); l++) {
-                            if (object_grasp.actions[j].object_id == item_id)
-                                object_grasp.actions[j].object_key = target_keys[l];
-                        }
-                        // Continue search over exiting poses.
-                        for (int l = 0; l < leaving_poses.size(); l++) {
-                            // Construct plan.
-                            plan.actions.clear();
-                            plan.actions.insert(plan.actions.end(),
-                                                entering_pose.actions.begin(),
-                                                entering_pose.actions.end());
-                            plan.actions.insert(plan.actions.end(),
-                                                object_grasp.actions.begin(),
-                                                object_grasp.actions.end());
-                            plan.actions.insert(plan.actions.end(),
-                                                leaving_poses[l].actions.begin(),
-                                                leaving_poses[l].actions.end());
-                            ROS_DEBUG_STREAM("Testing plan:\n" << plan);
-                            // Pre-processes plan for dense motion planning.
-                            try {
-                                computeNearestFrameAndObjectKeysPartial(start, world, plan);
-                                computeActionJointTrajectoryPoints(start, world, plan);
-                                computeFullyConnectedPlan(start, plan);
-                                computeDenseMotionPlan(start, world, plan);
-                                computeSmoothedPath(plan);
+        // // Get the end-effectors for this robot.
+        // std::vector<std::string> eef_list;// = getEndEffectors();
+        // // TODO Pick based on side (use dot product).
+        // eef_list.push_back(".*left.*");   // regex
+        // // eef_list.push_back(".*right.*");  // FIXME Use right hand later
 
-                                // On success, return plan.
-                                return plan;
-                            } catch (std::exception& error) {
-                                ROS_DEBUG("Test plan failed with exception %s", error.what());
-                                except = error;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // // For each starting positions of each end-effector..
+        // for (int e = 0; e < eef_list.size(); e++) {
+        //     const std::string& eef = eef_list[e];
+        //     std::vector<apc_msgs::PrimitivePlan> entering_poses =
+        //         findMatchingPlansAny("",     // default db
+        //                              ".*",   // any plans
+        //                              ".*",   // any groups
+        //                              "bin",  // frame
+        //                              "",     // no object
+        //                              eef,    // which eef
+        //                              false); // no grasp
+        //     std::vector<apc_msgs::PrimitivePlan> object_grasps =
+        //         findMatchingPlansAny("",          // default db
+        //                              ".*",   // any plans
+        //                              ".*",        // any groups
+        //                              item_id,     // object
+        //                              item_id,     // object
+        //                              eef,         // which eef
+        //                              true);       // grasp
+        //     std::vector<apc_msgs::PrimitivePlan> leaving_poses =
+        //         findMatchingPlansAny("",          // default db
+        //                              ".*",   // any plans
+        //                              ".*",        // any groups
+        //                              "bin",       // frame
+        //                              item_id,     // object
+        //                              eef,         // which eef
+        //                              true);       // grasp
 
-        APC_ASSERT(false,
-                   "Failed to compute pick and place plan for %s\n"
-                   "Last failure was %s",
-                   item_id.c_str(), except.what());
+        //     // Brute force search over all plans and pick the first one that works.
+        //     apc_msgs::PrimitivePlan plan;
+        //     for (int i = 0; i < entering_poses.size(); i++) {
+        //         // Get the pre-pick entering pose.
+        //         apc_msgs::PrimitivePlan entering_pose = entering_poses[i];
+        //         // Insert the appropriate frame keys where possible.
+        //         for (int j = 0; j < entering_pose.actions.size(); j++) {
+        //             if (entering_pose.actions[j].frame_id == "bin")
+        //                 entering_pose.actions[j].frame_key = bin_id;
+        //         }
+        //         // Continue search over object grasps.
+        //         for (int j = 0; j < object_grasps.size(); j++) {
+        //             // Get the current object grasp.
+        //             apc_msgs::PrimitivePlan object_grasp = object_grasps[j];
+        //             // But apply the grasp over each object key separately.
+        //             for (int k = 0; k < target_keys.size(); k++) {
+        //                 for (int l = 0; l < entering_pose.actions.size(); l++) {
+        //                     if (object_grasp.actions[j].object_id == item_id)
+        //                         object_grasp.actions[j].object_key = target_keys[l];
+        //                 }
+        //                 // Continue search over exiting poses.
+        //                 for (int l = 0; l < leaving_poses.size(); l++) {
+        //                     // Construct plan.
+        //                     plan.actions.clear();
+        //                     plan.actions.insert(plan.actions.end(),
+        //                                         entering_pose.actions.begin(),
+        //                                         entering_pose.actions.end());
+        //                     plan.actions.insert(plan.actions.end(),
+        //                                         object_grasp.actions.begin(),
+        //                                         object_grasp.actions.end());
+        //                     plan.actions.insert(plan.actions.end(),
+        //                                         leaving_poses[l].actions.begin(),
+        //                                         leaving_poses[l].actions.end());
+        //                     ROS_DEBUG_STREAM("Testing plan:\n" << plan);
+        //                     // Pre-processes plan for dense motion planning.
+        //                     try {
+        //                         computeNearestFrameAndObjectKeysPartial(start, world, plan);
+        //                         computeActionJointTrajectoryPoints(start, world, plan);
+        //                         computeFullyConnectedPlan(start, plan);
+        //                         computeDenseMotionPlan(start, world, plan);
+        //                         computeSmoothedPath(plan);
+
+        //                         // On success, return plan.
+        //                         return plan;
+        //                     } catch (std::exception& error) {
+        //                         ROS_DEBUG("Test plan failed with exception %s", error.what());
+        //                         except = error;
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+
+        // APC_ASSERT(false,
+        //            "Failed to compute pick and place plan for %s\n"
+        //            "Last failure was %s",
+        //            item_id.c_str(), except.what());
 
     }
 
@@ -301,10 +433,10 @@ namespace moveit_rviz_plugin
         return robot;
     }
 
-    void MotionPlanningFrame::computeRunAPC(const WorkOrder& work_order,
+    void MotionPlanningFrame::computeRunAPC(apc_msgs::PrimitivePlan& work_plan,
+                                            const WorkOrder& work_order,
                                             const robot_state::RobotState& start,
                                             const KeyPoseMap& world,
-                                            apc_msgs::PrimitivePlan& record,
                                             bool use_vision,
                                             bool execute)
     {
@@ -312,7 +444,7 @@ namespace moveit_rviz_plugin
         KeyPoseMap world_state = world;
         std::string bin_id;
         std::string item_id;
-        apc_msgs::PrimitivePlan plan;
+        apc_msgs::PrimitivePlan item_plan;
         for (int i = 0; i < work_order.size(); i++) {
             // Get the target bin and target item.
             bin_id = work_order[i].first;
@@ -329,14 +461,16 @@ namespace moveit_rviz_plugin
             }
 
             // Compute a pick and place plan for the item.
-            plan = computePickAndPlaceForItem(bin_id, item_id, robot_state, world_state);
+            computePickAndPlaceForItem(item_plan, bin_id, item_id, robot_state, world_state);
 
             // Compute the expected states after executing the plan.
-            world_state = computeExpectedWorldState(plan, robot_state, world_state);
-            robot_state = computeExpectedRobotState(plan, robot_state, world_state);
+            world_state = computeExpectedWorldState(item_plan, robot_state, world_state);
+            robot_state = computeExpectedRobotState(item_plan, robot_state, world_state);
 
             // Store pick and place into record plan.
-            record.actions.insert(plan.actions.end(), plan.actions.begin(), plan.actions.end());
+            work_plan.actions.insert(work_plan.actions.end(),
+                                     item_plan.actions.begin(),
+                                     item_plan.actions.end());
 
             if (execute) {
                 // TODO Call execution code.
@@ -349,6 +483,8 @@ namespace moveit_rviz_plugin
         WorkOrder work_order;
         QTableWidget* json_table = ui_->json_table_widget;
         int index = json_table->currentRow();
+        if (index < 0)
+            index = 0;
         for (int i = index; i < json_table->rowCount(); i++) {
             work_order.push_back(WorkOrderItem(json_table->item(i, 0)->text().toStdString(),
                                                json_table->item(i, 1)->text().toStdString()));
@@ -370,22 +506,29 @@ namespace moveit_rviz_plugin
         WorkOrder work_order = computeWorkOrder(single_step);
 
         // Run APC.
-        apc_msgs::PrimitivePlan plan;
+        apc_msgs::PrimitivePlan work_plan;
+        // Get the current states.
+        robot_state::RobotState robot_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
         try {
-            // Get the current states.
-            robot_state::RobotState robot_state = planning_display_->getPlanningSceneRO()->getCurrentState();
-            KeyPoseMap world_state = computeWorldKeyPoseMap();
-
             // Run APC.
-            computeRunAPC(work_order, robot_state, world_state, plan, use_vision, execute);
+            computeRunAPC(work_plan, work_order, robot_state, world_state, use_vision, execute);
 
         } catch (std::exception& error) {
             ROS_ERROR("Caught exception in %s", error.what());
         }
 
-        // Check plan.
+        // If check plan, overwrite plan to active actions list.
         if (check_plan) {
+            ROS_DEBUG_STREAM("work_plan:\n" << work_plan);
 
+            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, work_plan));
+            {
+                computeSmoothedPath(work_plan);
+                moveit_msgs::RobotState start_state_msg;
+                robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+                loadPlanToPreview(start_state_msg, work_plan);
+            }
         }
     }
 

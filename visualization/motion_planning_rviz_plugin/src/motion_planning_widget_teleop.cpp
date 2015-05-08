@@ -183,9 +183,10 @@ namespace moveit_rviz_plugin
     bool MotionPlanningFrame::setStateFromAction(robot_state::RobotState& robot_state,
                                                  const KeyPoseMap& world_state,
                                                  const apc_msgs::PrimitiveAction& action,
-                                                 const int index,
+                                                 const int _index,
                                                  bool use_joint_angles_if_no_ik_solver)
     {
+        int index = _index;
         // 1. If there is no frame ID, set state based on the joint
         // angles provided in the action.
         if (action.frame_id.empty()) {
@@ -235,6 +236,10 @@ namespace moveit_rviz_plugin
                 // Set the remaining joints using IK.
                 APC_ASSERT(!action.eef_link_id.empty(),
                            "Missing IK link for frame ID %s in action %s", action.frame_id.c_str(), action.action_name.c_str());
+                if (action.eef_trajectory.poses.size() < index) {
+                    index = action.eef_trajectory.poses.size() - 1;
+                    ROS_WARN("Clamping eef index down");
+                }
                 APC_ASSERT(action.eef_trajectory.poses.size() > index,
                            "Index %d out of bounds for end-effector trajectory in action %s",
                            index, action.action_name.c_str());
@@ -477,6 +482,12 @@ namespace moveit_rviz_plugin
                     action.object_id = plan.actions[i].object_id;
                     action.object_key = plan.actions[i].object_key;
                 }
+                // If both the previous and next actions are grasping,
+                // then this should be a post-grasp trajectory.
+                if (i > 0 && plan.actions[i-1].grasp && plan.actions[i].grasp) {
+                    action.grasp = true;
+                    action.attached_link_id = plan.actions[i].attached_link_id;
+                }
 
                 ROS_DEBUG("Inserting action %s to connect previous robot state with next robot state",
                           action.action_name.c_str());
@@ -533,7 +544,8 @@ namespace moveit_rviz_plugin
 
     KeyPoseMap MotionPlanningFrame::computeDenseMotionPlan(const robot_state::RobotState& start,
                                                            const KeyPoseMap& world,
-                                                           apc_msgs::PrimitivePlan& plan)
+                                                           apc_msgs::PrimitivePlan& plan,
+                                                           int client_index)
     {
         // Copy starting conditions.
         robot_state::RobotState robot_state = start;
@@ -557,7 +569,7 @@ namespace moveit_rviz_plugin
             setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
             srv.request.action = action;
 
-            APC_ASSERT(_compute_dense_motion_client.call(srv),
+            APC_ASSERT(_compute_dense_motion_clients[client_index].call(srv),
                        "Failed call to dense motion planning service");
             APC_ASSERT(srv.response.collision_free,
                        "Failed to find collision free trajectory");
@@ -793,6 +805,17 @@ namespace moveit_rviz_plugin
         }
     }
 
+    void MotionPlanningFrame::computePlan(apc_msgs::PrimitivePlan& plan,
+                                          const robot_state::RobotState start_state,
+                                          const KeyPoseMap& world_state,
+                                          int client_index)
+    {
+        computeNearestFrameAndObjectKeys(start_state, world_state, plan);
+        computeActionJointTrajectoryPoints(start_state, world_state, plan);
+        computeFullyConnectedPlan(start_state, plan);
+        computeDenseMotionPlan(start_state, world_state, plan, client_index);
+    }
+
     void MotionPlanningFrame::computePlanButtonClicked()
     {
         // Reset last computed plan.
@@ -808,15 +831,21 @@ namespace moveit_rviz_plugin
         }
 
         // Get the starting state.
-        const robot_state::RobotState start_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+        robot_state::RobotState start_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+
+        // If live starts are disabled, set the start state to the joint angles in the first action.
+        if (!ui_->live_start_checkbox->isChecked()) {
+            apc_msgs::PrimitivePlan bananas;
+            bananas.actions.push_back(plan.actions[0]);
+            KeyPoseMap world_state = computeWorldKeyPoseMap();
+            computeNearestFrameAndObjectKeys(start_state, world_state, bananas);
+            setStateFromAction(start_state, world_state, bananas.actions[0], 0);
+        }
 
         // Compute the motion plan.
         try {
             KeyPoseMap world_state = computeWorldKeyPoseMap();
-            computeNearestFrameAndObjectKeys(start_state, world_state, plan);
-            computeActionJointTrajectoryPoints(start_state, world_state, plan);
-            computeFullyConnectedPlan(start_state, plan);
-            computeDenseMotionPlan(start_state, world_state, plan);
+            computePlan(plan, start_state, world_state);
             computeSmoothedPath(plan);
             *primitive_plan_ = plan;
             // planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::loadPrimitivePlanToActiveActions, this, plan),

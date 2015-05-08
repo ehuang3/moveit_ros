@@ -171,7 +171,14 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   object_recognition_subscriber_ = nh_.subscribe("recognized_object_array", 1, &MotionPlanningFrame::listenDetectedObjects, this);
 
   // Setup trajopt service client.
-  _compute_dense_motion_client = nh_.serviceClient<apc_msgs::ComputeDenseMotion>("motion_planning_service");
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_0"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_1"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_2"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_3"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_4"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_5"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_6"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_7"));
 
   // Tf listener
   _tf_listener;// = tf::TransformListener(nh_);

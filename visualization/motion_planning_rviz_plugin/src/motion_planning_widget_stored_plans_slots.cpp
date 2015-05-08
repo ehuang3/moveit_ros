@@ -61,6 +61,8 @@ namespace moveit_rviz_plugin
         connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
         connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
         connect( ui_->delete_plan_button, SIGNAL( clicked() ), this, SLOT( deletePlanButtonClicked() ));
+
+        connect( planning_display_, SIGNAL( planningSceneDisplayLoaded() ), this, SLOT( databaseConnectButtonClicked() ) );
     }
 
     void MotionPlanningFrame::storedPlansTreeClicked(const QModelIndex& index)

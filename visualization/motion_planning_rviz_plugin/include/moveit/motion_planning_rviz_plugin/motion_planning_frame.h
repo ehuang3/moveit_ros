@@ -175,7 +175,9 @@ private:
 
   boost::shared_ptr<robot_calibration::Robotd> _kiva_pod;
 
-  ros::ServiceClient _compute_dense_motion_client;
+  std::vector<ros::ServiceClient> _compute_dense_motion_clients;
+
+  // ros::ServiceClient _compute_dense_motion_client;
 
   ros::ServiceClient _run_vision_client;
 
@@ -520,7 +522,8 @@ private:
    */
   KeyPoseMap computeDenseMotionPlan(const robot_state::RobotState& start,
                                     const KeyPoseMap& world,
-                                    apc_msgs::PrimitivePlan& plan);
+                                    apc_msgs::PrimitivePlan& plan,
+                                    int client_index);
 
   /**
    * @brief Computes a smooth path for all joint trajectories in the
@@ -545,6 +548,11 @@ private:
    * @param plan  The plan to load.
    */
   void loadPrimitivePlanToActiveActions(const apc_msgs::PrimitivePlan& plan);
+
+  void computePlan(apc_msgs::PrimitivePlan& plan,
+                   const robot_state::RobotState start_state,
+                   const KeyPoseMap& world_state,
+                   int client_index = 0);
 
   /**
    * @brief This function takes the currently active actions and
@@ -666,12 +674,13 @@ private:
    *
    * @return  All the plans that satisfy the above conditions.
    */
-  std::vector<apc_msgs::PrimitivePlan> findMatchingPlansAny(const std::string& database,
-                                                            const std::string& group_expr,
-                                                            const std::string& frame_expr,
-                                                            const std::string& object_expr,
-                                                            const std::string& eef_expr,
-                                                            bool grasp);
+  std::vector<apc_msgs::PrimitivePlan> findMatchingPlansAny(const std::string& database = "",
+                                                            const std::string& plan_expr = ".*",
+                                                            const std::string& group_expr = ".*",
+                                                            const std::string& frame_expr = ".*",
+                                                            const std::string& object_expr = ".*",
+                                                            const std::string& eef_expr = ".*",
+                                                            bool grasp = false);
 
   /**
    * @brief Compute a plan for pick and place of the input item.
@@ -683,10 +692,11 @@ private:
    *
    * @return  A dense joint trajectory plan for the item.
    */
-  apc_msgs::PrimitivePlan computePickAndPlaceForItem(const std::string& bin,
-                                                     const std::string& item_id,
-                                                     const robot_state::RobotState& start,
-                                                     const KeyPoseMap& world);
+  void computePickAndPlaceForItem(apc_msgs::PrimitivePlan& item_plan,
+                                  const std::string& bin,
+                                  const std::string& item_id,
+                                  const robot_state::RobotState& start,
+                                  const KeyPoseMap& world);
 
   KeyPoseMap computeExpectedWorldState(const apc_msgs::PrimitivePlan& plan,
                                        const robot_state::RobotState& robot_state,
@@ -696,16 +706,35 @@ private:
                                                     const robot_state::RobotState& robot_state,
                                                     const KeyPoseMap& world_state);
 
-  void computeRunAPC(const WorkOrder& work_order,
+  void computeRunAPC(apc_msgs::PrimitivePlan& work_plan,
+                     const WorkOrder& work_order,
                      const robot_state::RobotState& start,
                      const KeyPoseMap& world,
-                     apc_msgs::PrimitivePlan& plan,
                      bool use_vision = false,
                      bool execute = false);
 
   WorkOrder computeWorkOrder(bool single_step);
 
   void computeRunAPCButtonClicked();
+
+  // Pick and place again
+
+  // Get a list of starting poses from the database.
+  void retrieveStartingPoses(std::vector<apc_msgs::PrimitivePlan>& starts);
+  // Compute a list of reachable (no collisions) starting poses from
+  // the current robot state.
+  void computeReachableStartingPoses(std::vector<apc_msgs::PrimitivePlan>& valid_starts,
+                                     const robot_state::RobotState& robot_state,
+                                     const KeyPoseMap& world_state);
+
+  void retrieveBinPoses(std::vector<apc_msgs::PrimitivePlan>& bin_poses,
+                        const std::string& bin_id);
+  void computeReachableBinPoses(std::vector<apc_msgs::PrimitivePlan>& valid_bins,
+                                const std::string& bin_id,
+                                const robot_state::RobotState& start_state,
+                                const KeyPoseMap& world_state);
+
+  void loadPlanToActiveActions(const apc_msgs::PrimitivePlan& plan);
 
 
   // Pick and place widget helper.
