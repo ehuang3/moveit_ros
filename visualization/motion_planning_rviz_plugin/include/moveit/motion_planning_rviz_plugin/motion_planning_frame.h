@@ -682,6 +682,12 @@ private:
                                                             const std::string& eef_expr = ".*",
                                                             bool grasp = false);
 
+  void setStateToPlanJointTrajectoryEnd(robot_state::RobotState& robot_state,
+                                        const apc_msgs::PrimitivePlan& plan);
+
+  void retrieveItemGrasps(std::vector<apc_msgs::PrimitivePlan>& item_grasps,
+                          const std::string& item_id);
+
   /**
    * @brief Compute a plan for pick and place of the input item.
    *

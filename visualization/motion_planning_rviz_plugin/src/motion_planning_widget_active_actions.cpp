@@ -902,4 +902,13 @@ namespace moveit_rviz_plugin
 
     }
 
+    // void MotionPlanningFrame::validatePlanJointTrajectory(const robot_state::RobotState& start_state,
+    //                                                       const apc_msgs::PrimitivePlan& plan)
+    // {
+
+    //     for (int i = 0; i < plan.actions.size(); i++) {
+    //         trajectory_msgs::JointTrajectoryPoint
+    //     }
+    // }
+
 }

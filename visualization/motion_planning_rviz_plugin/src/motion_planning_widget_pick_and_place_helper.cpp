@@ -128,7 +128,7 @@ namespace moveit_rviz_plugin
         std::string item_key = "kiva_pod";
         shapes::ShapeConstPtr item_shape = _kiva_pod->getRootLink()->getState().shapes[0];
         Eigen::Isometry3d item_pose = Eigen::Isometry3d::Identity();
-        item_pose.translation() = Eigen::Vector3d(-1.1, 0, 0);
+        item_pose.translation() = Eigen::Vector3d(-1.2, 0, 0);
 
         planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
         collision_detection::WorldPtr world = ps->getWorldNonConst();

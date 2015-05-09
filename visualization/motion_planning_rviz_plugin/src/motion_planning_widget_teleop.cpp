@@ -47,6 +47,8 @@
 #include <apc_path/Path.h>
 #include <apc_path/Trajectory.h>
 
+#include <moveit/motion_planning_rviz_plugin/apc_eigen_helpers.h>
+
 
 namespace moveit_rviz_plugin
 {
@@ -141,6 +143,12 @@ namespace moveit_rviz_plugin
         //            "Failed to set %s to pose using %s IK", link_id.c_str(), group_id.c_str());
         robot.update();
 
+        // Manually check whether the new state places the end-effector at the
+        // desired IK position.
+        Eigen::Affine3d T_ik = robot.getGlobalLinkTransform(link_id);
+        APC_ASSERT(apc_eigen::elementWiseMatrixNorm(T_ik, T_link_world) < 1e-2,
+                   "Failed to IK group %s to pose; error is %.6f", group_id.c_str(),
+                   apc_eigen::elementWiseMatrixNorm(T_ik, T_link_world));
         return true;
     }
 
@@ -495,6 +503,7 @@ namespace moveit_rviz_plugin
                 setStateFromPoint(prev_state, action.joint_trajectory.joint_names,
                                   action.joint_trajectory.points.back());
 
+
                 // Compute distance between previous and next states.
                 // Assert that they are less than epsilon.
                 const std::vector<const moveit::core::JointModel*> joint_models =
@@ -513,6 +522,8 @@ namespace moveit_rviz_plugin
                                joint_models[j]->getName().c_str(), pd, nd, iss.str().c_str());
                 }
 
+                ROS_DEBUG_STREAM("Action connecting:\n" << action);
+
                 actions.push_back(action);
             }
             // The next start state is not epsilon away, but the end state of
@@ -523,9 +534,16 @@ namespace moveit_rviz_plugin
                                   plan.actions[i].joint_trajectory.points.back());
             }
 
+            ROS_DEBUG_STREAM("Action to connect to:\n" << plan.actions[i]);
+
+            setStateFromPoint(next_state, plan.actions[i].joint_trajectory.joint_names,
+                              plan.actions[i].joint_trajectory.points.back());
             setStateFromPoint(prev_state, plan.actions[i].joint_trajectory.joint_names,
                               plan.actions[i].joint_trajectory.points.back());
             actions.push_back(plan.actions[i]);
+
+            APC_ASSERT(next_state.distance(prev_state) < 1e-7,
+                       "Failed to fulfill post-condition: previous state matching next state");
         }
         plan.actions = actions;
     }
@@ -580,9 +598,9 @@ namespace moveit_rviz_plugin
             action = srv.response.action;
 
             // Move robot state to goal position.
-            if (action.frame_id.empty()) {
-                setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
-            }
+            // if (action.frame_id.empty()) {
+            setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
+            // }
 
             // Move object to goal position.
             if (doesActionMoveAnItem(action)) {

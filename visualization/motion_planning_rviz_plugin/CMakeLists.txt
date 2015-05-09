@@ -6,6 +6,7 @@ set( headers
   include/moveit/motion_planning_rviz_plugin/motion_planning_display.h
   include/moveit/motion_planning_rviz_plugin/motion_planning_frame.h
   include/moveit/motion_planning_rviz_plugin/motion_planning_frame_impl.hpp
+  include/moveit/motion_planning_rviz_plugin/apc_eigen_helpers.h
 )
 
 # Convert the Qt Signals and Slots for QWidget events
@@ -59,6 +60,9 @@ set(SOURCE_FILES
   # Stored plans widget.
   src/motion_planning_widget_stored_plans.cpp
   src/motion_planning_widget_stored_plans_slots.cpp
+
+  # APC eigen helpers
+  src/apc_eigen_helpers.cpp
 
 )
 
