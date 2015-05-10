@@ -1,0 +1,210 @@
+/*********************************************************************
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2015, Georgia Tech Research Corporation
+ *  All rights reserved.
+ *
+ *  Author(s): Eric Huang <ehuang@gatech.edu>
+ *  Georgia Tech Socially Intelligent Machines Lab
+ *  Under Direction of Prof. Andrea Thomaz <athomaz@cc.gatech.edu>
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of Willow Garage nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ *********************************************************************/
+#include <ros/ros.h>
+#include <moveit/motion_planning_rviz_plugin/apc_exception.h>
+#include <boost/xpressive/xpressive.hpp>
+// #define _GNU_SOURCE
+#include <dlfcn.h>
+#include <sstream>
+
+
+namespace apc_exception
+{
+
+        // void *trace[16];                                                \
+        // char **messages = (char **)NULL;                                \
+        // int i, trace_size = 0;                                          \
+        // trace_size = backtrace(trace, 16);                              \
+        // messages = backtrace_symbols(trace, trace_size);                \
+        // printf("[bt] Execution path:\n");                               \
+        // for (i=0; i<trace_size; ++i) {                                  \
+        //     printf("[bt] %s\n", messages[i]);                           \
+        //     int p = 0;                                                  \
+        //     while(messages[i][p] != '(' && messages[i][p] != ' '        \
+        //           && messages[i][p] != 0)                               \
+        //         ++p;                                                    \
+        //     char syscom[4096];                                          \
+        //     sprintf(syscom,"addr2line %p -e %.*s", trace[i], p,         \
+        //             messages[i]);                                       \
+        //     printf("%s", syscom);                                       \
+        //     system(syscom);                                             \
+        // }                                                               \
+
+/**
+ * Execute a command and get the result.
+ *
+ * @param   cmd - The system command to run.
+ * @return  The string command line output of the command.
+ */
+    std::string GetStdoutFromCommand(std::string cmd) {
+
+        std::string data;
+    FILE * stream;
+    const int max_buffer = 256;
+    char buffer[max_buffer];
+    cmd.append(" 2>&1"); // Do we want STDERR?
+
+    stream = popen(cmd.c_str(), "r");
+    if (stream) {
+        while (!feof(stream))
+            if (fgets(buffer, max_buffer, stream) != NULL) data.append(buffer);
+        pclose(stream);
+    }
+    return data;
+}
+
+
+    std::string show_backtrace()
+    {
+        void *trace[16];
+        char **messages = (char **)NULL;
+        int i, trace_size = 0;
+
+        std::stringstream stream;
+
+        trace_size = backtrace(trace, 16);
+        messages = backtrace_symbols(trace, trace_size);
+
+        stream << "[bt    ]\n";
+
+        std::vector<int> fn_index_v;
+        std::vector<std::string> fn_name_v;
+        std::vector<std::string> fn_file_v;
+        std::vector<std::string> fn_pos_v;
+
+        // printf("[bt] Execution path:\n");
+        for (i=1; i<trace_size; ++i) {
+            // printf("[bt] %s\n", messages[i]);
+
+            /* find first occurence of '(' or ' ' in message[i] and assume
+             * everything before that is the file name. (Don't go beyond 0 though
+             * (string terminator)*/
+            size_t p = 0;
+            while(messages[i][p] != '(' && messages[i][p] != ' '
+                  && messages[i][p] != 0)
+                ++p;
+
+            Dl_info info;
+            dladdr(trace[i], &info);
+
+            // ROS_WARN("so@ %p", info.dli_fbase);
+            size_t base_addr = (size_t) info.dli_fbase;
+
+            using namespace boost::xpressive;
+            sregex rex = sregex::compile("^([A-Za-z0-9_/\\-]+\\.so)(\\([A-Za-z0-9_]+\\+(0x[0-9a-f]+)\\)) (\\[(0x[0-9a-f]+)\\])");
+            smatch what;
+            std::string message = messages[i]; // Cannot pass temporary string to regex_match.
+            // ROS_WARN_STREAM(message);
+            if (regex_match(message, what, rex))
+                for (int j = 0; j < what.size(); j++) {
+                    // ROS_DEBUG_STREAM(what[j].str());
+                }
+
+            std::string fn_hex = what[5];
+            size_t fn_addr = strtol(fn_hex.c_str(), NULL, 0);
+
+            std::string off_hex = what[3];
+            size_t fn_addr_off = strtol(off_hex.c_str(), NULL, 0);
+
+            char syscom[4096];
+            sprintf(syscom,"addr2line -f -C %#*lx -e %.*s", (int) fn_hex.length(), fn_addr + fn_addr_off - base_addr,
+                    (int)p, messages[i]);
+            //last parameter is the file name of the symbol
+            // printf("[bt] %s", syscom);
+
+            std::string bt = GetStdoutFromCommand(syscom);
+            // ROS_DEBUG_STREAM(bt);
+
+            sregex rex_2 =
+                sregex::compile("^([A-Za-z_:]+::)([A-Za-z_]+)(\\(.*\\))\\n([A-Za-z0-9_/]+/)([A-Za-z_]+\\.[A-Za-z]+):([0-9]+).*\\n");
+            smatch what_2;
+            if (!regex_match(bt, what_2, rex_2)) {
+                // ROS_ERROR_STREAM("Failed to parse " << bt);
+                continue;
+            }
+
+
+            std::string fn_name = what_2[2];
+            std::string fn_file = what_2[5];
+            std::string fn_pos  = what_2[6];
+
+            // stream << "[bt] " << fn_name << std::endl;
+            // stream << "     " << fn_file << ":" << fn_pos << std::endl;
+
+            // stream << "[bt] " << fn_name << std::endl;
+            // stream << "     " << fn_file << ":" << fn_pos << std::endl;
+
+            fn_index_v.push_back(i);
+            fn_name_v.push_back(fn_name);
+            fn_file_v.push_back(fn_file);
+            fn_pos_v.push_back(fn_pos);
+
+            // system(syscom);
+        }
+
+        int int_len = 0;
+        int name_len = 0;
+        int file_len = 0;
+        int pos_len = 0;
+        for (int i = 0; i < fn_name_v.size(); i++) {
+            if (name_len < fn_name_v[i].size())
+                name_len = fn_name_v[i].size();
+            if (file_len < fn_file_v[i].size())
+                file_len = fn_file_v[i].size();
+            if (pos_len < fn_pos_v[i].size())
+                pos_len = fn_pos_v[i].size();
+        }
+
+        char buf[4096];
+        for (int i = 0; i < fn_name_v.size(); i++) {
+            sprintf(buf, "[bt #%2d] %*s()  %*s  %*s\n", fn_index_v[i], name_len, fn_name_v[i].c_str(),
+                    file_len, fn_file_v[i].c_str(), pos_len, fn_pos_v[i].c_str());
+            stream << buf;
+                }
+
+        return stream.str();
+    }
+}
+
+
+// [bt] /home/ehuang/catkin_ws/devel/lib/libmoveit_background_processing.so(_ZNK5boost4_mfi3mf0IvN6moveit5tools20BackgroundProcessingEEclEPS4_+0x65) [0x7fff984776cd]
+// ??:0
+// addr2line 0x7fff984776cd -e /home/ehuang/catkin_ws/devel/lib/libmoveit_background_processing.so
+
+// /home/ehuang/catkin_ws/devel/lib/libmoveit_motion_planning_rviz_plugin_core.so(_ZN18moveit_rviz_plugin19MotionPlanningFrame24computeReachableBinPosesERSt6vectorIN8apc_msgs14PrimitivePlan_ISaIvEEESaIS5_EERKSsRKN6moveit4core10RobotStateERKSt3mapISsN5Eigen9TransformIdLi3ELi2ELi0EEESt4lessISsENSH_17aligned_allocatorISt4pairIS9_SJ_EEEE+0x31b) [0x7fff9abd555b]

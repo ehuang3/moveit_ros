@@ -197,7 +197,7 @@ namespace moveit_rviz_plugin
             Eigen::Affine3d T_bin = _kiva_pod->getGlobalTransform(item_bin);
             robot_calibration::Linkd* bin = _kiva_pod->getLink(item_bin);
             double bin_height = static_cast<const shapes::Box*>(bin->getState().shapes[0].get())->size[2];
-            T_bin.translate(Eigen::Vector3d(0.2, 0, -bin_height / 2.0 + bin_height/5.0));
+            T_bin.translate(Eigen::Vector3d(0.2, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
             item_pose = T_pod * T_bin;
         }
 

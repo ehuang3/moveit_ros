@@ -1,5 +1,5 @@
 # set(CMAKE_CXX_FLAGS "-Wshadow -Wreturn-type -Wuninitialized")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -rdynamic")
 
 # Header files that need Qt Moc pre-processing for use with Qt signals, etc:
 set( headers
@@ -61,8 +61,9 @@ set(SOURCE_FILES
   src/motion_planning_widget_stored_plans.cpp
   src/motion_planning_widget_stored_plans_slots.cpp
 
-  # APC eigen helpers
+  # APC helpers
   src/apc_eigen_helpers.cpp
+  src/apc_exception.cpp
 
 )
 
