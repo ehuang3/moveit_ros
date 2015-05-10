@@ -522,8 +522,6 @@ namespace moveit_rviz_plugin
                                joint_models[j]->getName().c_str(), pd, nd, iss.str().c_str());
                 }
 
-                ROS_DEBUG_STREAM("Action connecting:\n" << action);
-
                 actions.push_back(action);
             }
             // The next start state is not epsilon away, but the end state of
@@ -533,8 +531,6 @@ namespace moveit_rviz_plugin
                 setStateFromPoint(next_state, plan.actions[i].joint_trajectory.joint_names,
                                   plan.actions[i].joint_trajectory.points.back());
             }
-
-            ROS_DEBUG_STREAM("Action to connect to:\n" << plan.actions[i]);
 
             setStateFromPoint(next_state, plan.actions[i].joint_trajectory.joint_names,
                               plan.actions[i].joint_trajectory.points.back());
@@ -598,9 +594,7 @@ namespace moveit_rviz_plugin
             action = srv.response.action;
 
             // Move robot state to goal position.
-            // if (action.frame_id.empty()) {
             setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
-            // }
 
             // Move object to goal position.
             if (doesActionMoveAnItem(action)) {
