@@ -495,6 +495,7 @@ namespace moveit_rviz_plugin
                 if (i > 0 && plan.actions[i-1].grasp && plan.actions[i].grasp) {
                     action.grasp = true;
                     action.attached_link_id = plan.actions[i].attached_link_id;
+                    action.object_trajectory = plan.actions[i].object_trajectory;
                 }
 
                 ROS_DEBUG("Inserting action %s to connect previous robot state with next robot state",
@@ -603,8 +604,8 @@ namespace moveit_rviz_plugin
                 Eigen::Affine3d T_object_link;
                 tf::poseMsgToEigen(action.object_trajectory.poses.back(), T_object_link);
                 world_state[action.object_key] = T_link_world * T_object_link;
-                ROS_DEBUG_STREAM("Moving object %s from\n" << T_object_world.matrix() <<
-                                 "to\n" << world_state[action.object_key].matrix());
+                // ROS_DEBUG_STREAM("Moving object %s from\n" << T_object_world.matrix() <<
+                //                  "to\n" << world_state[action.object_key].matrix());
             }
         }
 
