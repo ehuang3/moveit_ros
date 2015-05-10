@@ -49,18 +49,19 @@
 
 namespace apc_exception
 {
+    std::string GetResolvedStackTrace();
     std::string show_backtrace();
 }
 
 #define APC_ASSERT(x, ...)                                              \
     if (!(x))                                                           \
     {                                                                   \
+        std::string bt = apc_exception::GetResolvedStackTrace();        \
         char buf[4096];                                                 \
         snprintf(buf, 4096, __VA_ARGS__);                               \
         char buf2[4096];                                                \
         snprintf(buf2, 4096, "in %s of %s line %d\n",                   \
                  __FUNCTION__, __APC_FILENAME__, __LINE__);             \
-        std::string bt = apc_exception::show_backtrace();               \
         std::string error = std::string(buf2) +                         \
             std::string(buf) + std::string("\n") + bt;                  \
         throw std::logic_error(error);                                  \

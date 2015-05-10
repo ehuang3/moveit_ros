@@ -43,10 +43,101 @@
 #include <dlfcn.h>
 #include <sstream>
 
+#define BACKWARD_HAS_BFD 1
+#include <backward.hpp>
+
+std::string apc_exception::GetResolvedStackTrace()
+{
+    char *bp;
+    size_t size;
+    FILE *stream;
+    stream = open_memstream (&bp, &size);
+
+    using namespace backward;
+    using namespace boost::xpressive;
+
+    StackTrace st;
+    st.load_here(11);
+    TraceResolver tr; tr.load_stacktrace(st);
+    Printer p;
+    p.object = false;
+    p.color = true;
+    p.address = true;
+    p.snippet = true;
+    // p.print(st, stream);
+    ResolvedTrace rt = tr.resolve(st[0]);
+
+    Colorize c(stream);
+    c.init();
+
+    for (int i = 1; i < st.size(); i++) {
+        ResolvedTrace trace = tr.resolve(st[i]);
+
+        ResolvedTrace::SourceLoc source = trace.source;
+
+        std::string object_filename = trace.object_filename;
+        {
+            sregex rex =
+                sregex::compile("^([A-Za-z_/0-9]+/)([A-Za-z_]+\\.so)");
+            smatch what;
+            if (regex_match(object_filename, what, rex))
+                object_filename = what[2];
+        }
+        trace.object_filename = object_filename;
+
+        std::string object_function = trace.object_function;
+        {
+            sregex rex =
+                sregex::compile("^([A-Za-z_:0-9]+::)([A-Za-z_0-9]+)(\\(.*\\))");
+            smatch what;
+            if (regex_match(object_function, what, rex))
+                object_function = what[2];
+        }
+        trace.object_function = object_function;
+
+        std::string source_filename = trace.source.filename;
+        {
+            sregex rex =
+                sregex::compile("^([A-Za-z_/0-9]+/)([A-Za-z_]+\\.[a-z]+)");
+            smatch what;
+            if (regex_match(source_filename, what, rex))
+                source_filename = what[2];
+        }
+        trace.source.filename = source_filename;
+
+        std::string source_function = trace.source.function;
+        {
+            sregex rex =
+                sregex::compile("^([A-Za-z_:0-9]+::)([A-Za-z_0-9]+)(\\(.*\\))");
+            smatch what;
+            if (regex_match(source_function, what, rex))
+                source_function = what[2];
+            else
+                continue;
+        }
+        trace.source.function = source_function;
+
+        p.print_trace(stream, trace, c);
+
+        p.print_snippet(stream, "      ", source, c, Color::yellow, 5);
+
+        fflush (stream);
+    }
+    // for (size_t i = 1; i < st.size(); ++i) {
+    //     ResolvedTrace trace = tr.resolve(st[i]);
+    //     p.print(trace, stream);
+    //     fflush (stream);
+    // }
+
+    std::string out = bp;
+    fclose(stream);
+    free(bp);
+
+    return out;
+}
 
 namespace apc_exception
 {
-
         // void *trace[16];                                                \
         // char **messages = (char **)NULL;                                \
         // int i, trace_size = 0;                                          \
@@ -88,6 +179,9 @@ namespace apc_exception
     }
     return data;
 }
+
+
+
 
 
     std::string show_backtrace()
@@ -136,17 +230,21 @@ namespace apc_exception
                     // ROS_DEBUG_STREAM(what[j].str());
                 }
 
-            std::string fn_hex = what[5];
+            std::string fn_hex = what[5].str();
             size_t fn_addr = strtol(fn_hex.c_str(), NULL, 0);
 
-            std::string off_hex = what[3];
+            std::string off_hex = what[3].str();
             size_t fn_addr_off = strtol(off_hex.c_str(), NULL, 0);
 
+            // ROS_ERROR("%s", what[2].str().c_str());
+            // ROS_ERROR("%s", what[3].str().c_str());
+            // ROS_ERROR("%#*lx", (int) fn_hex.length(), fn_addr - base_addr - fn_addr_off);
+
             char syscom[4096];
-            sprintf(syscom,"addr2line -f -C %#*lx -e %.*s", (int) fn_hex.length(), fn_addr + fn_addr_off - base_addr,
+            sprintf(syscom,"addr2line -f -C %#*lx -e %.*s", (int) fn_hex.length(), fn_addr - base_addr,
                     (int)p, messages[i]);
             //last parameter is the file name of the symbol
-            // printf("[bt] %s", syscom);
+            // printf("[system] %s\n", syscom);
 
             std::string bt = GetStdoutFromCommand(syscom);
             // ROS_DEBUG_STREAM(bt);

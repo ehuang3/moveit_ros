@@ -1,0 +1,3 @@
+[submodule "visualization/motion_planning_rviz_plugin/backward-cpp"]
+	path = visualization/motion_planning_rviz_plugin/backward-cpp
+	url = git@github.com:ehuang3/backward-cpp.git

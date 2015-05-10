@@ -18,6 +18,8 @@ qt4_wrap_ui(UIC_FILES
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+add_subdirectory(backward-cpp)
+
 # Plugin Source
 set(SOURCE_FILES 
   src/motion_planning_frame.cpp
@@ -65,14 +67,18 @@ set(SOURCE_FILES
   src/apc_eigen_helpers.cpp
   src/apc_exception.cpp
 
+  # signal
+  backward-cpp/backward.cpp
 )
 
 set(MOVEIT_LIB_NAME moveit_motion_planning_rviz_plugin)
-add_library(${MOVEIT_LIB_NAME}_core ${SOURCE_FILES} ${MOC_SOURCES} ${UIC_FILES})
+add_library(${MOVEIT_LIB_NAME}_core ${SOURCE_FILES} ${MOC_SOURCES} ${UIC_FILES} ${backward_ENABLE})
 target_link_libraries(${MOVEIT_LIB_NAME}_core
   moveit_rviz_plugin_render_tools
   moveit_planning_scene_rviz_plugin_core
-  ${catkin_LIBRARIES} ${OGRE_LIBRARIES} ${QT_LIBRARIES} ${Boost_LIBRARIES})
+  ${catkin_LIBRARIES} ${OGRE_LIBRARIES} ${QT_LIBRARIES} ${Boost_LIBRARIES} bfd)
+
+add_backward(${MOVEIT_LIB_NAME}_core)
 
 add_library(${MOVEIT_LIB_NAME} src/plugin_init.cpp)
 target_link_libraries(${MOVEIT_LIB_NAME} ${MOVEIT_LIB_NAME}_core ${catkin_LIBRARIES} ${Boost_LIBRARIES})
