@@ -10,6 +10,7 @@ set( headers
   include/apc/eigen.h
   include/apc/planning.h
   include/apc/exception.h
+  include/apc/vision.h
 )
 
 # Convert the Qt Signals and Slots for QWidget events
@@ -70,6 +71,7 @@ set(SOURCE_FILES
   src/apc_eigen.cpp
   src/apc_exception.cpp
   src/apc_planning.cpp
+  src/apc_vision.cpp
 
   # signal
   backward-cpp/backward.cpp

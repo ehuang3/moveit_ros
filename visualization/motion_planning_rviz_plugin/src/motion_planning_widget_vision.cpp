@@ -42,6 +42,7 @@
 #include <algorithm>
 #include <apc_msgs/RunVision.h>
 #include <eigen_conversions/eigen_msg.h>
+#include <apc/vision.h>
 
 
 namespace moveit_rviz_plugin
@@ -173,6 +174,25 @@ namespace moveit_rviz_plugin
         // Run service.
         APC_ASSERT(_run_vision_client.call(run_vision),
                    "Failed call run vision service");
+
+        // Copy objects to their bin poses in the world state.
+        {
+            apc_vision::BinKeyMap bin_item_keys;
+            apc_vision::getBinItemKeys(bin_item_keys, ui_->bin_contents_table_widget);
+            KeyPoseMap world_state = computeWorldKeyPoseMap();
+            apc_vision::assignItemPosesFromBinStates(world_state,
+                                                     run_vision.response,
+                                                     bin_item_keys);
+            // TODO Set objects into world state.
+            collision_detection::WorldPtr world = planning_display_->getPlanningSceneRW()->getWorldNonConst();
+            for (KeyPoseMap::const_iterator item = world_state.begin(); item != world_state.end(); ++item) {
+                // Skip over non-items.
+                if (!testForItemKey(item->first))
+                    continue;
+                world->getObject(item->first)->shape_poses_[0] = item->second;
+            }
+            planning_display_->queueRenderSceneGeometry();
+        }
     }
 
 }
