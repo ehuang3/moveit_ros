@@ -232,7 +232,7 @@
               <enum>QTabWidget::North</enum>
              </property>
              <property name="currentIndex">
-              <number>0</number>
+              <number>2</number>
              </property>
              <property name="documentMode">
               <bool>true</bool>
@@ -1615,6 +1615,13 @@ background-color: rgb(212, 208, 200);</string>
                    <widget class="QPushButton" name="pushButton_12">
                     <property name="text">
                      <string>Save Snapshot</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="0">
+                   <widget class="QPushButton" name="publish_shelf_button">
+                    <property name="text">
+                     <string>Publish Shelf</string>
                     </property>
                    </widget>
                   </item>

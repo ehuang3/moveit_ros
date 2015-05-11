@@ -181,6 +181,8 @@ private:
 
   ros::ServiceClient _run_vision_client;
 
+  ros::ServiceClient _publish_shelf_client;
+
   tf::TransformListener _tf_listener;
 
   bool show_kiva_pod_;
@@ -249,6 +251,7 @@ private Q_SLOTS:
   void runIcpButtonClicked();
   void runVisionButtonClicked();
   void saveSnapshotButtonClicked();
+  void publishShelfButtonClicked();
 
   // Calibration widget slots.
 
@@ -776,6 +779,7 @@ private:
   void computeRunVision();
 
   // Vision widget helper.
+  void computePublishShelfButtonClicked();
 
   // Calibration widget.
 

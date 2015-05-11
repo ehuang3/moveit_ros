@@ -39,8 +39,19 @@
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
 #include "ui_motion_planning_rviz_plugin_frame.h"
+#include <apc_msgs/GetShelf.h>
+#include <eigen_conversions/eigen_msg.h>
 
 namespace moveit_rviz_plugin
 {
-
+    void MotionPlanningFrame::computePublishShelfButtonClicked()
+    {
+        APC_ASSERT(_kiva_pod,
+                   "Failed to get KIVA pod model");
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        apc_msgs::GetShelf srv;
+        tf::poseEigenToMsg(world_state["kiva_pod"], srv.request.pose_shelf_world);
+        APC_ASSERT(_publish_shelf_client.call(srv),
+                   "Failed to call GetShelf service");
+    }
 }

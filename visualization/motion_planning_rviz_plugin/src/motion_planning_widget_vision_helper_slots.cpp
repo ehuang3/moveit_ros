@@ -45,5 +45,12 @@ namespace moveit_rviz_plugin
 {
     void MotionPlanningFrame::connectVisionHelperSlots()
     {
+        connect( ui_->publish_shelf_button,    SIGNAL( clicked() ), this, SLOT( publishShelfButtonClicked() ));
+    }
+
+    void MotionPlanningFrame::publishShelfButtonClicked()
+    {
+        planning_display_->addBackgroundJob(
+            boost::bind(&MotionPlanningFrame::computePublishShelfButtonClicked, this), "publish shelf");
     }
 }

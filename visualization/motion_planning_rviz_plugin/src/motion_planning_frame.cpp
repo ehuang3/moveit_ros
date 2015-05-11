@@ -46,6 +46,7 @@
 #include <std_srvs/Empty.h>
 #include <apc_msgs/ComputeDenseMotion.h>
 #include <apc_msgs/RunVision.h>
+#include <apc_msgs/GetShelf.h>
 
 #include <QMessageBox>
 #include <QInputDialog>
@@ -185,6 +186,8 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
 
   // Setup trajopt service client.
   _run_vision_client = nh_.serviceClient<apc_msgs::RunVision>("run_vision");
+
+  _publish_shelf_client = nh_.serviceClient<apc_msgs::GetShelf>("get_shelf");
 
   if(object_recognition_client_)
   {
