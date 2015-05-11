@@ -46,6 +46,7 @@ namespace moveit_rviz_plugin
 {
     void MotionPlanningFrame::computePublishShelfButtonClicked()
     {
+        try {
         APC_ASSERT(_kiva_pod,
                    "Failed to get KIVA pod model");
         KeyPoseMap world_state = computeWorldKeyPoseMap();
@@ -53,5 +54,8 @@ namespace moveit_rviz_plugin
         tf::poseEigenToMsg(world_state["kiva_pod"], srv.request.pose_shelf_world);
         APC_ASSERT(_publish_shelf_client.call(srv),
                    "Failed to call GetShelf service");
+        } catch (std::exception& error) {
+            ROS_ERROR("Caught exception in %s", error.what());
+        }
     }
 }
