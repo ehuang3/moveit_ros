@@ -751,6 +751,11 @@ private:
   void computeLoadBinContentsToScene();
   std::vector<std::string> computeLoadBinContentsToScene(const std::vector<std::pair<std::string, std::string> >& bin_contents);
   void loadKivaPodToScene();
+  void loadOrderBinToScene();
+  void loadWorkTableToScene();
+  void loadObjectToScene(const std::string& object_key,
+                         const std::string& object_model_path,
+                         const Eigen::Affine3d& T_object_world);
   std::string computeItemModelPath(const std::string& item);
   std::string computeItemSceneKey(const std::string& item,
                                   const int number);

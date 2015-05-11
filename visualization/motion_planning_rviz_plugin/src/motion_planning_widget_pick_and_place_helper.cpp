@@ -87,6 +87,10 @@ namespace moveit_rviz_plugin
         typedef std::vector<std::string> Keys;
         // Load KIVA pod to scene.
         loadKivaPodToScene();
+        // Load order bin to scene.
+        loadOrderBinToScene();
+        // Load work table to scene.
+        loadWorkTableToScene();
         // Add items to scene.
         ItemCount item_count;
         Keys keys;
@@ -109,6 +113,73 @@ namespace moveit_rviz_plugin
         _bin_item_counts = item_count;
         // Return keys.
         return keys;
+    }
+
+    void MotionPlanningFrame::loadOrderBinToScene()
+    {
+        std::string object_key = "order_bin";
+        std::string object_model_path = computeItemModelPath("order_bin");
+        Eigen::Matrix4d T_object_world;
+        T_object_world.matrix() <<
+            1, 0, 0, -0.4,
+            0, 1, 0, -0.6,
+            0, 0, 1,  0.7,
+            0, 0, 0,  1;
+        loadObjectToScene(object_key, object_model_path, Eigen::Affine3d(T_object_world));
+    }
+
+    void MotionPlanningFrame::loadWorkTableToScene()
+    {
+        std::string object_key = "work_table";
+        std::string object_model_path = computeItemModelPath("work_table");
+        Eigen::Affine3d T_object_world;
+        T_object_world.matrix() <<
+            1, 0, 0, -0.4,
+            0, 1, 0,  0.0,
+            0, 0, 1,  0.0,
+            0, 0, 0,  1;
+        loadObjectToScene(object_key, object_model_path, Eigen::Affine3d(T_object_world));
+    }
+
+    void MotionPlanningFrame::loadObjectToScene(const std::string& object_key,
+                                                const std::string& object_model_path,
+                                                const Eigen::Affine3d& T_object_world)
+    {
+        // Determine if we need to load and add the object.
+        bool add_object = false;
+        {
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            add_object = ps->getWorld()->hasObject(object_key) == false;
+        }
+
+        // Retrieve the object's mesh shape.
+        shapes::ShapeConstPtr object_shape;
+        if (add_object)
+        {
+            std::string object_model_uri = "file://" + object_model_path;
+            shapes::Mesh* object_mesh = shapes::createMeshFromResource(object_model_uri);
+            if (!object_mesh)
+            {
+                ROS_ERROR("Failed to load URI: %s", object_model_uri.c_str());
+                return;
+            }
+            object_shape.reset(object_mesh);
+        }
+        else
+        {
+            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
+            object_shape = ps->getWorld()->getObject(object_key)->shapes_[0];
+        }
+
+        // Add or move object to scene.
+        {
+            planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
+            collision_detection::WorldPtr world = ps->getWorldNonConst();
+            if (add_object)
+                world->addToObject(object_key, object_shape, T_object_world);
+            else
+                world->moveShapeInObject(object_key, object_shape, T_object_world);
+        }
     }
 
     void MotionPlanningFrame::loadKivaPodToScene()
