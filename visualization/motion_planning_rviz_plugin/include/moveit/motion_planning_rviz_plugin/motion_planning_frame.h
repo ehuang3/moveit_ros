@@ -70,7 +70,7 @@
 #define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
 #include <rapidjson/document.h>
 #include <robot_calibration/robot.h>
-#include <moveit/motion_planning_rviz_plugin/apc_exception.h>
+#include <apc/exception.h>
 
 #include <string.h>
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -565,6 +565,7 @@ private:
                          const apc_msgs::PrimitivePlan& plan);
   void appendToTrajectory(trajectory_msgs::JointTrajectory& first,
                           const trajectory_msgs::JointTrajectory& second);
+  void computeExecute(const apc_msgs::PrimitivePlan& plan);
   void computeExecuteButtonClicked();
   void executeActiveCallback();
   void executeFeedbackCallback(const apc_msgs::FollowPrimitivePlanFeedbackConstPtr &feedback);

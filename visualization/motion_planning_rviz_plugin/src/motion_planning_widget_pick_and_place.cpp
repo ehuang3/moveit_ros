@@ -44,7 +44,7 @@
 #include <boost/regex.hpp>
 #include <moveit/warehouse/primitive_plan_storage.h>
 
-#include <moveit/motion_planning_rviz_plugin/apc_eigen_helpers.h>
+#include <apc/eigen.h>
 
 
 namespace moveit_rviz_plugin

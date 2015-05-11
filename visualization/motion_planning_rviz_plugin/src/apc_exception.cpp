@@ -37,7 +37,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 #include <ros/ros.h>
-#include <moveit/motion_planning_rviz_plugin/apc_exception.h>
+#include <apc/exception.h>
 #include <boost/xpressive/xpressive.hpp>
 // #define _GNU_SOURCE
 #include <dlfcn.h>

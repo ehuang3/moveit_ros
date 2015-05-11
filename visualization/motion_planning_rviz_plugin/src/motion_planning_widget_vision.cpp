@@ -93,7 +93,7 @@ namespace moveit_rviz_plugin
                                             const std::vector<std::string>& bin_object_ids)
     {
         apc_msgs::RunDPM srv;
-        srv.request.images.push_back(image);
+        srv.request.image = image;
         srv.request.target_objects = target_object_ids;
         srv.request.bin_objects = bin_object_ids;
         computeRunDpm(srv);

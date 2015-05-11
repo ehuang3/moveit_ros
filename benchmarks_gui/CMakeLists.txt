@@ -66,18 +66,18 @@ set(SOURCES
   src/tab_trajectories.cpp
 )
 
-add_executable(moveit_benchmark_gui ${SOURCES} ${MOC_FILES} ${UIC_FILES})
+# add_executable(moveit_benchmark_gui ${SOURCES} ${MOC_FILES} ${UIC_FILES})
 
-target_link_libraries(moveit_benchmark_gui 
-  ${catkin_LIBRARIES} 
-  ${OGRE_LIBRARIES} 
-  ${QT_LIBRARIES}
-  ${Boost_LIBRARIES}
-)
+# target_link_libraries(moveit_benchmark_gui 
+#   ${catkin_LIBRARIES} 
+#   ${OGRE_LIBRARIES} 
+#   ${QT_LIBRARIES}
+#   ${Boost_LIBRARIES}
+# )
 
-install(
-  TARGETS
-    moveit_benchmark_gui
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+# install(
+#   TARGETS
+#     moveit_benchmark_gui
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
-install(DIRECTORY include/ DESTINATION include)
+# install(DIRECTORY include/ DESTINATION include)

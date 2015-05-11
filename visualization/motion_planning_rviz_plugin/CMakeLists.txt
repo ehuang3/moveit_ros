@@ -6,7 +6,10 @@ set( headers
   include/moveit/motion_planning_rviz_plugin/motion_planning_display.h
   include/moveit/motion_planning_rviz_plugin/motion_planning_frame.h
   include/moveit/motion_planning_rviz_plugin/motion_planning_frame_impl.hpp
-  include/moveit/motion_planning_rviz_plugin/apc_eigen_helpers.h
+
+  include/apc/eigen.h
+  include/apc/planning.h
+  include/apc/exception.h
 )
 
 # Convert the Qt Signals and Slots for QWidget events
@@ -64,8 +67,9 @@ set(SOURCE_FILES
   src/motion_planning_widget_stored_plans_slots.cpp
 
   # APC helpers
-  src/apc_eigen_helpers.cpp
+  src/apc_eigen.cpp
   src/apc_exception.cpp
+  src/apc_planning.cpp
 
   # signal
   backward-cpp/backward.cpp

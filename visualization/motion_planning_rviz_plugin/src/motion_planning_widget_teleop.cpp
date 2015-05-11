@@ -47,7 +47,8 @@
 #include <apc_path/Path.h>
 #include <apc_path/Trajectory.h>
 
-#include <moveit/motion_planning_rviz_plugin/apc_eigen_helpers.h>
+#include <apc/eigen.h>
+#include <apc/planning.h>
 
 
 namespace moveit_rviz_plugin
@@ -876,7 +877,7 @@ namespace moveit_rviz_plugin
         }
     }
 
-    void MotionPlanningFrame::computeExecuteButtonClicked()
+    void MotionPlanningFrame::computeExecute(const apc_msgs::PrimitivePlan& plan)
     {
         if (!execute_client_)
         {
@@ -897,18 +898,28 @@ namespace moveit_rviz_plugin
 
         // Get goal.
         apc_msgs::FollowPrimitivePlanGoal goal;
-        if (!primitive_plan_)
-        {
-            ROS_ERROR("No plan to execute");
-            return;
-        }
-        goal.plan = *primitive_plan_;
+        goal.plan = plan;
+
+        // Sanitize the plan.
+        apc_planning::preprocessPlanBeforeExecution(goal.plan,
+                                                    *planning_display_->getQueryGoalState());
 
         // Send the goal.
         execute_client_->sendGoal(goal,
                                   boost::bind(&MotionPlanningFrame::executeDoneCallback, this, _1, _2),
                                   boost::bind(&MotionPlanningFrame::executeActiveCallback, this),
                                   boost::bind(&MotionPlanningFrame::executeFeedbackCallback, this, _1));
+    }
+
+    void MotionPlanningFrame::computeExecuteButtonClicked()
+    {
+        if (!primitive_plan_)
+        {
+            ROS_ERROR("No plan to execute");
+            return;
+        }
+
+        computeExecute(*primitive_plan_);
     }
 
     void MotionPlanningFrame::executeActiveCallback()

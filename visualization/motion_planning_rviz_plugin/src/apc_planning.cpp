@@ -36,9 +36,29 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#include <Eigen/Dense>
+#include <apc/planning.h>
+#include <apc/exception.h>
 
-namespace apc_eigen
+
+
+
+void apc_planning::preprocessPlanBeforeExecution(apc_msgs::PrimitivePlan& plan,
+                                                 const robot_state::RobotState& robot_state)
 {
-    double elementWiseMatrixNorm(const Eigen::Affine3d& A, const Eigen::Affine3d& B);
+    // Ensure that only joints which correspond to motors are sent down to execute.
+    for (int i = 0; i < plan.actions.size(); i++) {
+        apc_msgs::PrimitiveAction& action = plan.actions[i];
+        const std::vector<std::string>& A = robot_state.getJointModelGroup(action.group_id)->getActiveJointModelNames();
+        const std::vector<std::string>& O = action.joint_trajectory.joint_names;
+        trajectory_msgs::JointTrajectory        N;
+        const trajectory_msgs::JointTrajectory& M = action.joint_trajectory;
+        N.points.resize(M.points.size());
+        for (int j = 0; j < O.size(); j++)
+            if (std::find(A.begin(), A.end(), O[j]) != A.end()) {
+                N.joint_names.push_back(O[j]);
+                for (int k = 0; k < M.points.size(); k++)
+                    N.points[k].positions.push_back(M.points[k].positions[j]);
+            }
+        action.joint_trajectory = N;
+    }
 }

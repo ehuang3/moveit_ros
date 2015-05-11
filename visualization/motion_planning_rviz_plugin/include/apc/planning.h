@@ -36,19 +36,14 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#include <Eigen/Dense>
-#include <moveit/motion_planning_rviz_plugin/apc_eigen_helpers.h>
+#pragma once
+#include <apc_msgs/PrimitiveAction.h>
+#include <apc_msgs/PrimitivePlan.h>
+#include <moveit/robot_state/robot_state.h>
 
-namespace apc_eigen
+
+namespace apc_planning
 {
-
-    double elementWiseMatrixNorm(const Eigen::Affine3d& A, const Eigen::Affine3d& B)
-    {
-        Eigen::Matrix4d M;
-        for (int i = 0; i < M.rows(); i++)
-            for (int j = 0; j < M.cols(); j++)
-                M(i,j) = A(i,j) - B(i,j);
-        return M.norm() / (double) M.rows() * M.cols();
-    }
-
+    void preprocessPlanBeforeExecution(apc_msgs::PrimitivePlan& plan,
+                                       const robot_state::RobotState& robot_state);
 }
