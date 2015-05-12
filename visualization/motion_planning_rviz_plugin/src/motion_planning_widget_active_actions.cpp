@@ -318,146 +318,13 @@ namespace moveit_rviz_plugin
         return eef_link;
     }
 
-    std::string MotionPlanningFrame::computeNearestBin(std::string link,
-                                                       const robot_state::RobotState& state)
+    Eigen::Affine3d MotionPlanningFrame::computeNearestFrameKeyPose(const std::string& frame_id,
+                                                                    const std::string& link_id,
+                                                                    const robot_state::RobotState& robot,
+                                                                    const KeyPoseMap& world)
     {
-        ROS_DEBUG_FUNCTION;
-
-        const boost::shared_ptr<const srdf::Model> &srdf = planning_display_->getRobotModel()->getSRDF();
-        APC_ASSERT(_kiva_pod,
-                   "Failed to get KIVA pod");
-
-        // Get world transform of link.
-        Eigen::Affine3d T_link = state.getGlobalLinkTransform(link);
-
-        // Get world transform to KIVA pod.
-        Eigen::Affine3d T_pod_world;
-        {
-            planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
-            T_pod_world = ps->getWorld()->getObject("kiva_pod")->shape_poses_[0];
-        }
-
-        // Find closest bin to parent link.
-        double min_dist = 1e9;
-        std::string bin;
-        for (char c = 'A'; c <= 'L'; c++)
-        {
-            std::string current_bin = std::string("bin_") + c;
-            Eigen::Affine3d T_bin_pod = _kiva_pod->getGlobalTransform(current_bin);
-            Eigen::Affine3d T_bin_world = T_pod_world * T_bin_pod;
-            double dist = (T_bin_world.translation() - T_link.translation()).norm();
-            if (min_dist > dist)
-            {
-                min_dist = dist;
-                bin = current_bin;
-            }
-        }
-
-        ROS_DEBUG("bin: %s", bin.c_str());
-        ROS_DEBUG("min dist: %f", min_dist);
-        ROS_DEBUG_FUNCTION;
-
-        return bin;
-    }
-
-    std::string MotionPlanningFrame::computeNearestObject(const std::string& object,
-                                                          const std::string& link,
-                                                          const robot_state::RobotState& state)
-    {
-        ROS_DEBUG_FUNCTION;
-
-        // Get the world where all objects are stored.
-        planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
-        const collision_detection::WorldConstPtr world = ps->getWorld();
-
-        // Get the group end-effector link transform.
-        Eigen::Affine3d T_link_world = state.getGlobalLinkTransform(link);
-
-        // Find the object closest to the group's end-effector link.
-        const std::vector<std::string>& object_ids = ps->getWorld()->getObjectIds();
-        double min_dist = 1e9;
-        std::string nearest_object;
-        for (int i = 0; i < object_ids.size(); i++)
-            if (object_ids[i].find(object) == 0)
-            {
-                Eigen::Affine3d T_object_world = world->getObject(object_ids[i])->shape_poses_[0];
-                double dist = (T_link_world.translation() - T_object_world.translation()).norm();
-                if (dist < min_dist)
-                {
-                    min_dist = dist;
-                    nearest_object = object_ids[i];
-                }
-            }
-
-        APC_ASSERT(!nearest_object.empty(),
-                   "Failed to find a key for object %s in world", object.c_str());
-
-        ROS_DEBUG("nearest object: %s", nearest_object.c_str());
-        ROS_DEBUG("min dist: %.4f", min_dist);
-        ROS_DEBUG_FUNCTION;
-
-        return nearest_object;
-    }
-
-    Eigen::Affine3d MotionPlanningFrame::computeFrame(const std::string& frame)
-    {
-        ROS_DEBUG_FUNCTION;
-
-        // Get the world state.
-        planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
-        const collision_detection::WorldConstPtr world = ps->getWorld();
-
-        // Lookup the frame.
-        Eigen::Affine3d T_frame_world = Eigen::Affine3d::Identity();
-
-        collision_detection::World::ObjectConstPtr object;
-        if (frame.find("bin") == 0)
-            object = world->getObject("kiva_pod");
-        else
-            object = world->getObject(frame);
-
-        T_frame_world = object->shape_poses_[0];
-
-        if (frame.find("bin") == 0)
-            T_frame_world = T_frame_world * _kiva_pod->getGlobalTransform(frame);
-
-        // APC_ASSERT(world->hasObject(frame),
-        //            "Failed to find frame %s in world", frame.c_str());
-
-        ROS_DEBUG_STREAM("T_frame_world:\n" << T_frame_world.matrix());
-        ROS_DEBUG_FUNCTION;
-
-        return T_frame_world;
-    }
-
-    Eigen::Affine3d MotionPlanningFrame::computeNearestFrame(const std::string& frame,
-                                                             const std::string& group,
-                                                             const robot_state::RobotState& state)
-    {
-        ROS_DEBUG_FUNCTION;
-
-        if (frame.empty())
-        {
-            ROS_WARN("Attempting to look up empty frame!");
-            return Eigen::Affine3d::Identity();
-        }
-
-        // Compute the end-effector link.
-        std::string eef_link = computeEefLink(group);
-
-        // Compute the nearest frame to our state, provided ambiguity exists.
-        std::string nearest_frame;
-        if (frame.find("bin") == 0)
-            nearest_frame = computeNearestBin(eef_link, state);
-        else
-            nearest_frame = computeNearestObject(frame, eef_link, state);
-
-        // Lookup the frame.
-        Eigen::Affine3d T_frame_world = computeFrame(nearest_frame);
-
-        ROS_DEBUG_FUNCTION;
-
-        return T_frame_world;
+        std::string frame_key = computeNearestFrameKey(frame_id, link_id, robot, world);
+        return world.find(frame_key)->second;
     }
 
     void MotionPlanningFrame::saveFrameToAction(apc_msgs::PrimitiveAction& action)
@@ -465,14 +332,14 @@ namespace moveit_rviz_plugin
         saveFrameToAction(action, ui_->frame_combobox->currentText().toStdString());
     }
 
-    void MotionPlanningFrame::saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame)
+    void MotionPlanningFrame::saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame_id)
     {
         // Clear the frame information.
         action.frame_id = "";
         action.eef_link_id = "";
         action.eef_trajectory.poses.clear();
 
-        if (frame.empty())
+        if (frame_id.empty())
             return;
         if (action.group_id.empty())
             action.group_id = planning_display_->getCurrentPlanningGroup();
@@ -484,8 +351,9 @@ namespace moveit_rviz_plugin
         // Find active end-effector.
         std::string eef_link = computeEefLink(action.group_id);
 
-        // Get frame location of "bin", "bin_%alpha", or "<object>".
-        Eigen::Affine3d T_frame = computeNearestFrame(frame, action.group_id, start_state);
+        // Get frame location of nearest "bin", "bin_%alpha", or "<object>".
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        Eigen::Affine3d T_frame = computeNearestFrameKeyPose(frame_id, eef_link, start_state, world_state);
 
         // Get the frame transform relative to the end-effector link.
         Eigen::Affine3d T_start_world = start_state.getGlobalLinkTransform(eef_link);
@@ -500,7 +368,7 @@ namespace moveit_rviz_plugin
         // std::cout << "T_frame_goal:\n" << T_frame_goal.matrix() << std::endl;
 
         // Write to action.
-        action.frame_id = frame;
+        action.frame_id = frame_id;
         action.eef_link_id = eef_link;
         action.eef_trajectory.poses.resize(2);
         tf::poseEigenToMsg(T_frame_start, action.eef_trajectory.poses[0]);
@@ -553,7 +421,8 @@ namespace moveit_rviz_plugin
         // Else, we compute the relative poses to the nearest instance of object ID.
         else {
             ROS_DEBUG("Saving nearest bodies to action");
-            Eigen::Affine3d T_object = computeNearestFrame(object_id, action.group_id, start_state);
+            KeyPoseMap world_state = computeWorldKeyPoseMap();
+            Eigen::Affine3d T_object = computeNearestFrameKeyPose(object_id, eef_link, start_state, world_state);
             // Get object transform relative to the end-effector link.
             Eigen::Affine3d T_start_inv = start_state.getGlobalLinkTransform(eef_link).inverse();
             T_object_start_link = T_start_inv * T_object;
@@ -633,17 +502,18 @@ namespace moveit_rviz_plugin
     }
 
     void MotionPlanningFrame::snapStateToFrame(robot_state::RobotState& state,
-                                               const std::string& frame,
-                                               const std::string& link,
+                                               const std::string& frame_id,
+                                               const std::string& link_id,
                                                const geometry_msgs::Pose& pose_frame_link,
                                                const std::string& group)
     {
-        if (frame.empty() || link.empty())
+        if (frame_id.empty() || link_id.empty())
             return;
-        Eigen::Affine3d T_frame_world = computeNearestFrame(frame, group, state);
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        Eigen::Affine3d T_frame_world = computeNearestFrameKeyPose(frame_id, link_id, state, world_state);
         Eigen::Affine3d T_frame_link;
         tf::poseMsgToEigen(pose_frame_link, T_frame_link);
-        snapStateToFrame(state, T_frame_world, link, T_frame_link, group);
+        snapStateToFrame(state, T_frame_world, link_id, T_frame_link, group);
     }
 
     void MotionPlanningFrame::snapStateToFrame(robot_state::RobotState& state,
@@ -703,7 +573,8 @@ namespace moveit_rviz_plugin
             return;
 
         // Compute the object key.
-        std::string object_key = computeNearestObject(object_id, link_id, state);
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        std::string object_key = computeNearestFrameKey(object_id, link_id, state, world_state);
 
         // Extract the object from the world.
         collision_detection::CollisionWorld::ObjectConstPtr object;

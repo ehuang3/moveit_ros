@@ -805,10 +805,10 @@ private:
   void saveStartAndGoalToAction(apc_msgs::PrimitiveAction& action);
   void appendStateToAction(apc_msgs::PrimitiveAction& action, const robot_state::RobotState& state);
   std::string computeEefLink(const std::string& group);
-  std::string computeNearestBin(std::string group, const robot_state::RobotState& state);
-  std::string computeNearestObject(const std::string& object, const std::string& group, const robot_state::RobotState& state);
-  Eigen::Affine3d computeFrame(const std::string& frame);
-  Eigen::Affine3d computeNearestFrame(const std::string& frame, const std::string& group, const robot_state::RobotState& state);
+  Eigen::Affine3d computeNearestFrameKeyPose(const std::string& frame_id,
+                                             const std::string& link_id,
+                                             const robot_state::RobotState& robot,
+                                             const KeyPoseMap& world);
   void saveFrameToAction(apc_msgs::PrimitiveAction& action);
   void saveFrameToAction(apc_msgs::PrimitiveAction& action, const std::string& frame);
   void saveFormatToAction(apc_msgs::PrimitiveAction& action);

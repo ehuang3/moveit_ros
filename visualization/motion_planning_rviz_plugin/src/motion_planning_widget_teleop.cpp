@@ -124,6 +124,7 @@ namespace moveit_rviz_plugin
                                              const geometry_msgs::Pose& pose_link_frame)
     {
         APC_ASSERT(link_id.size() > 0, "Failed to provide input link");
+        // ROS_DEBUG_STREAM("T_frame_world\n" << T_frame_world.matrix());
 
         // If the group does not have an IK solver, return false.
         bool solver = robot.getJointModelGroup(group_id)->getSolverInstance();

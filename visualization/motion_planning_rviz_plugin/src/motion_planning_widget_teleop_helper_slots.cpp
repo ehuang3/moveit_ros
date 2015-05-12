@@ -230,10 +230,11 @@ namespace moveit_rviz_plugin
             frame->addItem(ui_->bin_contents_table_widget->selectedItems()[0]->text());
         // Add generic "bin".
         frame->addItem("bin");
+        frame->addItem("bin_order");
         // Add specific bins.
         for (char a = 'A'; a <= 'L'; a++)
             frame->addItem(QString("bin_%1").arg(a));
-        // Add objects.
+        // Add objects in the world.
         QTableWidget* bin_contents = ui_->bin_contents_table_widget;
         for (int i = 0; i < bin_contents->rowCount(); i++)
             if (frame->findText(bin_contents->item(i, 1)->text(), Qt::MatchExactly) == -1)
