@@ -934,8 +934,15 @@ namespace moveit_rviz_plugin
             *primitive_plan_ = plan;
             // planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::loadPrimitivePlanToActiveActions, this, plan),
             //                                     "Load plan to active actions");
-        } catch (std::logic_error& error) {
+        } catch (apc_exception::Exception& error) {
             ROS_ERROR("Caught exception %s", error.what());
+
+            // Still display trajectory on exception.
+            computeSmoothedPath(plan);
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(start_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, plan);
+
             return;
         }
 

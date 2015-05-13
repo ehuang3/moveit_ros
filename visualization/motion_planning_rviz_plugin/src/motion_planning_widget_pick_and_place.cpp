@@ -213,14 +213,14 @@ namespace moveit_rviz_plugin
                     {
                         valid_starts.push_back(starting_poses[i]);
                     }
-                } catch (std::exception& error) {
+                } catch (apc_exception::Exception& error) {
                     ROS_DEBUG("Starting pose failed with %s", error.what());
                 }
             }
         }
 
-        APC_ASSERT(valid_starts.size() > 0,
-                   "No reachable starting poses!");
+        APC_ASSERT_PLAN_VECTOR(valid_starts.size() > 0, starting_poses,
+                               "No reachable starting poses!");
     }
 
     void MotionPlanningFrame::retrieveBinPoses(std::vector<apc_msgs::PrimitivePlan>& bin_poses,
@@ -238,18 +238,27 @@ namespace moveit_rviz_plugin
         std::vector<apc_msgs::PrimitivePlan> starting_poses;
         computeReachableStartingPoses(starting_poses, start_state, world_state);
 
+
+
         // Verify the bins reachable from the starting poses.
         std::vector<apc_msgs::PrimitivePlan> bin_poses;
         retrieveBinPoses(bin_poses, bin_id);
+
+        // For debugging, store all starting x bin poses in this vector.
+        std::vector<apc_msgs::PrimitivePlan> starting_x_bin_poses;
+        starting_x_bin_poses.resize(starting_poses.size() * bin_poses.size());
+
+        // Search!
         valid_bins.clear();
         for (int i = 0; i < bin_poses.size(); i++) {
             bool valid = false;
 
-            // FIXME Put OMP over outer loop
-#pragma omp parallel num_threads(1) shared(valid)
+#pragma omp parallel num_threads(8) shared(valid)
             {
 #pragma omp for
                 for (int j = 0; j < starting_poses.size(); j++) {
+                    // If we've already found a valid bin pose, skip over the
+                    // remaining starting poses.
                     if (valid) {
                         continue;
                     }
@@ -264,13 +273,14 @@ namespace moveit_rviz_plugin
                         const apc_msgs::PrimitiveAction& action = starting_poses[j].actions[k];
                         int num_pts = action.joint_trajectory.points.size();
                         setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
-                        // setStateFromAction(robot_state, world_state, action, num_pts - 1);
+                        // setStateFromAction(robot_state, world_state, action, -1);
                     }
                     // Compute the trajectory from starting pose to bin. If it
                     // works, add the plan from starting pose to bin pose to the
                     // valid bin poses.
                     try {
                         ROS_DEBUG("Testing bin pose: %s", bin_poses[i].plan_name.c_str());
+
                         // On failure an exception is thrown.
                         computePlan(bin_pose, robot_state, world_state, j % 8);
 
@@ -291,16 +301,26 @@ namespace moveit_rviz_plugin
                             }
                         }
 
-                    } catch (std::exception& error) {
+                    } catch (apc_exception::Exception& error) {
                         ROS_DEBUG("Starting pose failed with %s", error.what());
+
+                        // Only store to starting_x_bin_poses on an error. We
+                        // only read from 'starting_x_bin_poses' on a failure to
+                        // completely find a reachable bin pose anyhow.
+                        apc_msgs::PrimitivePlan& sxb = starting_x_bin_poses[j * bin_poses.size() + i];
+                        sxb = starting_poses[j];
+                        sxb.actions.insert(sxb.actions.end(),
+                                           bin_pose.actions.begin(),
+                                           bin_pose.actions.end());
+
                     }
                 } // omp for
             } // omp parallel
 
         }
 
-        APC_ASSERT(valid_bins.size() > 0,
-                   "No reachable poses for bin %s!", bin_id.c_str());
+        APC_ASSERT_PLAN_VECTOR(valid_bins.size() > 0, starting_x_bin_poses,
+                               "No reachable poses for bin %s!", bin_id.c_str());
     }
 
     void MotionPlanningFrame::setStateToPlanJointTrajectoryEnd(robot_state::RobotState& robot_state,
@@ -326,8 +346,6 @@ namespace moveit_rviz_plugin
                                                          const robot_state::RobotState& start_state,
                                                          const KeyPoseMap& world_state)
     {
-        std::exception except;
-
         // Get the items keys matching item ids in the bin.
         std::vector<std::string> target_keys = findItemKeysInBinMatchingItemID(bin_id, item_id, world_state);
 
@@ -337,6 +355,9 @@ namespace moveit_rviz_plugin
 
         std::vector<apc_msgs::PrimitivePlan> item_grasps;
         retrieveItemGrasps(item_grasps, item_id);
+
+        std::vector<apc_msgs::PrimitivePlan> bin_x_grasps_poses;
+        bin_x_grasps_poses.resize(bin_poses.size() * item_grasps.size());
 
         std::vector<apc_msgs::PrimitivePlan> valid_grasps;
 #pragma omp parallel num_threads(8)
@@ -378,21 +399,29 @@ namespace moveit_rviz_plugin
                                                                item_grasp.actions.end());
                         }
 
-                    } catch (std::exception& error) {
+                    } catch (apc_exception::Exception& error) {
                         ROS_DEBUG("Grasping failed with %s", error.what());
+
+                        // Only store to bin_x_grasp_poses on an error. We only
+                        // read from 'bin_x_grasp_poses' on all failure, anyhow.
+                        apc_msgs::PrimitivePlan& bin_grasp = bin_x_grasps_poses[j * item_grasps.size() + i];
+                        bin_grasp = bin_poses[j];
+                        bin_grasp.actions.insert(bin_grasp.actions.end(),
+                                                 item_grasp.actions.begin(),
+                                                 item_grasp.actions.end());
                     }
                 }
             }
         }
+
+        APC_ASSERT_PLAN_VECTOR(valid_grasps.size() > 0, bin_x_grasps_poses,
+                               "No valid grasp for item %s in bin %s!", item_id.c_str(), bin_id.c_str());
 
         std::vector<apc_msgs::PrimitivePlan> scoring_plans;
         computeReachableScoreWithItemPoses(scoring_plans, valid_grasps, start_state, world_state);
 
         if (scoring_plans.size() > 0)
             item_plan = scoring_plans[0];
-
-        APC_ASSERT(item_plan.actions.size() > 0,
-                   "No pick and place plan for bin %s!", bin_id.c_str());
     }
 
     void MotionPlanningFrame::retrieveScoreWithItemPoses(std::vector<apc_msgs::PrimitivePlan>& score_with_item_poses)
@@ -411,6 +440,10 @@ namespace moveit_rviz_plugin
         // Get the scoring poses.
         std::vector<apc_msgs::PrimitivePlan> score_poses;
         retrieveScoreWithItemPoses(score_poses);
+
+        // Debugging.
+        std::vector<apc_msgs::PrimitivePlan> grasp_x_score;
+        grasp_x_score.resize(valid_grasps.size() * score_poses.size());
 
 #pragma omp parallel num_threads(8)
         {
@@ -451,15 +484,21 @@ namespace moveit_rviz_plugin
                                                                score_pose.actions.end());
                         }
 
-                    } catch (std::exception& error) {
+                    } catch (apc_exception::Exception& error) {
                         ROS_DEBUG("Scoring pose failed with %s", error.what());
+
+                        apc_msgs::PrimitivePlan& grasp_score = grasp_x_score[j * valid_grasps.size() + i];
+                        grasp_score = valid_grasps[i];
+                        grasp_score.actions.insert(grasp_score.actions.end(),
+                                                   score_pose.actions.begin(),
+                                                   score_pose.actions.end());
                     }
                 }
             }
         }
 
-        APC_ASSERT(valid_scores.size() > 0,
-                   "No reachable scoring poses!");
+        APC_ASSERT_PLAN_VECTOR(valid_scores.size() > 0, grasp_x_score,
+                               "No reachable scoring poses!");
     }
 
     KeyPoseMap MotionPlanningFrame::computeExpectedWorldState(const apc_msgs::PrimitivePlan& plan,
@@ -572,13 +611,16 @@ namespace moveit_rviz_plugin
             }
             *primitive_plan_ = work_plan;
 
-        } catch (std::exception& error) {
+        } catch (apc_exception::Exception& error) {
             ROS_ERROR("Caught exception in %s", error.what());
+
+            // ROS_WARN_STREAM(error.what_plan);
+            work_plan = error.what_plan;
         }
 
         // If check plan, overwrite plan to active actions list.
         if (check_plan) {
-            ROS_DEBUG_STREAM("work_plan:\n" << work_plan);
+            // ROS_DEBUG_STREAM("work_plan:\n" << work_plan);
 
             planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, work_plan));
             {

@@ -128,7 +128,7 @@ namespace moveit_rviz_plugin
             updateFrameComboBox();
             updateObjectComboBox();
         }
-        catch (std::logic_error& e)
+        catch (std::exception& e)
         {
             ROS_ERROR("Caught rapidjson error: %s", e.what());
             return;
