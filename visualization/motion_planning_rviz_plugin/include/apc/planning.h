@@ -53,4 +53,6 @@ namespace apc_planning
 
     void preprocessPlanBeforeExecution(apc_msgs::PrimitivePlan& plan,
                                        const robot_state::RobotState& robot_state);
+
+    void resetPlanJointTrajectories(apc_msgs::PrimitivePlan& plan);
 }

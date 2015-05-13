@@ -232,7 +232,7 @@
               <enum>QTabWidget::North</enum>
              </property>
              <property name="currentIndex">
-              <number>3</number>
+              <number>1</number>
              </property>
              <property name="documentMode">
               <bool>true</bool>
@@ -337,15 +337,15 @@
                    </widget>
                   </item>
                   <item row="1" column="0">
-                   <widget class="QCheckBox" name="checkBox_2">
+                   <widget class="QCheckBox" name="plan_raw_checkbox">
                     <property name="enabled">
-                     <bool>false</bool>
+                     <bool>true</bool>
                     </property>
                     <property name="text">
-                     <string>Double up</string>
+                     <string>Plan raw</string>
                     </property>
                     <property name="checked">
-                     <bool>true</bool>
+                     <bool>false</bool>
                     </property>
                    </widget>
                   </item>
@@ -1367,7 +1367,7 @@ background-color: rgb(212, 208, 200);</string>
                      <item row="0" column="0">
                       <widget class="QCheckBox" name="checkBox_5">
                        <property name="text">
-                        <string>Update start</string>
+                        <string>Live start</string>
                        </property>
                        <property name="checked">
                         <bool>true</bool>
@@ -1375,12 +1375,9 @@ background-color: rgb(212, 208, 200);</string>
                       </widget>
                      </item>
                      <item row="1" column="0">
-                      <widget class="QCheckBox" name="checkBox_6">
+                      <widget class="QCheckBox" name="checkBox">
                        <property name="text">
-                        <string>Double up</string>
-                       </property>
-                       <property name="checked">
-                        <bool>true</bool>
+                        <string>Plan raw</string>
                        </property>
                       </widget>
                      </item>
@@ -3439,8 +3436,8 @@ background-color: rgb(212, 208, 200);</string>
    <slot>setValue(int)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>336</x>
-     <y>234</y>
+     <x>317</x>
+     <y>222</y>
     </hint>
     <hint type="destinationlabel">
      <x>277</x>
@@ -3455,8 +3452,8 @@ background-color: rgb(212, 208, 200);</string>
    <slot>setText(QString)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>336</x>
-     <y>199</y>
+     <x>317</x>
+     <y>193</y>
     </hint>
     <hint type="destinationlabel">
      <x>287</x>
@@ -3535,12 +3532,12 @@ background-color: rgb(212, 208, 200);</string>
    <slot>click()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>335</x>
-     <y>294</y>
+     <x>607</x>
+     <y>621</y>
     </hint>
     <hint type="destinationlabel">
-     <x>310</x>
-     <y>123</y>
+     <x>307</x>
+     <y>124</y>
     </hint>
    </hints>
   </connection>
@@ -3555,40 +3552,40 @@ background-color: rgb(212, 208, 200);</string>
      <y>116</y>
     </hint>
     <hint type="destinationlabel">
-     <x>335</x>
-     <y>294</y>
+     <x>607</x>
+     <y>621</y>
     </hint>
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_6</sender>
+   <sender>checkBox</sender>
    <signal>clicked()</signal>
-   <receiver>checkBox_2</receiver>
+   <receiver>plan_raw_checkbox</receiver>
    <slot>click()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>335</x>
-     <y>323</y>
+     <x>393</x>
+     <y>605</y>
     </hint>
     <hint type="destinationlabel">
-     <x>271</x>
-     <y>145</y>
+     <x>302</x>
+     <y>146</y>
     </hint>
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_2</sender>
+   <sender>plan_raw_checkbox</sender>
    <signal>stateChanged(int)</signal>
-   <receiver>checkBox_6</receiver>
+   <receiver>checkBox</receiver>
    <slot>toggle()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>235</x>
-     <y>148</y>
+     <x>252</x>
+     <y>149</y>
     </hint>
     <hint type="destinationlabel">
-     <x>335</x>
-     <y>323</y>
+     <x>372</x>
+     <y>612</y>
     </hint>
    </hints>
   </connection>

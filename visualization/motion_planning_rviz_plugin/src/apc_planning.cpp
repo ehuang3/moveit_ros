@@ -166,3 +166,12 @@ void apc_planning::preprocessPlanBeforeExecution(apc_msgs::PrimitivePlan& plan,
         action.joint_trajectory = N;
     }
 }
+
+void apc_planning::resetPlanJointTrajectories(apc_msgs::PrimitivePlan& plan)
+{
+    for (int i = 0; i < plan.actions.size(); i++) {
+        trajectory_msgs::JointTrajectoryPoint back = plan.actions[i].joint_trajectory.points.back();
+        plan.actions[i].joint_trajectory.points.resize(2);
+        plan.actions[i].joint_trajectory.points[1] = back;
+    }
+}

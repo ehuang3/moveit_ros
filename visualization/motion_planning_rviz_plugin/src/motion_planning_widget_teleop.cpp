@@ -929,7 +929,19 @@ namespace moveit_rviz_plugin
         // Compute the motion plan.
         try {
             KeyPoseMap world_state = computeWorldKeyPoseMap();
-            computePlan(plan, start_state, world_state);
+
+            // If the 'plan raw' checkbox is not checked, do the full planning
+            // pipeline computation.
+            if (!ui_->plan_raw_checkbox->isChecked()) {
+                computePlan(plan, start_state, world_state);
+            }
+            // If the 'plan raw' checkbox is checked however, strip the joint
+            // trajectories to the minimum and resend the plan for planning.
+            else {
+                apc_planning::resetPlanJointTrajectories(plan);
+                computeDenseMotionPlan(start_state, world_state, plan, 0);
+            }
+
             computeSmoothedPath(plan);
             *primitive_plan_ = plan;
             // planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::loadPrimitivePlanToActiveActions, this, plan),
