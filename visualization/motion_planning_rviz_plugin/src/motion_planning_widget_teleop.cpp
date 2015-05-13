@@ -159,21 +159,34 @@ namespace moveit_rviz_plugin
                                                           const apc_msgs::PrimitiveAction& action,
                                                           const int index)
     {
+        // 0. Index can be either a valid pos, invalid pos, or -1.
+        APC_ASSERT(index >= -1,
+                   "Failed to set state from action %s with index %d", action.action_name.c_str(), index);
         APC_ASSERT(!action.object_key.empty(),
                    "Missing object key for object ID %s in action %s", action.object_id.c_str(), action.action_name.c_str());
         APC_ASSERT(world_state.count(action.object_key) > 0,
                    "Missing object key %s in world state", action.object_key.c_str());
-        APC_ASSERT(action.object_trajectory.poses.size() > index,
-                   "Index %d out of bounds for object trajectory in action %s",
-                   index, action.action_name.c_str());
         // Clear attached bodies.
         robot_state.clearAttachedBodies();
+
         // Get the actual transform from world to object and the
         // desired transform from end-effector to object.
         Eigen::Affine3d T_object_world = world_state.find(action.object_key)->second;
         Eigen::Affine3d T_object_eef;
-        tf::poseMsgToEigen(action.object_trajectory.poses[index], T_object_eef);
-        // Get object shapes and shape poses from the world and conver
+        APC_ASSERT(action.object_trajectory.poses.size() > 0,
+                   "Missing a non-empty object trajectory for object key %s in action %s",
+                   action.object_key.c_str(), action.action_name.c_str());
+        if (index >= 0) {
+            APC_ASSERT(action.object_trajectory.poses.size() > index,
+                       "Index %d out of bounds for object trajectory in action %s",
+                       index, action.action_name.c_str());
+            tf::poseMsgToEigen(action.object_trajectory.poses[index], T_object_eef);
+        }
+        else if (index == -1) {
+            tf::poseMsgToEigen(action.object_trajectory.poses.back(), T_object_eef);
+        }
+
+        // Get object shapes and shape poses from the world and convert
         // them to the desired end-effector link frame.
         planning_scene_monitor::LockedPlanningSceneRO ps = planning_display_->getPlanningSceneRO();
         collision_detection::CollisionWorld::ObjectConstPtr object = ps->getWorld()->getObject(action.object_key);
@@ -196,14 +209,25 @@ namespace moveit_rviz_plugin
                                                  const int _index,
                                                  bool use_joint_angles_if_no_ik_solver)
     {
+        // 0. Index can be either a valid pos, invalid pos, or -1.
         int index = _index;
+        APC_ASSERT(index >= -1,
+                   "Failed to set state from action with index %d", index);
+
         // 1. If there is no frame ID, set state based on the joint
         // angles provided in the action.
         if (action.frame_id.empty()) {
-            APC_ASSERT(action.joint_trajectory.points.size() > index,
-                       "Index %d out of bounds for joint trajectory in action %s",
-                       index, action.action_name.c_str());
-            setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points[index]);
+            APC_ASSERT(action.joint_trajectory.points.size() > 0,
+                       "Failed to set state with an empty joint trajectory in action %s", action.action_name.c_str());
+            if (index >= 0) {
+                APC_ASSERT(action.joint_trajectory.points.size() > index,
+                           "Index %d out of bounds for joint trajectory in action %s",
+                           index, action.action_name.c_str());
+                setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points[index]);
+            }
+            else if (index == -1) {
+                setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
+            }
         }
 
         // 2. If there is a frame ID, set the state based on IK to the
@@ -224,6 +248,9 @@ namespace moveit_rviz_plugin
             APC_ASSERT(use_joint_angles_if_no_ik_solver || solver,
                        "Missing IK solver for group %s in action %s", action.group_id.c_str(), action.action_name.c_str());
             if (solver) {
+                APC_ASSERT(action.joint_trajectory.points.size() > 0,
+                           "Failed to set state with an empty joint trajectory in action %s", action.action_name.c_str());
+
                 // For each joint not solveable by the IK solver, set that joint's position manually.
                 trajectory_msgs::JointTrajectory no_ik;
                 no_ik.points.resize(1);
@@ -232,11 +259,16 @@ namespace moveit_rviz_plugin
                 for (int i = 0; i < action.joint_trajectory.joint_names.size(); i++) {
                     if (std::find(solver_joint_names.begin(), solver_joint_names.end(), group_joint_names[i]) ==
                         solver_joint_names.end()) {
-                        APC_ASSERT(action.joint_trajectory.points.size() > index,
-                                   "Index %d out of bounds for joint trajectory in action %s",
-                                   index, action.action_name.c_str());
                         no_ik.joint_names.push_back(group_joint_names[i]);
-                        no_ik.points[0].positions.push_back(action.joint_trajectory.points[index].positions[i]);
+                        if (index >= 0) {
+                            APC_ASSERT(action.joint_trajectory.points.size() > index,
+                                       "Index %d out of bounds for joint trajectory in action %s",
+                                       index, action.action_name.c_str());
+                            no_ik.points[0].positions.push_back(action.joint_trajectory.points[index].positions[i]);
+                        }
+                        else if (index == -1) {
+                            no_ik.points[0].positions.push_back(action.joint_trajectory.points.back().positions[i]);
+                        }
                     }
                 }
                 if (no_ik.joint_names.size() > 0) {
@@ -246,28 +278,53 @@ namespace moveit_rviz_plugin
                 // Set the remaining joints using IK.
                 APC_ASSERT(!action.eef_link_id.empty(),
                            "Missing IK link for frame ID %s in action %s", action.frame_id.c_str(), action.action_name.c_str());
-                if (action.eef_trajectory.poses.size() < index) {
-                    index = action.eef_trajectory.poses.size() - 1;
-                    ROS_WARN("Clamping eef index down");
-                }
-                APC_ASSERT(action.eef_trajectory.poses.size() > index,
-                           "Index %d out of bounds for end-effector trajectory in action %s",
-                           index, action.action_name.c_str());
                 APC_ASSERT(world_state.count(action.frame_key) > 0,
                            "Missing frame key %s in world state", action.frame_key.c_str());
-                setStateFromIK(robot_state, action.eef_link_id, solver->getGroupName(), world_state.find(action.frame_key)->second,
-                               action.eef_trajectory.poses[index]);
+                APC_ASSERT(action.eef_trajectory.poses.size() > 0,
+                           "Missing a non-empty eef trajectory for frame key %s in action %s",
+                           action.frame_key.c_str(), action.action_name.c_str());
+
+                if (index >= 0) {
+                    APC_ASSERT(action.eef_trajectory.poses.size() > index,
+                               "Index %d out of bounds for end-effector trajectory in action %s",
+                               index, action.action_name.c_str());
+                    setStateFromIK(robot_state, action.eef_link_id, solver->getGroupName(),
+                                   world_state.find(action.frame_key)->second, action.eef_trajectory.poses[index]);
+                }
+                else if (index == -1) {
+                    setStateFromIK(robot_state, action.eef_link_id, solver->getGroupName(),
+                                   world_state.find(action.frame_key)->second, action.eef_trajectory.poses.back());
+                }
+
+
             } else if (use_joint_angles_if_no_ik_solver) {
-                APC_ASSERT(action.joint_trajectory.points.size() > index,
-                           "Index %d out of bounds for joint trajectory in action %s",
-                           index, action.action_name.c_str());
-                setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points[index]);
+                APC_ASSERT(action.joint_trajectory.points.size() > 0,
+                           "Failed to set state with an empty joint trajectory in action %s", action.action_name.c_str());
+                if (index >= 0) {
+                    APC_ASSERT(action.joint_trajectory.points.size() > index,
+                               "Index %d out of bounds for joint trajectory in action %s",
+                               index, action.action_name.c_str());
+                    setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points[index]);
+                }
+                else if (index == -1) {
+                    setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
+                }
             }
         }
 
-        // 3. If there is an object to attach, attach that object.
+        // 3. If there is an object to attach, attach that object. TODO Replace with is_action_<blank>() function call
         if (!action.object_id.empty() && !action.object_key.empty()) {
-            setAttachedObjectFromAction(robot_state, world_state, action, index);
+            // 4. Special case: the object is in the object_id and object_key,
+            // but there is no object_trajectory. This only happens when the
+            // trajectory is an autogenerated pregrasp. The autogenerated
+            // actions have name "vvvvv".
+            if (action.object_trajectory.poses.size() == 0 && action.action_name == "vvvvv") {
+                robot_state.clearAttachedBodies();
+            }
+            // Else, do 3.
+            else {
+                setAttachedObjectFromAction(robot_state, world_state, action, index);
+            }
         } else {
             robot_state.clearAttachedBodies();
         }
@@ -306,6 +363,8 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < plan.actions.size(); i++) {
             apc_msgs::PrimitiveAction& action = plan.actions[i];
 
+            ROS_WARN("Computing frames for action: %s", action.action_name.c_str());
+
             // Compute a frame key if a frame ID is specified.
             if (!action.frame_id.empty() && action.frame_key.empty()) {
                 action.frame_key = computeNearestFrameKey(action.frame_id, action.eef_link_id, robot_state, world_state);
@@ -322,10 +381,12 @@ namespace moveit_rviz_plugin
 
             // Move robot state to goal position.
             int num_points = action.joint_trajectory.points.size();
-            setStateFromAction(robot_state, world_state, action, num_points - 1, true);
+            setStateFromAction(robot_state, world_state, action, -1, true);
 
-            // Move object to goal position.
-            if (!action.object_id.empty()) {
+            // Move object to goal position. TODO Replace with is_action_<blank>() function call
+            // FIXME We want to move the object to the goal position only when
+            // the action is grasp, post-grasp, or non-prehensile.
+            if (!action.object_id.empty() && action.object_trajectory.poses.size() > 0) {
                 Eigen::Affine3d T_link_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
                 Eigen::Affine3d T_object_link;
                 tf::poseMsgToEigen(action.object_trajectory.poses.back(), T_object_link);
@@ -588,13 +649,20 @@ namespace moveit_rviz_plugin
 
             APC_ASSERT(_compute_dense_motion_clients[client_index].call(srv),
                        "Failed call to dense motion planning service");
+
+            // Copy returned action to plan.
+            action = srv.response.action;
+
+            // On failure, resize to hold up to the failed action. We do this
+            // for visualization of the failed trajectory.
+            if (!srv.response.collision_free || !srv.response.valid) {
+                plan.actions.resize(i + 1);
+            }
+
             APC_ASSERT(srv.response.collision_free,
                        "Failed to find collision free trajectory");
             APC_ASSERT(srv.response.valid,
                        "Failed to find valid trajectory");
-
-            // Copy returned action to plan.
-            action = srv.response.action;
 
             // Move robot state to goal position.
             setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
@@ -828,6 +896,7 @@ namespace moveit_rviz_plugin
         computeNearestFrameAndObjectKeys(start_state, world_state, plan);
         computeActionJointTrajectoryPoints(start_state, world_state, plan);
         computeFullyConnectedPlan(start_state, plan);
+        apc_planning::partitionPlanBySubgroups(plan, start_state);
         computeDenseMotionPlan(start_state, world_state, plan, client_index);
     }
 

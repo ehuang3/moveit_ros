@@ -67,6 +67,10 @@ set(SOURCE_FILES
   src/motion_planning_widget_stored_plans.cpp
   src/motion_planning_widget_stored_plans_slots.cpp
 
+  # Object symmetry widget.
+  src/motion_planning_widget_symmetry.cpp
+  src/motion_planning_widget_symmetry_slots.cpp
+
   # APC helpers
   src/apc_eigen.cpp
   src/apc_exception.cpp

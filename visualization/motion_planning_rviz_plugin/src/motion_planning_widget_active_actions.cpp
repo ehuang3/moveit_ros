@@ -618,7 +618,7 @@ namespace moveit_rviz_plugin
         computeNearestFrameAndObjectKeysPartial(start, world_state, plan);
         // Set states from action.
         setStateFromAction(start, world_state, plan.actions[0], 0, true);
-        setStateFromAction(goal, world_state, plan.actions[0], num_points-1, true);
+        setStateFromAction(goal, world_state, plan.actions[0], -1, true);
         // Update
         start.update();
         goal.update();

@@ -75,12 +75,17 @@ namespace moveit_rviz_plugin
 
         // Save state and settings to action.
         apc_msgs::PrimitiveAction action;
-        saveStartAndGoalToAction(action);
-        saveFrameToAction(action);
-        saveOptionsToAction(action);
-        saveObjectToAction(action);
-        saveFormatToAction(action);
-        saveLockedStateToAction(action);
+        try {
+            saveStartAndGoalToAction(action);
+            saveFrameToAction(action);
+            saveOptionsToAction(action);
+            saveObjectToAction(action);
+            saveFormatToAction(action);
+            saveLockedStateToAction(action);
+        } catch (std::exception& error) {
+            ROS_INFO("Failed to insert action in %s", error.what());
+            return;
+        }
 
         ROS_DEBUG_STREAM("==================== Action ====================\n"
                          << action
@@ -132,8 +137,8 @@ namespace moveit_rviz_plugin
             active_actions_list->setCurrentRow(std::max(row - 1, 0));
 
         // Load all actions into waypoint display.
-        QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
-        loadWaypointsToDisplay(actions);
+        // QList<QListWidgetItem*> actions = ui_->active_actions_list->findItems(".*", Qt::MatchRegExp);
+        // loadWaypointsToDisplay(actions);
     }
 
     void MotionPlanningFrame::replaceActionButtonClicked()

@@ -117,8 +117,8 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::loadOrderBinToScene()
     {
-        std::string object_key = "bin_order";
-        std::string object_model_path = computeItemModelPath("bin_order");
+        std::string object_key = "order_bin";
+        std::string object_model_path = computeItemModelPath("order_bin");
         Eigen::Matrix4d T_object_world;
         T_object_world.matrix() <<
             1, 0, 0, -0.4,

@@ -176,7 +176,10 @@ namespace moveit_rviz_plugin
                    "Failed call run vision service");
 
         // Copy objects to their bin poses in the world state.
+        try
         {
+            ROS_INFO_STREAM(run_vision.response);
+
             apc_vision::BinKeyMap bin_item_keys;
             apc_vision::getBinItemKeys(bin_item_keys, ui_->bin_contents_table_widget);
             KeyPoseMap world_state = computeWorldKeyPoseMap();
@@ -189,9 +192,14 @@ namespace moveit_rviz_plugin
                 // Skip over non-items.
                 if (!testForItemKey(item->first))
                     continue;
+                APC_ASSERT(world->getObject(item->first),
+                           "Failed to get item %s from world", item->first.c_str());
                 world->getObject(item->first)->shape_poses_[0] = item->second;
             }
             planning_display_->queueRenderSceneGeometry();
+        } catch (std::exception& error) {
+            ROS_ERROR("Caught vision response error in %s",
+                      error.what());
         }
     }
 

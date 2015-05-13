@@ -36,21 +36,15 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#pragma once
-#include <apc_msgs/PrimitiveAction.h>
-#include <apc_msgs/PrimitivePlan.h>
-#include <moveit/robot_state/robot_state.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include "ui_motion_planning_rviz_plugin_frame.h"
 
-
-namespace apc_planning
+namespace moveit_rviz_plugin
 {
-    void copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
-                                              const apc_msgs::PrimitiveAction& source,
-                                              const robot_state::RobotState& robot_state);
-
-    void partitionPlanBySubgroups(apc_msgs::PrimitivePlan& plan,
-                                  const robot_state::RobotState& robot_state);
-
-    void preprocessPlanBeforeExecution(apc_msgs::PrimitivePlan& plan,
-                                       const robot_state::RobotState& robot_state);
+    void MotionPlanningFrame::loadItemsForSymmetryList(const std::vector<std::string>& item_ids)
+    {
+        QListWidget* item_list = ui_->items_for_symmetry_list;
+        item_list->clear();
+    }
 }

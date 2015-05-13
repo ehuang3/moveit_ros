@@ -53,7 +53,8 @@ namespace moveit_rviz_plugin
     bool MotionPlanningFrame::testForItemKey(const std::string& key)
     {
         return (key.find("bin") != 0 &&
-                key.find("kiva_pod") != 0);
+                key.find("kiva_pod") != 0 &&
+                key.find("order_bin") != 0);
     }
 
     bool MotionPlanningFrame::testForBinKey(const std::string& key)
@@ -378,17 +379,87 @@ namespace moveit_rviz_plugin
                         }
 
                     } catch (std::exception& error) {
-                        ROS_DEBUG("Starting pose failed with %s", error.what());
+                        ROS_DEBUG("Grasping failed with %s", error.what());
                     }
                 }
             }
         }
 
-        if (valid_grasps.size() > 0)
-            item_plan = valid_grasps[0];
+        std::vector<apc_msgs::PrimitivePlan> scoring_plans;
+        computeReachableScoreWithItemPoses(scoring_plans, valid_grasps, start_state, world_state);
+
+        if (scoring_plans.size() > 0)
+            item_plan = scoring_plans[0];
 
         APC_ASSERT(item_plan.actions.size() > 0,
-                   "No reachable poses for bin %s!", bin_id.c_str());
+                   "No pick and place plan for bin %s!", bin_id.c_str());
+    }
+
+    void MotionPlanningFrame::retrieveScoreWithItemPoses(std::vector<apc_msgs::PrimitivePlan>& score_with_item_poses)
+    {
+        score_with_item_poses = findMatchingPlansAny("", ".*", ".*", "order_bin", ".*", ".*", false);
+    }
+
+    void MotionPlanningFrame::computeReachableScoreWithItemPoses(std::vector<apc_msgs::PrimitivePlan>& valid_scores,
+                                                                 const std::vector<apc_msgs::PrimitivePlan>& valid_grasps,
+                                                                 const robot_state::RobotState& start_state,
+                                                                 const KeyPoseMap& world_state)
+    {
+        // Clear valid scores.
+        valid_scores.clear();
+
+        // Get the scoring poses.
+        std::vector<apc_msgs::PrimitivePlan> score_poses;
+        retrieveScoreWithItemPoses(score_poses);
+
+#pragma omp parallel num_threads(8)
+        {
+#pragma omp for
+            for (int i = 0; i < valid_grasps.size(); i++) {
+                if (valid_scores.size() > 0) {
+                    continue;
+                }
+
+                bool valid = false;
+
+                for (int j = 0; j < score_poses.size(); j++) {
+                    if (valid)
+                        continue;
+
+                    apc_msgs::PrimitivePlan score_pose = score_poses[j];
+
+                    robot_state::RobotState robot_state = start_state;
+                    setStateToPlanJointTrajectoryEnd(robot_state, valid_grasps[i]);
+                    // Compute the trajectory from starting pose to bin. If it
+                    // works, add the plan from starting pose to bin pose to the
+                    // valid bin poses.
+                    try {
+                        ROS_DEBUG("Testing scoring pose: %s", score_pose.plan_name.c_str());
+                        // On failure an exception is thrown.
+                        computePlan(score_pose, robot_state, world_state, i % 8);
+
+                        // This line will only be reached if the bin pose was valid.
+                        valid = true;
+
+                        // Append valid grasp to vector.
+#pragma omp critical
+                        {
+                            valid_scores.push_back(apc_msgs::PrimitivePlan());
+                            valid_scores.back() = valid_grasps[i];
+                            valid_scores.back().actions.insert(valid_scores.back().actions.end(),
+                                                               score_pose.actions.begin(),
+                                                               score_pose.actions.end());
+                        }
+
+                    } catch (std::exception& error) {
+                        ROS_DEBUG("Scoring pose failed with %s", error.what());
+                    }
+                }
+            }
+        }
+
+        APC_ASSERT(valid_scores.size() > 0,
+                   "No reachable scoring poses!");
     }
 
     KeyPoseMap MotionPlanningFrame::computeExpectedWorldState(const apc_msgs::PrimitivePlan& plan,
@@ -443,9 +514,11 @@ namespace moveit_rviz_plugin
             // Compute a pick and place plan for the item.
             computePickAndPlaceForItem(item_plan, bin_id, item_id, robot_state, world_state);
 
+            ROS_WARN_STREAM("item_plan:\n" << item_plan);
+
             // Compute the expected states after executing the plan.
-            world_state = computeExpectedWorldState(item_plan, robot_state, world_state);
-            robot_state = computeExpectedRobotState(item_plan, robot_state, world_state);
+            // world_state = computeExpectedWorldState(item_plan, robot_state, world_state);
+            // robot_state = computeExpectedRobotState(item_plan, robot_state, world_state);
 
             // Store pick and place into record plan.
             work_plan.actions.insert(work_plan.actions.end(),
@@ -493,6 +566,11 @@ namespace moveit_rviz_plugin
         try {
             // Run APC.
             computeRunAPC(work_plan, work_order, robot_state, world_state, use_vision, execute);
+
+            if (!primitive_plan_) {
+                primitive_plan_.reset(new apc_msgs::PrimitivePlan);
+            }
+            *primitive_plan_ = work_plan;
 
         } catch (std::exception& error) {
             ROS_ERROR("Caught exception in %s", error.what());

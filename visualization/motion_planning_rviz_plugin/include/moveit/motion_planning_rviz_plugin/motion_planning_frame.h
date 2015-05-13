@@ -283,6 +283,9 @@ private Q_SLOTS:
   void objectClicked(QListWidgetItem* item);
   void objectSelectionChanged();
 
+  // Symmetry slots.
+  void loadItemsForSymmetryList(const std::vector<std::string>& item_ids);
+
 private:
 
   // Widget slots.
@@ -299,269 +302,60 @@ private:
 
   // Teleoperation widget.
 
-  /**
-   * @brief Extracts the frames and object poses from the current
-   * planning scene. Each pose is associated with the unique
-   * identifying key of its frame or object.
-   *
-   * @return  The current frame/object poses.
-   */
   KeyPoseMap computeWorldKeyPoseMap();
-
-  /**
-   * @brief Certain frame and object IDs are ambiguous, such as "bin"
-   * or "oreo_mega_stuf" in the presence of duplicates. This function
-   * computes the unique frame key of the frame nearest to the input
-   * link given the robot and world states.
-   *
-   * @param frame_id  The frame ID. May be ambiguous, like "bin".
-   * @param link_id  The robot link we evaluate nearest to.
-   * @param robot  The robot state.
-   * @param world  The world state.
-   *
-   * @return  The frame key nearest to the link.
-   */
   std::string computeNearestFrameKey(const std::string& frame_id,
                                      const std::string& link_id,
                                      const robot_state::RobotState& robot,
                                      const KeyPoseMap& world);
-
-  /**
-   * @brief Sets the input joint angles to the robot state. The ith
-   * joint position in 'point' will be set to the joint with the ith
-   * name in 'joint_names'.
-   *
-   * @param robot  The robot state to modify.
-   * @param joint_names  The joints to set.
-   * @param point  The joint angle values to set.
-   *
-   * @return  True on success.
-   */
   bool setStateFromPoint(robot_state::RobotState& robot,
                          const std::vector<std::string>& joint_names,
                          const trajectory_msgs::JointTrajectoryPoint& point);
-
-  /**
-   * @brief Sets the robot state using IK so that the given link is
-   * located at the given world to link transform.
-   *
-   * @param robot  The robot state to set.
-   * @param link_id  The link to snap.
-   * @param group_id  The group to perform IK with.
-   * @param T_frame_world  The transform from world to frame.
-   * @param pose_link_frame  The transform from frame to link.
-   *
-   * @return  True on success.
-   */
   bool setStateFromIK(robot_state::RobotState& robot,
                       const std::string& link_id,
                       const std::string& group_id,
                       const Eigen::Affine3d& T_frame_world,
                       const geometry_msgs::Pose& pose_link_frame);
-
-  /**
-   * @brief Sets the robot state using IK so that the given link is
-   * located at the given world to link transform. If no IK solver
-   * exists for the group the joints can be optionally set using the
-   * joint angles in the action's joint angle trajectory.
-   *
-   * @param robot_state  A reference to the robot state to set.
-   * @param world_state  The world state.
-   * @param action  The action to set states with.
-   * @param pose_index  The index into the eef pose trajectory of the pose to IK to.
-   * @param use_joint_angles_if_no_ik_solver  The transform from frame to link.
-   *
-   * @return  True on success.
-   */
-  bool setStateFromIkUsingAction(robot_state::RobotState& robot_state,
-                                 const KeyPoseMap& world_state,
-                                 const apc_msgs::PrimitiveAction& action,
-                                 const int pose_index,
-                                 bool use_joint_angles_if_no_ik_solver = false);
-
   bool setAttachedObjectFromAction(robot_state::RobotState& robot_state,
                                    const KeyPoseMap& world_state,
                                    const apc_msgs::PrimitiveAction& action,
                                    const int index);
-
   bool setStateFromAction(robot_state::RobotState& robot_state,
                           const KeyPoseMap& world_state,
                           const apc_msgs::PrimitiveAction& action,
                           const int index,
                           bool use_joint_angles_if_no_ik_solver = false);
-
-  /**
-   * @brief Certain frame and object IDs are ambiguous, such as "bin"
-   * or "oreo_mega_stuf" in the presence of duplicates. This function
-   * computes the unique object key nearest to the input link given
-   * the robot and world states.
-   *
-   * @param object_id  The object ID.
-   * @param link_id  The robot link we evaluate nearest to.
-   * @param robot  The robot state.
-   * @param world  The world state.
-   *
-   * @return The object key nearest to the link.
-   */
   std::string computeNearestObjectKey(const std::string& object_id,
                                       const std::string& link_id,
                                       const robot_state::RobotState& robot,
                                       const KeyPoseMap& world);
-
-  /**
-   * @brief Certain frame and object IDs are ambiguous, such as "bin"
-   * or "oreo_mega_stuf" in the presence of duplicates. This function
-   * computes the nearest frame and object keys (which are unique)
-   * given a starting state and a plan to follow. The computed keys
-   * are stored in the input plan. The input plan must not have any
-   * keys filled out already.
-   *
-   * @param start  The starting state of the robot.
-   * @param world  The starting frame/object poses.
-   * @param plan  The plan we will compute frame and object keys for.
-   *
-   * @return  The frame/object poses at the end of plan execution.
-   */
   KeyPoseMap computeNearestFrameAndObjectKeys(const robot_state::RobotState& start,
                                               const KeyPoseMap& world,
                                               apc_msgs::PrimitivePlan& plan);
-
-  /**
-   * @brief Certain frame and object IDs are ambiguous, such as "bin"
-   * or "oreo_mega_stuf" in the presence of duplicates. This function
-   * computes the nearest frame and object keys (which are unique)
-   * given a starting state and a plan to follow. The computed keys
-   * are stored in the input plan. The input plan is allowed to have
-   * keys partially filled out already.
-   *
-   * @param start  The starting state of the robot.
-   * @param world  The starting frame/object poses.
-   * @param plan  The plan we will compute frame and object keys for.
-   *
-   * @return  The frame/object poses at the end of plan execution.
-   */
   KeyPoseMap computeNearestFrameAndObjectKeysPartial(const robot_state::RobotState& start,
                                                      const KeyPoseMap& world,
                                                      apc_msgs::PrimitivePlan& plan);
-
-  /**
-   * @brief This function sets the input robot state to the 'index' point
-   * action's joint trajectory. Only the joint angles of joints named
-   * in the action joint trajectory are appended.
-   *
-   * @param state  The input robot state.
-   * @param action  The action to modify.
-   * @param index  The index of the joint trajectory to modify.
-   */
   void setStateToActionJointTrajectory(const robot_state::RobotState& state,
                                        apc_msgs::PrimitiveAction& action,
                                        int index);
-
-  /**
-   * @brief Over the course of a plan, objects may move when actions
-   * are taken. Given an input plan with frame and object keys, this
-   * function tracks object motion over each action and computes the
-   * correct joint angle trajectory points relative to those object
-   * displacements. The trajetory points are written into the input
-   * plan.
-   *
-   * @param start  The starting state of the robot.
-   * @param world  The starting frame/object poses.
-   * @param plan  The plan we will compute joint trajectory points
-   *              for. Note that frame and object keys must exist.
-   *
-   * @return  The frame/object poses at the end of plan execution.
-   */
   KeyPoseMap computeActionJointTrajectoryPoints(const robot_state::RobotState& start,
                                                 const KeyPoseMap& world,
                                                 apc_msgs::PrimitivePlan& plan);
-
-
-  /**
-   * @brief Copies frame/object keys and poses to world state
-   * message. Note that this function will attempt to extract
-   * frame/object IDs from keys and will throw an exception on failure
-   * to do so.
-   *
-   * @param keypose  The keys and poses to copy.
-   * @param state  The output world state.
-   */
   void setWorldKeyPoseToWorldStateMessage(const KeyPoseMap& keypose,
                                           apc_msgs::WorldState& state);
-
-
-  /**
-   * @brief Inserts additional actions into the plan if needed to
-   * connect previous states to next states.
-   *
-   * @param plan  Plan to process.
-   */
   void computeFullyConnectedPlan(const robot_state::RobotState& start,
                                  apc_msgs::PrimitivePlan& plan);
-
-
-  /**
-   * @brief Checks whether the action moves an object.
-   *
-   * @param action  The action to check.
-   *
-   * @return  True if the action moves an object.
-   */
   bool doesActionMoveAnItem(const apc_msgs::PrimitiveAction& action);
-
-  /**
-   * @brief Compute a dense motion plan given the input sparse
-   * plan. The dense motion plan is computed using the input sparse
-   * joint angle trajectories. If needed, additional actions are
-   * inserted to connect previous action goal states to the next
-   * action start states. This function makes ROS services calls to
-   * the external trajopt planner.
-   *
-   * @param start  The starting state of the robot.
-   * @param world  The starting frame/object poses.
-   * @param plan  The input plan.
-   *
-   * @return  The frame/object poses at the end of plan execution.
-   */
   KeyPoseMap computeDenseMotionPlan(const robot_state::RobotState& start,
                                     const KeyPoseMap& world,
                                     apc_msgs::PrimitivePlan& plan,
                                     int client_index);
-
-  /**
-   * @brief Computes a smooth path for all joint trajectories in the
-   * plan while respecting velocity and acceleration limits.
-   *
-   * @param plan  The plan to smooth.
-   */
   void computeSmoothedPath(apc_msgs::PrimitivePlan& plan);
-
-  /**
-   * @brief Returns the current active actions (in the GUI) as a
-   * primitive plan.
-   *
-   * @return The aggregated actions.
-   */
   apc_msgs::PrimitivePlan getPrimitivePlanFromActiveActions();
-
-  /**
-   * @brief Load the input plan into the active actions list (in the
-   * GUI). This function is only safe to call in the Qt main thread.
-   *
-   * @param plan  The plan to load.
-   */
   void loadPrimitivePlanToActiveActions(const apc_msgs::PrimitivePlan& plan);
-
   void computePlan(apc_msgs::PrimitivePlan& plan,
                    const robot_state::RobotState start_state,
                    const KeyPoseMap& world_state,
                    int client_index = 0);
-
-  /**
-   * @brief This function takes the currently active actions and
-   * computes a dense trajectory plan for them. The plan is reloaded
-   * into the active actions when it is finished generating.
-   */
   void computePlanButtonClicked();
 
   void loadPlanToPreview(const moveit_msgs::RobotState& start_state,
@@ -582,102 +376,20 @@ private:
   bool showQueryGoalInteractiveMarkers();
 
   // Pick and place widget.
-
-  /**
-   * @brief Test if the input is an object key.
-   *
-   * @param key  The key to test.
-   *
-   * @return  True if the input is an object key.
-   */
   bool testForItemKey(const std::string& key);
-
-  /**
-   * @brief Test if the input is an bin key.
-   *
-   * @param key  The key to test.
-   *
-   * @return  True if the input is an bin key.
-   */
   bool testForBinKey(const std::string& key);
-
-  /**
-   * @brief Find the nearest bin to the input item.
-   *
-   * @param item_key  The target item.
-   * @param world  The world state.
-   *
-   * @return  The frame ID of the nearest bin.
-   */
   std::string findNearestBinToItemKey(const std::string& item_key,
                                       const KeyPoseMap& world);
-
-  /**
-   * @brief Returns the keys if items nearest to the input bin.
-   *
-   * @param bin_id  The target bin.
-   * @param world  The world state.
-   *
-   * @return  The items in the bin.
-   */
   std::vector<std::string> findItemKeysInBin(const std::string& bin_id,
                                              const KeyPoseMap& world);
-
-  /**
-   * @brief Returns the keys of items in the bin that match the input item ID.
-   *
-   * @param bin_id  The name of the bin to search in, e.g. "bin_A".
-   * @param item_id  The ID of the item to find.
-   * @param world  The world state.
-   *
-   * @return  A vector of matched item keys in the bin.
-   */
   std::vector<std::string> findItemKeysInBinMatchingItemID(const std::string& bin_id,
                                                            const std::string& item_id,
                                                            const KeyPoseMap& world);
-
-  /**
-   * @brief Returns a list of the robot model's end-effectors.
-   *
-   * @return  A list of end-effectors.
-   */
   std::vector<srdf::Model::EndEffector> getEndEffectors();
-
-  /**
-   * @brief Returns whether the input string 'in' matches the regex of 'expr'.
-   *
-   * @param in  The string to match to the regex.
-   * @param expr  The regex to match the string with.
-   *
-   * @return  True if match.
-   */
   bool matchRegex(const std::string& in,
                   const std::string& expr);
-
-  /**
-   * @brief Returns whether the input string matches the regex.
-   *
-   * @param in  String to match.
-   * @param expr  Expression to match with.
-   *
-   * @return  True if match.
-   */
   bool matchEef(const std::string& in,
                 const std::string& expr);
-
-  /**
-   * @brief Find all plans in the database for which at least one of
-   * their actions matches regex expressions for each setting.
-   *
-   * @param database  The name of the database to load. TODO
-   * @param group_expr  The group regex to match.
-   * @param frame_expr  The frame regex to match.
-   * @param object_expr  The object regex to match.
-   * @param eef_expr  The end-effector regex to match.
-   * @param grasp  The grasp setting to match
-   *
-   * @return  All the plans that satisfy the above conditions.
-   */
   std::vector<apc_msgs::PrimitivePlan> findMatchingPlansAny(const std::string& database = "",
                                                             const std::string& plan_expr = ".*",
                                                             const std::string& group_expr = ".*",
@@ -685,37 +397,21 @@ private:
                                                             const std::string& object_expr = ".*",
                                                             const std::string& eef_expr = ".*",
                                                             bool grasp = false);
-
   void setStateToPlanJointTrajectoryEnd(robot_state::RobotState& robot_state,
                                         const apc_msgs::PrimitivePlan& plan);
-
   void retrieveItemGrasps(std::vector<apc_msgs::PrimitivePlan>& item_grasps,
                           const std::string& item_id);
-
-  /**
-   * @brief Compute a plan for pick and place of the input item.
-   *
-   * @param bin  The bin ID the item is located in.
-   * @param item_id  The item ID of the item to pick.
-   * @param start  The robot's start state.
-   * @param world  The world's start state.
-   *
-   * @return  A dense joint trajectory plan for the item.
-   */
   void computePickAndPlaceForItem(apc_msgs::PrimitivePlan& item_plan,
                                   const std::string& bin,
                                   const std::string& item_id,
                                   const robot_state::RobotState& start,
                                   const KeyPoseMap& world);
-
   KeyPoseMap computeExpectedWorldState(const apc_msgs::PrimitivePlan& plan,
                                        const robot_state::RobotState& robot_state,
                                        const KeyPoseMap& world_state);
-
   robot_state::RobotState computeExpectedRobotState(const apc_msgs::PrimitivePlan& plan,
                                                     const robot_state::RobotState& robot_state,
                                                     const KeyPoseMap& world_state);
-
   void computeRunAPC(apc_msgs::PrimitivePlan& work_plan,
                      const WorkOrder& work_order,
                      const robot_state::RobotState& start,
@@ -728,6 +424,12 @@ private:
   void computeRunAPCButtonClicked();
 
   // Pick and place again
+
+  void retrieveScoreWithItemPoses(std::vector<apc_msgs::PrimitivePlan>& score_with_item_poses);
+  void computeReachableScoreWithItemPoses(std::vector<apc_msgs::PrimitivePlan>& valid_scores,
+                                          const std::vector<apc_msgs::PrimitivePlan>& valid_grasps,
+                                          const robot_state::RobotState& start_state,
+                                          const KeyPoseMap& world_state);
 
   // Get a list of starting poses from the database.
   void retrieveStartingPoses(std::vector<apc_msgs::PrimitivePlan>& starts);

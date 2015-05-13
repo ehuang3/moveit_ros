@@ -38,9 +38,113 @@
  *********************************************************************/
 #include <apc/planning.h>
 #include <apc/exception.h>
+#include <ros/ros.h>
+#include <sstream>
 
 
+void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
+                                                        const apc_msgs::PrimitiveAction& source,
+                                                        const robot_state::RobotState& robot_state)
+{
+    APC_ASSERT(target.group_id != source.group_id,
+               "Why are you copying the same group from source to target?");
+    typedef std::vector<std::string> JointNames;
+    JointNames target_names = robot_state.getJointModelGroup(target.group_id)->getVariableNames();
+    JointNames source_names = source.joint_trajectory.joint_names;
+    trajectory_msgs::JointTrajectory target_traj = target.joint_trajectory;
+    trajectory_msgs::JointTrajectory source_traj = source.joint_trajectory;
+    target_traj.joint_names.clear();
+    target_traj.points.clear();
+    target_traj.points.resize(source_traj.points.size());
+    for (int i = 0; i < source_names.size(); i++) {
+        if (std::find(target_names.begin(), target_names.end(), source_names[i]) != target_names.end()) {
+            target_traj.joint_names.push_back(source_names[i]);
+            for (int j = 0; j < source_traj.points.size(); j++) {
+                target_traj.points[j].positions.push_back(source_traj.points[j].positions[i]);
+            }
+        }
+    }
+    APC_ASSERT(target_names.size() == target_traj.joint_names.size(),
+               "Failed to find some variable name in source %s", source.action_name.c_str());
+    target.joint_trajectory = target_traj;
+}
 
+void apc_planning::partitionPlanBySubgroups(apc_msgs::PrimitivePlan& _plan,
+                                            const robot_state::RobotState& robot_state)
+{
+    apc_msgs::PrimitivePlan input_plan = _plan;
+    apc_msgs::PrimitivePlan output_plan;
+    // Partition...
+    for (int i = 0; i < input_plan.actions.size(); i++) {
+        bool partition = false;
+        kinematics::KinematicsBaseConstPtr solver =
+            robot_state.getJointModelGroup(input_plan.actions[i].group_id)->getSolverInstance();
+        if (solver) {
+            partition = false;
+        } else {
+            // Check for subgroup disparity in kinematics sovlers.
+            std::vector<const moveit::core::JointModelGroup*> subgroups;
+            robot_state.getJointModelGroup(input_plan.actions[i].group_id)->getSubgroups(subgroups);
+            int d = 0;
+            for (int j = 0; j < subgroups.size(); j++) {
+                solver = subgroups[j]->getSolverInstance();
+                int s = solver ? 1 : -1;
+                if (d == 0)
+                    d = solver ? 1 : -1;
+                else if (s != d) {
+                    partition = true;
+                    break;
+                }
+            }
+        }
+
+        if (partition) {
+            ROS_WARN("Preparing to split action %s", input_plan.actions[i].action_name.c_str());
+
+            int split_index = 0;
+            std::vector<const moveit::core::JointModelGroup*> subgroups;
+            robot_state.getJointModelGroup(input_plan.actions[i].group_id)->getSubgroups(subgroups);
+
+            // First plan for the groups with a solver (i.e. the arm).
+            for (int j = 0; j < subgroups.size(); j++) {
+                solver = subgroups[j]->getSolverInstance();
+                if (solver) {
+                    // Clone the action.
+                    apc_msgs::PrimitiveAction clone_action = input_plan.actions[i];
+                    clone_action.group_id = subgroups[j]->getName();
+                    copyJointTrajectoryRestrictedToGroup(clone_action,
+                                                         input_plan.actions[i],
+                                                         robot_state);
+                    std::stringstream ss;
+                    ss << clone_action.action_name << "_s" << split_index++;
+                    clone_action.action_name = ss.str();
+                    output_plan.actions.push_back(clone_action);
+                }
+            }
+
+            // Next plan for groups without a solver (i.e. the hand).
+            for (int j = 0; j < subgroups.size(); j++) {
+                solver = subgroups[j]->getSolverInstance();
+                if (!solver) {
+                    // Clone the action.
+                    apc_msgs::PrimitiveAction clone_action = input_plan.actions[i];
+                    clone_action.group_id = subgroups[j]->getName();
+                    copyJointTrajectoryRestrictedToGroup(clone_action,
+                                                         input_plan.actions[i],
+                                                         robot_state);
+                    std::stringstream ss;
+                    ss << clone_action.action_name << "_s" << split_index++;
+                    clone_action.action_name = ss.str();
+                    output_plan.actions.push_back(clone_action);
+                }
+            }
+        } else {
+            output_plan.actions.push_back(input_plan.actions[i]);
+        }
+    }
+    output_plan.plan_name = input_plan.plan_name;
+    _plan = output_plan;
+}
 
 void apc_planning::preprocessPlanBeforeExecution(apc_msgs::PrimitivePlan& plan,
                                                  const robot_state::RobotState& robot_state)

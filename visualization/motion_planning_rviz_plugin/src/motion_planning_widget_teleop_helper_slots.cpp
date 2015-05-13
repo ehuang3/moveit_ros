@@ -230,7 +230,7 @@ namespace moveit_rviz_plugin
             frame->addItem(ui_->bin_contents_table_widget->selectedItems()[0]->text());
         // Add generic "bin".
         frame->addItem("bin");
-        frame->addItem("bin_order");
+        frame->addItem("order_bin");
         // Add specific bins.
         for (char a = 'A'; a <= 'L'; a++)
             frame->addItem(QString("bin_%1").arg(a));

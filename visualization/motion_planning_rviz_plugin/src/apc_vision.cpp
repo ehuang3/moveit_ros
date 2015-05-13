@@ -48,7 +48,7 @@ void apc_vision::getBinItemKeys(BinKeyMap& bin_item_keys,
     bin_item_keys.clear();
     for (int i = 0; i < bin_contents->rowCount(); i++) {
         std::string bin_id = bin_contents->item(i, 0)->text().toStdString();
-        std::string item_key = bin_contents->item(i, 1)->text().toStdString();
+        std::string item_key = bin_contents->item(i, 1)->data(Qt::UserRole).toString().toStdString();
         bin_item_keys[bin_id].push_back(item_key);
     }
 }
