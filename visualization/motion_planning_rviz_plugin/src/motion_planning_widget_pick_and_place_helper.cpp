@@ -76,6 +76,8 @@ namespace moveit_rviz_plugin
         widget->setCurrentCell(0,0, QItemSelectionModel::Clear);
         // Redraw scene geometry.
         planning_display_->queueRenderSceneGeometry();
+        // Call items loaded hook.
+        itemsLoadedHook();
     }
 
     std::vector<std::string>

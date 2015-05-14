@@ -95,6 +95,7 @@ class PlanningSceneStorage;
 class ConstraintsStorage;
 class RobotStateStorage;
 class PrimitivePlanStorage;
+class ItemSymmetryStorage;
 }
 
 
@@ -155,6 +156,7 @@ protected:
   boost::shared_ptr<moveit_warehouse::ConstraintsStorage> constraints_storage_;
   boost::shared_ptr<moveit_warehouse::RobotStateStorage> robot_state_storage_;
   boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> primitive_plan_storage_;
+  boost::shared_ptr<moveit_warehouse::ItemSymmetryStorage> item_symmetry_storage_;
 
   typedef std::map<std::string, boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> > PlanDatabaseMap;
   PlanDatabaseMap plan_databases_;
@@ -284,7 +286,18 @@ private Q_SLOTS:
   void objectSelectionChanged();
 
   // Symmetry slots.
+  void loadItemsForSymmetryList();
   void loadItemsForSymmetryList(const std::vector<std::string>& item_ids);
+  void saveSymmetriesButtonClicked();
+  void loadSymmetriesButtonClicked();
+  void addSymmetryButtonClicked();
+  void deleteSymmetryButtonClicked();
+  void itemForSymmetryClicked(QListWidgetItem* clicked_item);
+  void symmetryClicked(QListWidgetItem* clicked_item);
+
+Q_SIGNALS:
+
+  void itemsLoadedHook();
 
 private:
 
@@ -299,6 +312,9 @@ private:
   void connectCalibrationHelperSlots();
   void connectActiveActionsSlots();
   void connectStoredPlansSlots();
+  void connectSymmetrySlots();
+
+
 
   // Teleoperation widget.
 

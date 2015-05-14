@@ -40,6 +40,10 @@
 #include <apc/exception.h>
 #include <ros/ros.h>
 #include <sstream>
+#include <boost/xpressive/xpressive.hpp>
+#include <boost/algorithm/string.hpp>
+#include <stdlib.h>
+#include <moveit/warehouse/primitive_plan_storage.h>
 
 
 void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
@@ -72,7 +76,7 @@ void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveActio
 void apc_planning::partitionPlanBySubgroups(apc_msgs::PrimitivePlan& _plan,
                                             const robot_state::RobotState& robot_state)
 {
-    apc_msgs::PrimitivePlan input_plan = _plan;
+    const apc_msgs::PrimitivePlan input_plan = _plan;
     apc_msgs::PrimitivePlan output_plan;
     // Partition...
     for (int i = 0; i < input_plan.actions.size(); i++) {
@@ -99,8 +103,6 @@ void apc_planning::partitionPlanBySubgroups(apc_msgs::PrimitivePlan& _plan,
         }
 
         if (partition) {
-            ROS_WARN("Preparing to split action %s", input_plan.actions[i].action_name.c_str());
-
             int split_index = 0;
             std::vector<const moveit::core::JointModelGroup*> subgroups;
             robot_state.getJointModelGroup(input_plan.actions[i].group_id)->getSubgroups(subgroups);
@@ -143,6 +145,8 @@ void apc_planning::partitionPlanBySubgroups(apc_msgs::PrimitivePlan& _plan,
         }
     }
     output_plan.plan_name = input_plan.plan_name;
+    APC_ASSERT(output_plan.actions.size() >= input_plan.actions.size(),
+               "Failed to at least match input plan");
     _plan = output_plan;
 }
 
@@ -173,5 +177,57 @@ void apc_planning::resetPlanJointTrajectories(apc_msgs::PrimitivePlan& plan)
         trajectory_msgs::JointTrajectoryPoint back = plan.actions[i].joint_trajectory.points.back();
         plan.actions[i].joint_trajectory.points.resize(2);
         plan.actions[i].joint_trajectory.points[1] = back;
+    }
+}
+
+void apc_planning::formatUniqueIndex(std::string& format, const std::vector<std::string>& existing)
+{
+    using namespace boost::xpressive;
+    std::string expr = format;
+    boost::replace_all(expr, "%i", "([0-9]+)");
+    sregex rex = sregex::compile(expr);
+    smatch what;
+    int max = 0;
+    for (int i = 0; i < existing.size(); i++) {
+        if (regex_match(existing[i], what, rex)) {
+            APC_ASSERT(what.size() != 1,
+                       "Existing plan with name %s", what[0].str().c_str());
+            int n = std::atoi(what[1].str().c_str());
+            if (n >= max) {
+                max = n + 1;
+            }
+        }
+    }
+    std::stringstream ss;
+    ss << max;
+    boost::replace_all(format, "%i", ss.str());
+}
+
+std::vector<std::string> apc_planning::getExistingPlanNames(QTreeWidget* plan_tree,
+                                                            boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> primitive_plan_storage_)
+{
+    // Get all plan names from storage. FIXME We don't need to use this.
+    // std::vector<std::string> stored_names;
+    // primitive_plan_storage_->getKnownPrimitivePlans(plan_names);
+
+    // Get all plan names from the current list.
+    std::vector<std::string> active_names;
+    for (int i = 0; i < plan_tree->topLevelItemCount(); i++) {
+        active_names.push_back(plan_tree->topLevelItem(i)->text(0).toStdString());
+    }
+    return active_names;
+}
+
+void apc_planning::validatePlanningArguements(const apc_msgs::PrimitivePlan& plan)
+{
+    for (int i = 0; i < plan.actions.size(); i++) {
+        const apc_msgs::PrimitiveAction& action = plan.actions[i];
+        APC_ASSERT((!action.object_id.empty() && !action.object_key.empty()) ||
+                   ( action.object_id.empty() &&  action.object_key.empty()),
+                   "Failed ID-KEY check on action %s in plan %s\n"
+                   "     object_id: %s\n"
+                   "    object_key: %s",
+                   action.action_name.c_str(), plan.plan_name.c_str(),
+                   action.object_id.c_str(), action.object_key.c_str());
     }
 }

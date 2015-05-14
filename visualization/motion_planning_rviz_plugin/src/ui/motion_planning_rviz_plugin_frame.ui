@@ -232,7 +232,7 @@
               <enum>QTabWidget::North</enum>
              </property>
              <property name="currentIndex">
-              <number>1</number>
+              <number>3</number>
              </property>
              <property name="documentMode">
               <bool>true</bool>
@@ -337,9 +337,9 @@
                    </widget>
                   </item>
                   <item row="1" column="0">
-                   <widget class="QCheckBox" name="plan_raw_checkbox">
+                   <widget class="QCheckBox" name="checkbox">
                     <property name="enabled">
-                     <bool>true</bool>
+                     <bool>false</bool>
                     </property>
                     <property name="text">
                      <string>Plan raw</string>
@@ -1375,7 +1375,7 @@ background-color: rgb(212, 208, 200);</string>
                       </widget>
                      </item>
                      <item row="1" column="0">
-                      <widget class="QCheckBox" name="checkBox">
+                      <widget class="QCheckBox" name="plan_raw_checkbox">
                        <property name="text">
                         <string>Plan raw</string>
                        </property>
@@ -1666,14 +1666,14 @@ background-color: rgb(212, 208, 200);</string>
                    </widget>
                   </item>
                   <item row="1" column="0">
-                   <widget class="QPushButton" name="add_symmetries_button">
+                   <widget class="QPushButton" name="add_symmetry_button">
                     <property name="text">
                      <string>Add</string>
                     </property>
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QPushButton" name="delete_symmetries_button">
+                   <widget class="QPushButton" name="delete_symmetry_button">
                     <property name="text">
                      <string>Delete</string>
                     </property>
@@ -3554,38 +3554,6 @@ background-color: rgb(212, 208, 200);</string>
     <hint type="destinationlabel">
      <x>607</x>
      <y>621</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>checkBox</sender>
-   <signal>clicked()</signal>
-   <receiver>plan_raw_checkbox</receiver>
-   <slot>click()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>393</x>
-     <y>605</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>302</x>
-     <y>146</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>plan_raw_checkbox</sender>
-   <signal>stateChanged(int)</signal>
-   <receiver>checkBox</receiver>
-   <slot>toggle()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>252</x>
-     <y>149</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>372</x>
-     <y>612</y>
     </hint>
    </hints>
   </connection>

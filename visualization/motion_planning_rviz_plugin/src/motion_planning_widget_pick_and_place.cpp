@@ -54,7 +54,8 @@ namespace moveit_rviz_plugin
     {
         return (key.find("bin") != 0 &&
                 key.find("kiva_pod") != 0 &&
-                key.find("order_bin") != 0);
+                key.find("order_bin") != 0 &&
+                key.find("work_table") != 0);
     }
 
     bool MotionPlanningFrame::testForBinKey(const std::string& key)

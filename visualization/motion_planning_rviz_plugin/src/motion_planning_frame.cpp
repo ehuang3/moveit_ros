@@ -140,8 +140,8 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connectActiveActionsSlots();
   // Connect stored plans slots.
   connectStoredPlansSlots();
-  // Connect stored objects slots.
-  // connectStoredObjectsSlots();
+  // Connect symmetry slots.
+  connectSymmetrySlots();
 
 
 

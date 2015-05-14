@@ -40,6 +40,7 @@
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
 #include "ui_motion_planning_rviz_plugin_frame.h"
 #include <moveit/warehouse/primitive_plan_storage.h>
+#include <apc/exception.h>
 
 
 namespace moveit_rviz_plugin
@@ -109,7 +110,12 @@ namespace moveit_rviz_plugin
         loadActionFromData(plan.actions, data);
 
         // Build a descriptive name.
-        saveFormatToPlan(plan);
+        try {
+            saveFormatToPlan(plan);
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Caught error in %s", error.what());
+            return;
+        }
 
         // Store plan in data.
         QVariant plan_data;

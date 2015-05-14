@@ -44,6 +44,7 @@
 #include <moveit/robot_state/conversions.h>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
+#include <apc/planning.h>
 
 
 namespace moveit_rviz_plugin
@@ -288,10 +289,13 @@ namespace moveit_rviz_plugin
         std::string name = format;
         boost::replace_all(name, "%a", a);
         boost::replace_all(name, "%g", g);
-        boost::replace_all(name, "%i", i);
         boost::replace_all(name, "%o", o);
         boost::replace_all(name, "%f", f);
         boost::replace_all(name, "%F", F);
+        // Ensure that the saved plan has a unique name.
+        std::vector<std::string> existing_names = apc_planning::getExistingPlanNames(ui_->stored_plans_tree,
+                                                                                     primitive_plan_storage_);
+        apc_planning::formatUniqueIndex(name, existing_names);
         plan.plan_name = name;
     }
 

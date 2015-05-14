@@ -40,7 +40,12 @@
 #include <apc_msgs/PrimitiveAction.h>
 #include <apc_msgs/PrimitivePlan.h>
 #include <moveit/robot_state/robot_state.h>
+#include <QTreeWidget>
 
+namespace moveit_warehouse
+{
+class PrimitivePlanStorage;
+}
 
 namespace apc_planning
 {
@@ -55,4 +60,11 @@ namespace apc_planning
                                        const robot_state::RobotState& robot_state);
 
     void resetPlanJointTrajectories(apc_msgs::PrimitivePlan& plan);
+
+    void formatUniqueIndex(std::string& format, const std::vector<std::string>& existing);
+
+    std::vector<std::string> getExistingPlanNames(QTreeWidget* plan_tree,
+                                                  boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> primitive_plan_storage_);
+
+    void validatePlanningArguements(const apc_msgs::PrimitivePlan& plan);
 }
