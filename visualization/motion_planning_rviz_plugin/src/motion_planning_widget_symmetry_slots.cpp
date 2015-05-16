@@ -119,7 +119,6 @@ namespace moveit_rviz_plugin
     }
 
     void MotionPlanningFrame::saveSymmetriesButtonClicked()
-
     {
         if (!item_symmetry_storage_) {
             ROS_ERROR("MISSING ITEM SYMMETRY STORAGE");
@@ -214,6 +213,7 @@ namespace moveit_rviz_plugin
             ui_->symmetries_list->insertItem(i, root);
         }
 
+        reloadItemSymmetryCache();
     }
 
     void MotionPlanningFrame::addSymmetryButtonClicked()

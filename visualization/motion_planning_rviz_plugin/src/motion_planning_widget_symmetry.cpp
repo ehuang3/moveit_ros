@@ -39,9 +39,75 @@
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
 #include "ui_motion_planning_rviz_plugin_frame.h"
+#include <eigen_conversions/eigen_msg.h>
+#include <apc_msgs/ItemSymmetry.h>
+#include <moveit/warehouse/item_symmetry_storage.h>
 
 
 namespace moveit_rviz_plugin
 {
+    void MotionPlanningFrame::reloadItemSymmetryCache()
+    {
+        // Names of the stored symmetrys.
+        std::vector<std::string> symmetry_names;
 
+        // Get all the stored symmetrys.
+        try
+        {
+            item_symmetry_storage_->getKnownItemSymmetrys(symmetry_names);
+        }
+        catch (std::runtime_error &ex)
+        {
+            ROS_ERROR("Failed to reload symmetries from database");
+            return;
+        }
+
+        // Clear the current symmetry cache.
+        cached_item_symmetries_.clear();
+
+        // Add symmetrys to the tree!
+        for (int i = 0; i < symmetry_names.size(); i++)
+        {
+            moveit_warehouse::ItemSymmetryWithMetadata symmetry;
+            bool got_symmetry = false;
+            try
+            {
+                got_symmetry = item_symmetry_storage_->getItemSymmetry(symmetry, symmetry_names[i]);
+            }
+            catch(std::runtime_error &ex)
+            {
+                ROS_ERROR("%s", ex.what());
+            }
+            if (!got_symmetry)
+                continue;
+            cached_item_symmetries_[symmetry->item_id].push_back(*symmetry);
+        }
+    }
+
+    void MotionPlanningFrame::getItemSymmetriesCached(const std::string& item_id,
+                                                      EigenSTL::vector_Affine3d& symmetries)
+    {
+        symmetries.clear();
+        if (cached_item_symmetries_.count(item_id) > 0) {
+            const std::vector<apc_msgs::ItemSymmetry>& S = cached_item_symmetries_[item_id];
+            symmetries.resize(S.size());
+            for (int i = 0; i < S.size(); i++) {
+                tf::poseMsgToEigen(S[i].pose_symmetry_origin, symmetries[i]);
+            }
+        } else {
+            ROS_DEBUG("Failed to find item id %s in symmetry database", item_id.c_str());
+            symmetries.push_back(Eigen::Affine3d::Identity());
+
+            // FIXME Don't reload as this function needs to be multi-thread safe.
+
+            // reloadItemSymmetryCache();
+            // if (cached_item_symmetries_.count(item_id) > 0) {
+            //     getItemSymmetriesCached(item_id, symmetries);
+            // }
+            // else {
+            //     ROS_DEBUG("Failed to find item id %s in symmetry database", item_id.c_str());
+            //     symmetries.push_back(Eigen::Affine3d::Identity());
+            // }
+        }
+    }
 }

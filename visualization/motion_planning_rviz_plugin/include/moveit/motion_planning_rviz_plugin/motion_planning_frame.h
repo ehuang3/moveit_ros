@@ -65,6 +65,7 @@
 #include <apc_msgs/WorldState.h>
 #include <apc_msgs/RunDPM.h>
 #include <apc_msgs/RunICP.h>
+#include <apc_msgs/ItemSymmetry.h>
 #include <map>
 #include <string>
 #define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
@@ -190,6 +191,8 @@ private:
   bool show_kiva_pod_;
   bool show_objects_;
 
+  std::map<std::string, std::vector<apc_msgs::ItemSymmetry> > cached_item_symmetries_;
+
 private Q_SLOTS:
   // APC tab.
 
@@ -314,6 +317,9 @@ private:
   void connectStoredPlansSlots();
   void connectSymmetrySlots();
 
+  void reloadItemSymmetryCache();
+  void getItemSymmetriesCached(const std::string& item_id,
+                               EigenSTL::vector_Affine3d& symmetries);
 
 
   // Teleoperation widget.
@@ -329,8 +335,10 @@ private:
   bool setStateFromIK(robot_state::RobotState& robot,
                       const std::string& link_id,
                       const std::string& group_id,
+                      const std::string& frame_id,
                       const Eigen::Affine3d& T_frame_world,
-                      const geometry_msgs::Pose& pose_link_frame);
+                      const geometry_msgs::Pose& pose_link_frame,
+                      bool use_symmetries = true);
   bool setAttachedObjectFromAction(robot_state::RobotState& robot_state,
                                    const KeyPoseMap& world_state,
                                    const apc_msgs::PrimitiveAction& action,
