@@ -900,6 +900,7 @@ namespace moveit_rviz_plugin
         computeFullyConnectedPlan(start_state, plan);
         apc_planning::partitionPlanBySubgroups(plan, start_state);
         apc_planning::validatePlanningArguements(plan);
+        apc_planning::clampJointLimitsInPlan(plan, start_state);
         computeDenseMotionPlan(start_state, world_state, plan, client_index);
     }
 

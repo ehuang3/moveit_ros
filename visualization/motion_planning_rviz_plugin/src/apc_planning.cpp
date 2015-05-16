@@ -44,6 +44,7 @@
 #include <boost/algorithm/string.hpp>
 #include <stdlib.h>
 #include <moveit/warehouse/primitive_plan_storage.h>
+#include <moveit/robot_state/conversions.h>
 
 
 void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
@@ -229,5 +230,32 @@ void apc_planning::validatePlanningArguements(const apc_msgs::PrimitivePlan& pla
                    "    object_key: %s",
                    action.action_name.c_str(), plan.plan_name.c_str(),
                    action.object_id.c_str(), action.object_key.c_str());
+    }
+}
+
+void apc_planning::clampJointLimitsInPlan(apc_msgs::PrimitivePlan& plan,
+                                          const robot_state::RobotState& robot_state)
+{
+    for (int i = 0; i < plan.actions.size(); i++) {
+        apc_msgs::PrimitiveAction& action = plan.actions[i];
+        APC_ASSERT(robot_state.getJointModelGroup(action.group_id)->getSubgroupNames().size() == 0,
+                   "Failed to assert that no subgroups exist for action %s in plan %s",
+                   action.action_name.c_str(), plan.plan_name.c_str());
+        APC_ASSERT(action.joint_trajectory.points.size() > 0,
+                   "Failed to find joint trajectory for action %s in plan %s",
+                   action.action_name.c_str(), plan.plan_name.c_str());
+        const std::vector<std::string>& joint_names = action.joint_trajectory.joint_names;
+        for (int j = 0; j < joint_names.size(); j++) {
+            double max_pos = robot_state.getRobotModel()->getVariableBounds(action.joint_trajectory.joint_names[j]).max_position_;
+            double min_pos = robot_state.getRobotModel()->getVariableBounds(action.joint_trajectory.joint_names[j]).min_position_;
+            trajectory_msgs::JointTrajectory& T = action.joint_trajectory;
+            for (int k = 0; k < T.points.size(); k++) {
+                double& q = T.points[k].positions[j];
+                if (q < min_pos || q > max_pos) {
+                    ROS_DEBUG_STREAM("Clamping " << joint_names[j]);
+                    q = std::min(std::max(q, min_pos), max_pos);
+                }
+            }
+        }
     }
 }

@@ -67,4 +67,7 @@ namespace apc_planning
                                                   boost::shared_ptr<moveit_warehouse::PrimitivePlanStorage> primitive_plan_storage_);
 
     void validatePlanningArguements(const apc_msgs::PrimitivePlan& plan);
+
+    void clampJointLimitsInPlan(apc_msgs::PrimitivePlan& plan,
+                                const robot_state::RobotState& robot_state);
 }
