@@ -120,37 +120,89 @@ namespace moveit_rviz_plugin
     bool MotionPlanningFrame::setStateFromIK(robot_state::RobotState& robot,
                                              const std::string& link_id,
                                              const std::string& group_id,
+                                             const std::string& frame_id,
                                              const Eigen::Affine3d& T_frame_world,
-                                             const geometry_msgs::Pose& pose_link_frame)
+                                             const geometry_msgs::Pose& pose_link_frame,
+                                             bool use_symmetries)
     {
         APC_ASSERT(link_id.size() > 0, "Failed to provide input link");
-        // ROS_DEBUG_STREAM("T_frame_world\n" << T_frame_world.matrix());
+        APC_ASSERT(group_id.size() > 0, "Failed to provide input group");
+        APC_ASSERT(frame_id.size() > 0, "Failed to provide input frame");
+
+        EigenSTL::vector_Affine3d frame_symmetries;
+        if (use_symmetries) {
+            getItemSymmetriesCached(frame_id, frame_symmetries);
+        } else {
+            frame_symmetries.push_back(Eigen::Affine3d::Identity());
+        }
 
         // If the group does not have an IK solver, return false.
         bool solver = robot.getJointModelGroup(group_id)->getSolverInstance();
         APC_ASSERT(solver,
                    "Failed to find IK solver for group %s", group_id.c_str());
 
-        // Back out the desired link transform in global coordinates.
-        Eigen::Affine3d T_frame_link;
-        tf::poseMsgToEigen(pose_link_frame, T_frame_link);
-        Eigen::Affine3d T_link_world = T_frame_world * T_frame_link.inverse();
+        Eigen::Affine3d T_symmetry_world_min = Eigen::Affine3d::Identity();
+        double min_x = 1e9;
+        double max_z = 0;
+        for (int i = 0; i < frame_symmetries.size(); i++) {
+            // Copy the robot state for IK.
+            robot_state::RobotState ik_robot = robot;
 
-        // Snap to the frame using IK.
-        const moveit::core::JointModelGroup* jmg = robot.getJointModelGroup(group_id);
-        geometry_msgs::Pose pose_link_world;
-        tf::poseEigenToMsg(T_link_world, pose_link_world);
-        robot.setFromIK(jmg, pose_link_world, link_id);
-        // APC_ASSERT(robot.setFromIK(jmg, pose_link_world, link_id),
-        //            "Failed to set %s to pose using %s IK", link_id.c_str(), group_id.c_str());
-        robot.update();
+            // Back out the desired link transform in global coordinates.
+            Eigen::Affine3d T_symmetry_frame = frame_symmetries[i];
+            // Eigen::Affine3d T_frame_link = T_symmetry_link * T_symmetry_frame.inverse();
+            // Eigen::Affine3d T_link_world = T_frame_world * T_frame_link.inverse();
+            Eigen::Affine3d T_symmetry_world = T_frame_world * T_symmetry_frame;
 
-        // Manually check whether the new state places the end-effector at the
-        // desired IK position.
-        Eigen::Affine3d T_ik = robot.getGlobalLinkTransform(link_id);
-        APC_ASSERT(apc_eigen::elementWiseMatrixNorm(T_ik, T_link_world) < 1e-2,
-                   "Failed to IK group %s to pose; error is %.6f", group_id.c_str(),
-                   apc_eigen::elementWiseMatrixNorm(T_ik, T_link_world));
+            // Back out the desired link transform in global coordinates.
+            Eigen::Affine3d T_frame_link;
+            tf::poseMsgToEigen(pose_link_frame, T_frame_link);
+            Eigen::Affine3d T_link_world = T_symmetry_world * T_frame_link.inverse();
+
+            // Snap to the frame using IK.
+            const moveit::core::JointModelGroup* jmg = robot.getJointModelGroup(group_id);
+            geometry_msgs::Pose pose_link_world;
+            tf::poseEigenToMsg(T_link_world, pose_link_world);
+            ik_robot.setFromIK(jmg, pose_link_world, link_id);
+            // APC_ASSERT(robot.setFromIK(jmg, pose_link_world, link_id),
+            //            "Failed to set %s to pose using %s IK", link_id.c_str(), group_id.c_str());
+            ik_robot.update();
+
+            Eigen::Affine3d T_ik = ik_robot.getGlobalLinkTransform(link_id);
+
+            if (apc_eigen::elementWiseMatrixNorm(T_ik, T_link_world) < 1e-2) {
+
+                double delta_x = std::abs(T_link_world.translation().x()) - min_x;
+                double delta_z = std::abs(T_link_world.translation().z()) - max_z;
+
+                if (std::abs(delta_x) < 3e-2) {
+                    if (delta_z > 0) {
+                        min_x = std::abs(T_link_world.translation().x());
+                        max_z = std::abs(T_link_world.translation().z());
+                        T_symmetry_world_min = T_symmetry_world;
+                    }
+                }
+                else if(delta_x < 0) {
+                    min_x = std::abs(T_link_world.translation().x());
+                    max_z = std::abs(T_link_world.translation().z());
+                    T_symmetry_world_min = T_symmetry_world;
+                }
+            }
+
+            // Manually assert whether the new state places the end-effector at the
+            // desired IK position.
+            if (!use_symmetries) {
+                robot = ik_robot;
+                APC_ASSERT(apc_eigen::elementWiseMatrixNorm(T_ik, T_link_world) < 1e-2,
+                           "Failed to IK group %s to pose; error is %.6f", group_id.c_str(),
+                           apc_eigen::elementWiseMatrixNorm(T_ik, T_link_world));
+            }
+        }
+
+        if (use_symmetries) {
+            setStateFromIK(robot, link_id, group_id, frame_id, T_symmetry_world_min, pose_link_frame, false);
+        }
+
         return true;
     }
 
@@ -288,14 +340,13 @@ namespace moveit_rviz_plugin
                     APC_ASSERT(action.eef_trajectory.poses.size() > index,
                                "Index %d out of bounds for end-effector trajectory in action %s",
                                index, action.action_name.c_str());
-                    setStateFromIK(robot_state, action.eef_link_id, solver->getGroupName(),
+                    setStateFromIK(robot_state, action.eef_link_id, solver->getGroupName(), action.frame_id,
                                    world_state.find(action.frame_key)->second, action.eef_trajectory.poses[index]);
                 }
                 else if (index == -1) {
-                    setStateFromIK(robot_state, action.eef_link_id, solver->getGroupName(),
+                    setStateFromIK(robot_state, action.eef_link_id, solver->getGroupName(), action.frame_id,
                                    world_state.find(action.frame_key)->second, action.eef_trajectory.poses.back());
                 }
-
 
             } else if (use_joint_angles_if_no_ik_solver) {
                 APC_ASSERT(action.joint_trajectory.points.size() > 0,
