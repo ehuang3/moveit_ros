@@ -63,6 +63,13 @@ void apc_vision::assignItemPosesFromBinStates(KeyPoseMap& world_state,
     for (int i = 0; i < response.bin_contents.size(); i++) {
         const apc_msgs::BinState& B = response.bin_contents[i];
         std::string bin_id = B.bin_name;
+        if (bin_id.empty()) {
+            continue;
+        }
+        if (bin_item_keys.find(bin_id) == bin_item_keys.end()) {
+            ROS_ERROR("Could not find bin id %s in bin_item_keys", bin_id.c_str());
+            continue;
+        }
         const Keys& K = bin_item_keys.find(bin_id)->second;
         Dirt D;
         for (Keys::const_iterator k = K.begin(); k != K.end(); ++k) {

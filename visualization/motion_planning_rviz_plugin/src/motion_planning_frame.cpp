@@ -47,6 +47,7 @@
 #include <apc_msgs/ComputeDenseMotion.h>
 #include <apc_msgs/RunVision.h>
 #include <apc_msgs/GetShelf.h>
+#include <apc_msgs/ComputePreGrasps.h>
 
 #include <QMessageBox>
 #include <QInputDialog>
@@ -180,6 +181,8 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_5"));
   _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_6"));
   _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_7"));
+
+  compute_pregrasps_client_ = nh_.serviceClient<apc_msgs::ComputePreGrasps>("compute_pregrasps");
 
   // Tf listener
   _tf_listener;// = tf::TransformListener(nh_);

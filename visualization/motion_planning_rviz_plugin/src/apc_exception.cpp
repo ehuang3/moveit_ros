@@ -42,6 +42,10 @@
 // #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <sstream>
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <errno.h>
+// #include <string.h>
 
 #define BACKWARD_HAS_BFD 1
 #include <backward.hpp>
@@ -53,11 +57,16 @@ std::string apc_exception::GetResolvedStackTrace()
     FILE *stream;
     stream = open_memstream (&bp, &size);
 
+    // if (!stream) {
+    //     ROS_INFO("%s", strerror(errno));
+    //     return strerror(errno);
+    // }
+
     using namespace backward;
     using namespace boost::xpressive;
 
     StackTrace st;
-    st.load_here(11);
+    st.load_here(12);
     TraceResolver tr; tr.load_stacktrace(st);
     Printer p;
     p.object = false;
@@ -70,7 +79,7 @@ std::string apc_exception::GetResolvedStackTrace()
     Colorize c(stream);
     c.init();
 
-    for (int i = 1; i < st.size(); i++) {
+    for (int i = 3; i < st.size(); i++) {
         ResolvedTrace trace = tr.resolve(st[i]);
 
         ResolvedTrace::SourceLoc source = trace.source;
@@ -108,12 +117,14 @@ std::string apc_exception::GetResolvedStackTrace()
         std::string source_function = trace.source.function;
         {
             sregex rex =
-                sregex::compile("^([A-Za-z_:0-9]+::)([A-Za-z_0-9]+)(\\(.*\\))");
+                sregex::compile("^([A-Za-z_:0-9]+::)*([A-Za-z_0-9]+)(\\(.*\\))*");
             smatch what;
             if (regex_match(source_function, what, rex))
                 source_function = what[2];
-            else
+            else {
+                ROS_DEBUG_STREAM(source_function);
                 continue;
+            }
         }
         trace.source.function = source_function;
 
@@ -128,6 +139,9 @@ std::string apc_exception::GetResolvedStackTrace()
     //     p.print(trace, stream);
     //     fflush (stream);
     // }
+    fflush (stream);
+
+    // printf("bp %p", bp);
 
     std::string out = bp;
     fclose(stream);

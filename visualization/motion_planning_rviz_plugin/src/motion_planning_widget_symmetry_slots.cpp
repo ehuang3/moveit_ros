@@ -67,7 +67,7 @@ namespace moveit_rviz_plugin
         QTableWidget* bin_contents = ui_->bin_contents_table_widget;
         std::vector<std::string> item_ids;
         for (int i = 0; i < bin_contents->rowCount(); i++) {
-            std::string item_id = bin_contents->item(0, 1)->text().toStdString();
+            std::string item_id = bin_contents->item(i, 1)->text().toStdString();
             if (std::find(item_ids.begin(), item_ids.end(), item_id) == item_ids.end())
                 item_ids.push_back(item_id);
         }

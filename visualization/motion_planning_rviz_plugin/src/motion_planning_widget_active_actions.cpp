@@ -686,6 +686,8 @@ namespace moveit_rviz_plugin
 
             try {
 
+                ROS_INFO_STREAM(action);
+
                 // Load action into state.
                 loadStartAndGoalFromAction(start_waypoint, goal_waypoint, action);
 

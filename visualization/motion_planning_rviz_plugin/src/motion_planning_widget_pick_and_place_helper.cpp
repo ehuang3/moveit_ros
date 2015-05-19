@@ -47,6 +47,8 @@
 #include <rviz/frame_manager.h>
 #include <interactive_markers/tools.h>
 #include <robot_calibration/urdf_loader.h>
+#include <boost/xpressive/xpressive.hpp>
+#include <apc_msgs/ComputePreGrasps.h>
 
 
 namespace moveit_rviz_plugin
@@ -124,7 +126,7 @@ namespace moveit_rviz_plugin
         Eigen::Matrix4d T_object_world;
         T_object_world.matrix() <<
             1, 0, 0, -0.4,
-            0, 1, 0, -0.6,
+            0, 1, 0, -0.8,
             0, 0, 1,  0.7,
             0, 0, 0,  1;
         loadObjectToScene(object_key, object_model_path, Eigen::Affine3d(T_object_world));
@@ -225,6 +227,17 @@ namespace moveit_rviz_plugin
         return item + "_" + buf;
     }
 
+    std::string MotionPlanningFrame::computeItemIdFromItemKey(const std::string& item_key)
+    {
+        using namespace boost::xpressive;
+        sregex rex = sregex::compile("^([A-Za-z]+(\\_[A-Za-z0-9]+)*?)([\\_][0-9]{1,2})?");
+        smatch what;
+        APC_ASSERT(regex_match(item_key, what, rex),
+                   "Failed to extract ID of %s", item_key.c_str());
+        std::string id = what[1];
+        return id;
+    }
+
     void MotionPlanningFrame::addItemToScene(const std::string& item_model_path,
                                              const std::string& item_key,
                                              const std::string& item_bin)
@@ -254,6 +267,10 @@ namespace moveit_rviz_plugin
                 return;
             }
             item_shape.reset(item_mesh);
+
+            Eigen::Vector3d extent = shapes::computeShapeExtents(item_shape.get());
+            std::string item_id = computeItemIdFromItemKey(item_key);
+            cached_shape_extents_[item_id] = extent;
         }
         else
         {
@@ -270,7 +287,15 @@ namespace moveit_rviz_plugin
             Eigen::Affine3d T_bin = _kiva_pod->getGlobalTransform(item_bin);
             robot_calibration::Linkd* bin = _kiva_pod->getLink(item_bin);
             double bin_height = static_cast<const shapes::Box*>(bin->getState().shapes[0].get())->size[2];
-            T_bin.translate(Eigen::Vector3d(0.2, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
+            double bin_depth = static_cast<const shapes::Box*>(bin->getState().shapes[0].get())->size[0];
+
+            std::string item_id = computeItemIdFromItemKey(item_key);
+            double item_depth = cached_shape_extents_[item_id].x();
+            double item_height = cached_shape_extents_[item_id].z();
+
+            double d_x = -item_depth / 2.0;
+
+            T_bin.translate(Eigen::Vector3d(d_x, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
             item_pose = T_pod * T_bin;
         }
 
@@ -323,7 +348,7 @@ namespace moveit_rviz_plugin
         double item_scale = 1.80 * item_extents.minCoeff();
         item_scale = std::min(std::max(item_scale, 0.3), 1.0);
         visualization_msgs::InteractiveMarker marker_msg =
-            robot_interaction::make6DOFMarker("marker_" + item_key, item_pose, item_scale, true);
+            robot_interaction::make6DOFMarker("marker_" + item_key, item_pose, item_scale, false);
         marker_msg.header.frame_id = context_->getFrameManager()->getFixedFrame();
         marker_msg.description = item_key;
         interactive_markers::autoComplete(marker_msg);
@@ -359,6 +384,49 @@ namespace moveit_rviz_plugin
         ps->getWorldNonConst()->moveShapeInObject(item_key, item->shapes_[0], item_pose);
         // Queue render.
         planning_display_->queueRenderSceneGeometry();
+    }
+
+    void MotionPlanningFrame::computeTestPreGraspsButtonClicked()
+    {
+        apc_msgs::ComputePreGrasps srv;
+        // Read off the highlighted item in the bin contents.
+        int row = ui_->bin_contents_table_widget->currentRow();
+        if (row < 0) return;
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        std::string item_id = bin_contents->item(row, 1)->text().toStdString();
+        std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
+
+        // Get all grasps for an item.
+        std::vector<apc_msgs::PrimitivePlan> item_grasps;
+        retrieveItemGrasps(item_grasps, item_id);
+
+        // Snap all grasps to the correct locations.
+        robot_state::RobotState robot_state = *getQueryStartState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        for (int i = 0; i < item_grasps.size(); i++) {
+            try {
+                APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
+                computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
+                computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]);
+                srv.request.grasps.push_back(item_grasps[i].actions[0]);
+            } catch (apc_exception::Exception& error) {
+                ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
+            }
+        }
+
+        // Add bin items.
+        setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
+        setBinStatesToBinStatesMessage(srv.request.bin_states, world_state);
+
+        try {
+            APC_ASSERT(compute_pregrasps_client_.call(srv),
+                       "Failed call to compute pregrasp client");
+            apc_msgs::PrimitivePlan pregrasps;
+            pregrasps.actions = srv.response.pregrasps;
+            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, pregrasps));
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Caught error\n%s", error.what());
+        }
     }
 
 }

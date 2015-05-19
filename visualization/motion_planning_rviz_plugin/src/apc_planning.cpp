@@ -45,7 +45,117 @@
 #include <stdlib.h>
 #include <moveit/warehouse/primitive_plan_storage.h>
 #include <moveit/robot_state/conversions.h>
+#include <eigen_conversions/eigen_msg.h>
 
+
+bool apc_planning::_is_robot_moving_(const apc_msgs::PrimitiveAction& action)
+{
+    const double TOLERANCE = 1e-7;
+    const trajectory_msgs::JointTrajectoryPoint& start = action.joint_trajectory.points.front();
+    for (int i = 0; i < action.joint_trajectory.points.size(); i++) {
+        const trajectory_msgs::JointTrajectoryPoint& current = action.joint_trajectory.points[i];
+        for (int j = 0; j < current.positions.size(); j++)
+            if (std::abs(start.positions[j] - current.positions[j]) > TOLERANCE)
+                return true;
+    }
+    return false;
+}
+
+bool apc_planning::_is_object_moving_(const apc_msgs::PrimitiveAction& action)
+{
+    if (action.object_id.empty()) {
+        return false;
+    }
+    if (action.object_trajectory.poses.size() == 0) {
+        return false;
+    }
+    const double TOLERANCE = 1e-7;
+    for (int i = 0; i < action.object_trajectory.poses.size(); i++) {
+        const geometry_msgs::Pose& start = action.object_trajectory.poses.front();
+        const geometry_msgs::Pose& current = action.object_trajectory.poses[i];
+        Eigen::Affine3d T_start;
+        Eigen::Affine3d T_current;
+        tf::poseMsgToEigen(start, T_start);
+        tf::poseMsgToEigen(current, T_current);
+        if ((T_start.translation() - T_current.translation()).norm() > TOLERANCE)
+            return true;
+        Eigen::Quaterniond q_start(T_start.rotation());
+        Eigen::Quaterniond q_current(T_current.rotation());
+        double angle = q_start.angularDistance(q_current);
+        if (std::abs(angle) > TOLERANCE)
+            return true;
+    }
+    return false;
+}
+
+std::string apc_planning::_action_type_(const apc_msgs::PrimitiveAction& action)
+{
+    bool robot_moving  = _is_robot_moving_(action);
+    bool object_moving = _is_object_moving_(action);
+    bool grasping = action.grasp;
+    bool has_object = !action.object_id.empty();
+    // Compute action types.
+    bool transit       =                                                   !has_object;
+    bool pregrasp      = (( robot_moving && !grasping && !object_moving &&  has_object) ||
+                          (!robot_moving && !grasping && !object_moving &&  has_object));
+    bool grasp         =   !robot_moving &&  grasping && !object_moving &&  has_object;
+    bool postgrasp     =    robot_moving &&  grasping                   &&  has_object;
+    bool nonprehensile =    robot_moving && !grasping &&  object_moving &&  has_object;
+    APC_ASSERT(transit ^ pregrasp ^ grasp ^ postgrasp ^ nonprehensile,
+               "Requested impossible action type\n"
+               "   transit: %d\n"
+               "  pregrasp: %d\n"
+               "     grasp: %d\n"
+               " postgrasp: %d\n"
+               "prehensile: %d\n"
+               "\n"
+               "   robot_moving: %d\n"
+               "  object_moving: %d\n"
+               "       grasping: %d\n"
+               "     has_object: %d\n",
+               transit, pregrasp, grasp, postgrasp, nonprehensile,
+               robot_moving, object_moving, grasping, has_object);
+    if (transit)
+        return "transit";
+    if (pregrasp)
+        return "pregrasp";
+    if (grasp)
+        return "grasp";
+    if (postgrasp)
+        return "postgrasp";
+    if (nonprehensile)
+        return "nonprehensile";
+}
+
+bool apc_planning::is_action_transit(const apc_msgs::PrimitiveAction& action)
+{
+    return _action_type_(action) == "transit";
+}
+
+bool apc_planning::is_action_pregrasp(const apc_msgs::PrimitiveAction& action)
+{
+    return _action_type_(action) == "pregrasp";
+}
+
+bool apc_planning::is_action_grasp(const apc_msgs::PrimitiveAction& action)
+{
+    return _action_type_(action) == "grasp";
+}
+
+bool apc_planning::is_action_postgrasp(const apc_msgs::PrimitiveAction& action)
+{
+    return _action_type_(action) == "postgrasp";
+}
+
+bool apc_planning::is_action_nonprehensile(const apc_msgs::PrimitiveAction& action)
+{
+    return _action_type_(action) == "nonprehensile";
+}
+
+bool apc_planning::is_action_stationary(const apc_msgs::PrimitiveAction& action)
+{
+    return _is_robot_moving_(action);
+}
 
 void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
                                                         const apc_msgs::PrimitiveAction& source,
@@ -200,7 +310,7 @@ void apc_planning::formatUniqueIndex(std::string& format, const std::vector<std:
         }
     }
     std::stringstream ss;
-    ss << max;
+    ss << std::setfill('0') << std::setw(3) << max;
     boost::replace_all(format, "%i", ss.str());
 }
 

@@ -66,6 +66,7 @@
 #include <apc_msgs/RunDPM.h>
 #include <apc_msgs/RunICP.h>
 #include <apc_msgs/ItemSymmetry.h>
+#include <apc_msgs/BinState.h>
 #include <map>
 #include <string>
 #define RAPIDJSON_ASSERT(x) if (!(x)) throw std::logic_error(RAPIDJSON_STRINGIFY(x))
@@ -186,12 +187,15 @@ private:
 
   ros::ServiceClient _publish_shelf_client;
 
+  ros::ServiceClient compute_pregrasps_client_;
+
   tf::TransformListener _tf_listener;
 
   bool show_kiva_pod_;
   bool show_objects_;
 
   std::map<std::string, std::vector<apc_msgs::ItemSymmetry> > cached_item_symmetries_;
+  std::map<std::string, Eigen::VectorXd> cached_shape_extents_;
 
 private Q_SLOTS:
   // APC tab.
@@ -250,6 +254,7 @@ private Q_SLOTS:
   void binContentsItemClicked(QTableWidgetItem* item);
   void binContentsItemDoubleClicked(QTableWidgetItem* item);
   void processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback& feedback);
+  void testPreGraspsButtonClicked();
 
   // Vision widget slots.
   void runDpmButtonClicked();
@@ -366,6 +371,8 @@ private:
                                                 apc_msgs::PrimitivePlan& plan);
   void setWorldKeyPoseToWorldStateMessage(const KeyPoseMap& keypose,
                                           apc_msgs::WorldState& state);
+  void setBinStatesToBinStatesMessage(std::vector<apc_msgs::BinState>& bin_states,
+                                      const KeyPoseMap& world_state);
   void computeFullyConnectedPlan(const robot_state::RobotState& start,
                                  apc_msgs::PrimitivePlan& plan);
   bool doesActionMoveAnItem(const apc_msgs::PrimitiveAction& action);
@@ -398,6 +405,18 @@ private:
   void updateBinContentsTableWidget(rapidjson::Document& doc);
   bool showQueryStartInteractiveMarkers();
   bool showQueryGoalInteractiveMarkers();
+  std::string computeItemIdFromItemKey(const std::string& item_key);
+
+  void retrievePregraspPoses(std::vector<apc_msgs::PrimitivePlan>& pregrasp_poses);
+  void computeReachablePregraspPoses(std::vector<apc_msgs::PrimitivePlan>& valid_pregrasps,
+                                     const std::string& bin_id,
+                                     const robot_state::RobotState& start_state,
+                                     const KeyPoseMap& world_state);
+  void retrievePostgraspPoses(std::vector<apc_msgs::PrimitivePlan>& score_with_item_poses);
+  void computeReachablePostgraspPoses(std::vector<apc_msgs::PrimitivePlan>& valid_postgrasps,
+                                      const std::vector<apc_msgs::PrimitivePlan>& valid_grasps,
+                                      const robot_state::RobotState& start_state,
+                                      const KeyPoseMap& world_state);
 
   // Pick and place widget.
   bool testForItemKey(const std::string& key);
@@ -447,6 +466,7 @@ private:
 
   void computeRunAPCButtonClicked();
 
+
   // Pick and place again
 
   void retrieveScoreWithItemPoses(std::vector<apc_msgs::PrimitivePlan>& score_with_item_poses);
@@ -492,6 +512,8 @@ private:
   void createInteractiveMarkerForItem(const std::string& item_key);
   void updateInteractiveMarkerForItem(float wall_dt);
 
+  void computeTestPreGraspsButtonClicked();
+
   // Vision widget.
   std::vector<std::string> computeObjectIdsInBinFromJson(const std::string& bin_id);
   void KinectRGBSubscriberCallback();
@@ -507,7 +529,7 @@ private:
   void computeRunDpm(apc_msgs::RunDPM& run_dpm_srv);
   void computeIcp(apc_msgs::RunICP& run_icp_srv);
   void computeRunVisionButtonClicked();
-  void computeRunVision();
+  void computeRunVision(KeyPoseMap& world_state);
 
   // Vision widget helper.
   void computePublishShelfButtonClicked();

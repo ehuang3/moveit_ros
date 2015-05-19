@@ -113,17 +113,17 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::computeRunVisionButtonClicked()
     {
         try {
-            computeRunVision();
-        } catch (std::exception& error) {
+            KeyPoseMap world_state = computeWorldKeyPoseMap();
+            computeRunVision(world_state);
+        } catch (apc_exception::Exception& error) {
             ROS_ERROR("Caught exception in %s", error.what());
         }
     }
 
-    void MotionPlanningFrame::computeRunVision()
+    void MotionPlanningFrame::computeRunVision(KeyPoseMap& world_state)
     {
         APC_ASSERT(_kiva_pod,
                    "Failed to get KIVA pod model");
-        KeyPoseMap world_state = computeWorldKeyPoseMap();
         apc_msgs::RunVision run_vision;
         std::string target_frame = "crichton_origin";
         std::string source_frame = "crichton_origin";
@@ -176,31 +176,24 @@ namespace moveit_rviz_plugin
                    "Failed call run vision service");
 
         // Copy objects to their bin poses in the world state.
-        try
-        {
-            ROS_INFO_STREAM(run_vision.response);
+        ROS_INFO_STREAM(run_vision.response);
 
-            apc_vision::BinKeyMap bin_item_keys;
-            apc_vision::getBinItemKeys(bin_item_keys, ui_->bin_contents_table_widget);
-            KeyPoseMap world_state = computeWorldKeyPoseMap();
-            apc_vision::assignItemPosesFromBinStates(world_state,
-                                                     run_vision.response,
-                                                     bin_item_keys);
-            // TODO Set objects into world state.
-            collision_detection::WorldPtr world = planning_display_->getPlanningSceneRW()->getWorldNonConst();
-            for (KeyPoseMap::const_iterator item = world_state.begin(); item != world_state.end(); ++item) {
-                // Skip over non-items.
-                if (!testForItemKey(item->first))
-                    continue;
-                APC_ASSERT(world->getObject(item->first),
-                           "Failed to get item %s from world", item->first.c_str());
-                world->getObject(item->first)->shape_poses_[0] = item->second;
-            }
-            planning_display_->queueRenderSceneGeometry();
-        } catch (std::exception& error) {
-            ROS_ERROR("Caught vision response error in %s",
-                      error.what());
+        apc_vision::BinKeyMap bin_item_keys;
+        apc_vision::getBinItemKeys(bin_item_keys, ui_->bin_contents_table_widget);
+        apc_vision::assignItemPosesFromBinStates(world_state,
+                                                 run_vision.response,
+                                                 bin_item_keys);
+        // Set objects into world state.
+        collision_detection::WorldPtr world = planning_display_->getPlanningSceneRW()->getWorldNonConst();
+        for (KeyPoseMap::const_iterator item = world_state.begin(); item != world_state.end(); ++item) {
+            // Skip over non-items.
+            if (!testForItemKey(item->first))
+                continue;
+            APC_ASSERT(world->getObject(item->first),
+                       "Failed to get item %s from world", item->first.c_str());
+            world->getObject(item->first)->shape_poses_[0] = item->second;
         }
+        planning_display_->queueRenderSceneGeometry();
     }
 
 }

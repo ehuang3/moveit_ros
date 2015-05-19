@@ -49,6 +49,18 @@ class PrimitivePlanStorage;
 
 namespace apc_planning
 {
+
+    bool _is_robot_moving_(const apc_msgs::PrimitiveAction& action);
+    bool _is_object_moving_(const apc_msgs::PrimitiveAction& action);
+    bool _is_object_moving_(const apc_msgs::PrimitiveAction& action);
+    std::string _action_type_(const apc_msgs::PrimitiveAction& action);
+    bool is_action_transit(const apc_msgs::PrimitiveAction& action);
+    bool is_action_pregrasp(const apc_msgs::PrimitiveAction& action);
+    bool is_action_grasp(const apc_msgs::PrimitiveAction& action);
+    bool is_action_postgrasp(const apc_msgs::PrimitiveAction& action);
+    bool is_action_nonprehensile(const apc_msgs::PrimitiveAction& action);
+    bool is_action_stationary(const apc_msgs::PrimitiveAction& action);
+
     void copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
                                               const apc_msgs::PrimitiveAction& source,
                                               const robot_state::RobotState& robot_state);

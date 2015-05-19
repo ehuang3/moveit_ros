@@ -47,6 +47,7 @@ namespace moveit_rviz_plugin
     {
         connect( ui_->bin_contents_table_widget, SIGNAL( itemClicked(QTableWidgetItem*) ),
                  this, SLOT( binContentsItemClicked(QTableWidgetItem*) ));
+        connect( ui_->test_pregrasps_button,    SIGNAL( clicked() ), this, SLOT( testPreGraspsButtonClicked() ));
     }
 
     void MotionPlanningFrame::updateBinContentsTableWidget(rapidjson::Document& doc)
@@ -108,5 +109,10 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::binContentsItemDoubleClicked(QTableWidgetItem* item)
     {
+    }
+
+    void MotionPlanningFrame::testPreGraspsButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestPreGraspsButtonClicked, this), "test pregraps");
     }
 }

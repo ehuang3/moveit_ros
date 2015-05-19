@@ -1,5 +1,5 @@
 # set(CMAKE_CXX_FLAGS "-Wshadow -Wreturn-type -Wuninitialized")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -rdynamic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -rdynamic -g")
 
 # Header files that need Qt Moc pre-processing for use with Qt signals, etc:
 set( headers
