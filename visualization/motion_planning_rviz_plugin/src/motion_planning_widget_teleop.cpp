@@ -1056,7 +1056,7 @@ namespace moveit_rviz_plugin
             moveit_msgs::RobotState start_state_msg;
             robot_state::robotStateToRobotStateMsg(start_state, start_state_msg);
             loadPlanToPreview(start_state_msg, plan);
-            loadPlanToActiveActions(plan);
+            // loadPlanToActiveActions(plan);
             return;
         }
 
@@ -1065,7 +1065,7 @@ namespace moveit_rviz_plugin
             moveit_msgs::RobotState start_state_msg;
             robot_state::robotStateToRobotStateMsg(start_state, start_state_msg);
             loadPlanToPreview(start_state_msg, plan);
-            loadPlanToActiveActions(plan);
+            // loadPlanToActiveActions(plan);
         }
     }
 
