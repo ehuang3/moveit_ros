@@ -156,7 +156,7 @@ bool apc_planning::is_action_nonprehensile(const apc_msgs::PrimitiveAction& acti
 
 bool apc_planning::is_action_stationary(const apc_msgs::PrimitiveAction& action)
 {
-    return _is_robot_moving_(action);
+    return !_is_robot_moving_(action);
 }
 
 void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,

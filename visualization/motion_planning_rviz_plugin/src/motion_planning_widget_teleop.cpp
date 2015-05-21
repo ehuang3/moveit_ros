@@ -1253,13 +1253,14 @@ namespace moveit_rviz_plugin
         action = linear_action;
     }
 
-    void MotionPlanningFrame::computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan> offset_grasps,
+    void MotionPlanningFrame::computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan>& offset_grasps,
                                                   const apc_msgs::PrimitivePlan& grasp_,
                                                   const robot_state::RobotState& start,
                                                   const KeyPoseMap& world)
     {
         // Precondition:
         // Grasp is reachable and has been IK'd to.
+        // Grasp IK has been saved to joint angles.
         // All grasps are two finger grasps.
         APC_ASSERT(grasp_.actions.size() == 1, "Grasp more than one action");
         apc_msgs::PrimitiveAction grasp = grasp_.actions[0];
@@ -1272,6 +1273,22 @@ namespace moveit_rviz_plugin
         setStateFromPoint(robot_state, grasp.joint_trajectory.joint_names, grasp.joint_trajectory.points.front());
         // Compute the finger grasp frame.
         std::string group_id = grasp.group_id;
+        kinematics::KinematicsBaseConstPtr solver = robot_state.getJointModelGroup(group_id)->getSolverInstance();
+        // If no solver exists, try searching the subgroups for a solver.
+        if (!solver) {
+            std::vector<const moveit::core::JointModelGroup*> subgroups;
+            robot_state.getJointModelGroup(group_id)->getSubgroups(subgroups);
+            for (int i = 0; i < subgroups.size(); i++)
+                if (solver = subgroups[i]->getSolverInstance()) {
+                    group_id = subgroups[i]->getName();
+                    break;
+                }
+        }
+        if (!solver) {
+            return;
+        }
+        APC_ASSERT(solver,
+                   "Missing IK solver for group %s in action %s", group_id.c_str(), grasp.action_name.c_str());
         // Determine which side of the robot we are using.
         using namespace boost::xpressive;
         sregex rex = sregex::compile("^.*(left|right).*");
@@ -1283,22 +1300,86 @@ namespace moveit_rviz_plugin
         std::string l2 = "crichton_" + side + "_finger_23_link";
         Eigen::Affine3d T_l1 = robot_state.getGlobalLinkTransform(l1);
         Eigen::Affine3d T_l2 = robot_state.getGlobalLinkTransform(l2);
+        ROS_INFO_STREAM("T_l1\n" << T_l1.matrix());
+        ROS_INFO_STREAM("T_l2\n" << T_l2.matrix());
         // Compute connecting line and midpoint between the two links.
         Eigen::Vector3d pt_mid = 0.5 * (T_l1.translation() + T_l2.translation());
+        ROS_INFO_STREAM("pt_mid " << pt_mid.transpose());
         Eigen::Vector3d l_g = (T_l2.translation() - T_l1.translation()).normalized();
+        // Compute the grasp center frame.
+        Eigen::Affine3d T_g_w;
+        T_g_w.linear() = T_l1.linear();
+        T_g_w.translation() = pt_mid;
+        ROS_INFO_STREAM("T_g_w\n" << T_g_w.matrix());
+        // Compute eef in world frame.
+        Eigen::Affine3d T_e_w = robot_state.getGlobalLinkTransform(grasp.eef_link_id);
+        ROS_INFO_STREAM("T_e_w\n" << T_e_w.matrix());
+        APC_ASSERT(world.count(grasp.object_key) > 0, "Failed to find object key %s in world", grasp.object_key.c_str());
+        Eigen::Affine3d T_o_w = world.find(grasp.object_key)->second;
+        ROS_INFO_STREAM("T_o_w\n" << T_o_w.matrix());
         // Compute normal to midpoint (towards the hand).
         Eigen::Vector3d n_p = -T_l1.linear().col(2);
         // Generate random rotations around that cone.
         int num_samples = 10;
+        double phi = 20.0 / 180.0 * M_PI; // Width of cone from center line.
         typedef boost::random::mt19937 gen_type;
-        gen_type rand_gen;
-        rand_gen.seed(static_cast<unsigned int>(std::time(0)));
-        boost::uniform_real<> uni_dist(-1, 1);
-        boost::variate_generator<gen_type&, boost::uniform_real<double> > rand_real(rand_gen, uni_dist);
+        gen_type zgen;
+        zgen.seed(static_cast<unsigned int>(std::time(0)));
+        boost::uniform_real<> zuni(cos(phi), 1);
+        boost::variate_generator<gen_type&, boost::uniform_real<double> > zrand(zgen, zuni);
+        gen_type tgen;
+        tgen.seed(static_cast<unsigned int>(std::time(0)));
+        boost::uniform_real<> tuni(0, 2 * M_PI);
+        boost::variate_generator<gen_type&, boost::uniform_real<double> > trand(tgen, tuni);
         for (int i = 0; i < num_samples; i++) {
-            double z = rand_real();
-            ROS_INFO_STREAM("RANDOM: " << z);
+            // Generate random vector direction.
+            double z = zrand();
+            double t = trand();
+            Eigen::Vector3d rdir;
+            rdir << sqrt(1 - z*z)*cos(t), sqrt(1 - z*z)*sin(t), z;
+            // Get north pole.
+            Eigen::Vector3d npole;
+            npole << 0, 0, 1;
+            // Compute shortest rotation from npole to rdir.
+            Eigen::Vector3d a = npole.cross(rdir);
+            Eigen::Quaterniond q;
+            q.x() = a.x();
+            q.y() = a.y();
+            q.z() = a.z();
+            q.w() = 1 + npole.dot(rdir);
+            q.normalize();
+            Eigen::Affine3d T_r_g = Eigen::Affine3d::Identity();
+            T_r_g.linear() = q.matrix();
+            ROS_INFO_STREAM("T_r_g\n" << T_r_g.matrix());
+            // Rotate hand about grasp point.
+            // Move eef position into grasp frame.
+            Eigen::Affine3d T_e_g = T_g_w.inverse() * T_e_w;
+            ROS_INFO_STREAM("T_e_g\n" << T_e_g.matrix());
+            // Rotate eef position by random.
+            Eigen::Affine3d T_e_r = T_r_g.inverse() * T_e_g;
+            ROS_INFO_STREAM("T_e_r\n" << T_e_r.matrix());
+            // Move eef position back into world frame.
+            Eigen::Affine3d T_new_w = T_g_w * T_e_r;
+            ROS_INFO_STREAM("T_new_w\n" << T_new_w.matrix());
+            // IK to new position.
+            robot_state::RobotState copy = robot_state;
+            geometry_msgs::Pose pose_id;
+            pose_id.position.x = 0; pose_id.position.y = 0; pose_id.position.z = 0;
+            pose_id.orientation.x = 0; pose_id.orientation.y = 0; pose_id.orientation.z = 0;
+            pose_id.orientation.w = 1.0;
+            setStateFromIK(copy, grasp.eef_link_id, group_id, grasp.frame_id, T_new_w, pose_id, false);
+            apc_msgs::PrimitiveAction offset_grasp = grasp;
+            offset_grasp.joint_trajectory.points.clear();
+            appendStateToAction(offset_grasp, copy);
+            appendStateToAction(offset_grasp, copy);
+            offset_grasp.frame_id = "";
+            offset_grasp.frame_key = "";
+            apc_msgs::PrimitivePlan offset_grasp_plan;
+            offset_grasp_plan.actions.push_back(offset_grasp);
+            offset_grasps.push_back(offset_grasp_plan);
+            ROS_INFO("Computed an offset grasp");
         }
+
     }
 
 }

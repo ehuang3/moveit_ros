@@ -541,16 +541,19 @@ namespace moveit_rviz_plugin
         offset_grasps.push_back(grasp);
         try {
             KeyPoseMap world_state = computeWorldKeyPoseMap();
+            computeNearestFrameAndObjectKeys(start_state, world_state, grasp);
+            computeActionJointTrajectoryPoints(start_state, world_state, grasp);
             computeOffsetGrasps(offset_grasps, grasp, start_state, world_state);
         } catch (apc_exception::Exception& error) {
             ROS_ERROR("Error: %s", error.what());
         }
-
+        ROS_INFO_STREAM("offset_grasps: " << offset_grasps.size());
         apc_msgs::PrimitivePlan ogs;
         for (int i = 0; i < offset_grasps.size(); i++) {
             ogs.actions.insert(ogs.actions.end(), offset_grasps[i].actions.begin(),
                                offset_grasps[i].actions.end());
         }
+        ROS_INFO_STREAM("ogs: " << ogs.actions.size());
         loadPlanToActiveActions(ogs);
     }
 

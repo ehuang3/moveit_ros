@@ -337,7 +337,7 @@ private:
 
   // Teleoperation widget.
 
-    void computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan> offset_grasps,
+    void computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan>& offset_grasps,
                                                   const apc_msgs::PrimitivePlan& grasp,
                                                   const robot_state::RobotState& start,
                                                   const KeyPoseMap& world);
