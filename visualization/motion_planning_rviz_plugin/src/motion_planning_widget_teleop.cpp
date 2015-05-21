@@ -1300,20 +1300,20 @@ namespace moveit_rviz_plugin
         std::string l2 = "crichton_" + side + "_finger_23_link";
         Eigen::Affine3d T_l1 = robot_state.getGlobalLinkTransform(l1);
         Eigen::Affine3d T_l2 = robot_state.getGlobalLinkTransform(l2);
-        ROS_INFO_STREAM("T_l1\n" << T_l1.matrix());
-        ROS_INFO_STREAM("T_l2\n" << T_l2.matrix());
+        // ROS_INFO_STREAM("T_l1\n" << T_l1.matrix());
+        // ROS_INFO_STREAM("T_l2\n" << T_l2.matrix());
         // Compute connecting line and midpoint between the two links.
         Eigen::Vector3d pt_mid = 0.5 * (T_l1.translation() + T_l2.translation());
-        ROS_INFO_STREAM("pt_mid " << pt_mid.transpose());
+        // ROS_INFO_STREAM("pt_mid " << pt_mid.transpose());
         Eigen::Vector3d l_g = (T_l2.translation() - T_l1.translation()).normalized();
         // Compute the grasp center frame.
         Eigen::Affine3d T_g_w;
         T_g_w.linear() = T_l1.linear();
         T_g_w.translation() = pt_mid;
-        ROS_INFO_STREAM("T_g_w\n" << T_g_w.matrix());
+        // ROS_INFO_STREAM("T_g_w\n" << T_g_w.matrix());
         // Compute eef in world frame.
         Eigen::Affine3d T_e_w = robot_state.getGlobalLinkTransform(grasp.eef_link_id);
-        ROS_INFO_STREAM("T_e_w\n" << T_e_w.matrix());
+        // ROS_INFO_STREAM("T_e_w\n" << T_e_w.matrix());
         APC_ASSERT(world.count(grasp.object_key) > 0, "Failed to find object key %s in world", grasp.object_key.c_str());
         Eigen::Affine3d T_o_w = world.find(grasp.object_key)->second;
         ROS_INFO_STREAM("T_o_w\n" << T_o_w.matrix());
@@ -1350,17 +1350,17 @@ namespace moveit_rviz_plugin
             q.normalize();
             Eigen::Affine3d T_r_g = Eigen::Affine3d::Identity();
             T_r_g.linear() = q.matrix();
-            ROS_INFO_STREAM("T_r_g\n" << T_r_g.matrix());
+            // ROS_INFO_STREAM("T_r_g\n" << T_r_g.matrix());
             // Rotate hand about grasp point.
             // Move eef position into grasp frame.
             Eigen::Affine3d T_e_g = T_g_w.inverse() * T_e_w;
-            ROS_INFO_STREAM("T_e_g\n" << T_e_g.matrix());
+            // ROS_INFO_STREAM("T_e_g\n" << T_e_g.matrix());
             // Rotate eef position by random.
             Eigen::Affine3d T_e_r = T_r_g.inverse() * T_e_g;
-            ROS_INFO_STREAM("T_e_r\n" << T_e_r.matrix());
+            // ROS_INFO_STREAM("T_e_r\n" << T_e_r.matrix());
             // Move eef position back into world frame.
             Eigen::Affine3d T_new_w = T_g_w * T_e_r;
-            ROS_INFO_STREAM("T_new_w\n" << T_new_w.matrix());
+            // ROS_INFO_STREAM("T_new_w\n" << T_new_w.matrix());
             // IK to new position.
             robot_state::RobotState copy = robot_state;
             geometry_msgs::Pose pose_id;

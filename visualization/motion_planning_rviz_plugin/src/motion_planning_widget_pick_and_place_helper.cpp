@@ -399,9 +399,18 @@ namespace moveit_rviz_plugin
         std::string item_id = bin_contents->item(row, 1)->text().toStdString();
         std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
 
-        // Get all grasps for an item.
+        // // Get all grasps for an item.
+        // std::vector<apc_msgs::PrimitivePlan> item_grasps;
+        // retrieveItemGrasps(item_grasps, item_id);
+
+        //
+        apc_msgs::PrimitivePlan grasps = getPrimitivePlanFromActiveActions();
         std::vector<apc_msgs::PrimitivePlan> item_grasps;
-        retrieveItemGrasps(item_grasps, item_id);
+        for (int i = 0; i < grasps.actions.size(); i++) {
+            apc_msgs::PrimitivePlan grasp;
+            grasp.actions.push_back(grasps.actions[i]);
+            item_grasps.push_back(grasp);
+        }
 
         // Snap all grasps to the correct locations.
         robot_state::RobotState robot_state = *getQueryStartState();
@@ -409,7 +418,7 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < item_grasps.size(); i++) {
             try {
                 APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
-                computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
+                computeNearestFrameAndObjectKeysPartial(robot_state, world_state, item_grasps[i]);
                 computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]);
                 srv.request.grasps.push_back(item_grasps[i].actions[0]);
             } catch (apc_exception::Exception& error) {
@@ -490,19 +499,33 @@ namespace moveit_rviz_plugin
         std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
 
         // Get all grasps for an item.
-        std::vector<apc_msgs::PrimitivePlan> item_grasps;
-        retrieveItemGrasps(item_grasps, item_id);
-        // retrieveBinPoses(item_grasps, "bin_A");
-        // retrieveItemGrasps(item_grasps, item_id);
+        std::vector<apc_msgs::PrimitivePlan> db_grasps;
+        retrieveItemGrasps(db_grasps, item_id);
 
-        // Provide all grasps with keys.
+        // Compute the offset grasps.
+        std::vector<apc_msgs::PrimitivePlan> item_grasps;
         robot_state::RobotState robot_state = *getQueryGoalState();
         KeyPoseMap world_state = computeWorldKeyPoseMap();
+        int vanilla_grasp_count = db_grasps.size();
+        for (int i = 0; i < vanilla_grasp_count; i++) {
+            apc_msgs::PrimitivePlan grasp = db_grasps[i];
+            try {
+                computeNearestFrameAndObjectKeys(robot_state, world_state, grasp);
+                computeActionJointTrajectoryPoints(robot_state, world_state, grasp);
+                ROS_INFO("grasp key %s", grasp.actions[0].object_key.c_str());
+                item_grasps.push_back(grasp);
+                computeOffsetGrasps(item_grasps, grasp, robot_state, world_state);
+            } catch (apc_exception::Exception& error) {
+                ROS_ERROR("Skipping over grasp %s\n%s", db_grasps[i].plan_name.c_str(), error.what());
+            }
+        }
+
+        // Provide all grasps with keys.
         for (int i = 0; i < item_grasps.size(); i++) {
             try {
                 APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
-                computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
-                // computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]); // Don't snap to IK location!
+                // computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
+                // computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]);
                 srv.request.actions.push_back(item_grasps[i].actions[0]);
             } catch (apc_exception::Exception& error) {
                 ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
