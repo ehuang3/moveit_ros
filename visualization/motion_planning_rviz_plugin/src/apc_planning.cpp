@@ -55,8 +55,10 @@ bool apc_planning::_is_robot_moving_(const apc_msgs::PrimitiveAction& action)
     for (int i = 0; i < action.joint_trajectory.points.size(); i++) {
         const trajectory_msgs::JointTrajectoryPoint& current = action.joint_trajectory.points[i];
         for (int j = 0; j < current.positions.size(); j++)
-            if (std::abs(start.positions[j] - current.positions[j]) > TOLERANCE)
+            if (std::abs(start.positions[j] - current.positions[j]) > TOLERANCE) {
+                ROS_DEBUG("Joint %s greater than tolerance", action.joint_trajectory.joint_names[j].c_str());
                 return true;
+            }
     }
     return false;
 }

@@ -48,6 +48,9 @@ namespace moveit_rviz_plugin
         connect( ui_->bin_contents_table_widget, SIGNAL( itemClicked(QTableWidgetItem*) ),
                  this, SLOT( binContentsItemClicked(QTableWidgetItem*) ));
         connect( ui_->test_pregrasps_button,    SIGNAL( clicked() ), this, SLOT( testPreGraspsButtonClicked() ));
+        connect( ui_->test_ik_button,    SIGNAL( clicked() ), this, SLOT( testIkButtonClicked() ));
+        connect( ui_->test_collisions_button,    SIGNAL( clicked() ), this, SLOT( testCollisionsButtonClicked() ));
+        connect( ui_->test_grasps_button,    SIGNAL( clicked() ), this, SLOT( testGraspsButtonClicked() ));
     }
 
     void MotionPlanningFrame::updateBinContentsTableWidget(rapidjson::Document& doc)
@@ -114,5 +117,20 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::testPreGraspsButtonClicked()
     {
         planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestPreGraspsButtonClicked, this), "test pregraps");
+    }
+
+    void MotionPlanningFrame::testIkButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestIkButtonClicked, this), "test ik");
+    }
+
+    void MotionPlanningFrame::testCollisionsButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestCollisionsButtonClicked, this), "test ik");
+    }
+
+    void MotionPlanningFrame::testGraspsButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestGraspsButtonClicked, this), "test ik");
     }
 }

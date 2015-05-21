@@ -181,6 +181,10 @@ private:
 
   std::vector<ros::ServiceClient> _compute_dense_motion_clients;
 
+  ros::ServiceClient compute_ik_client_;
+
+  ros::ServiceClient check_collisions_client_;
+
   // ros::ServiceClient _compute_dense_motion_client;
 
   ros::ServiceClient _run_vision_client;
@@ -199,6 +203,8 @@ private:
 
 private Q_SLOTS:
   // APC tab.
+
+  void testGraspsButtonClicked();
 
   // Teleoperation widget slots.
   void planButtonClicked();
@@ -255,6 +261,8 @@ private Q_SLOTS:
   void binContentsItemDoubleClicked(QTableWidgetItem* item);
   void processInteractiveMarkerFeedbackForItem(visualization_msgs::InteractiveMarkerFeedback& feedback);
   void testPreGraspsButtonClicked();
+  void testIkButtonClicked();
+  void testCollisionsButtonClicked();
 
   // Vision widget slots.
   void runDpmButtonClicked();
@@ -328,6 +336,18 @@ private:
 
 
   // Teleoperation widget.
+
+    void computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan> offset_grasps,
+                                                  const apc_msgs::PrimitivePlan& grasp,
+                                                  const robot_state::RobotState& start,
+                                                  const KeyPoseMap& world);
+
+    void computeLinearInterpolatedTrajectory(apc_msgs::PrimitivePlan& plan,
+                                                         const robot_state::RobotState& start_state,
+                                                         const KeyPoseMap& world_state);
+    void computeLinearInterpolatedTrajectory(apc_msgs::PrimitiveAction& action,
+                                                                 const robot_state::RobotState& start_state,
+                                                                 const KeyPoseMap& world_state);
 
   KeyPoseMap computeWorldKeyPoseMap();
   std::string computeNearestFrameKey(const std::string& frame_id,
@@ -513,6 +533,9 @@ private:
   void updateInteractiveMarkerForItem(float wall_dt);
 
   void computeTestPreGraspsButtonClicked();
+  void computeTestIkButtonClicked();
+  void computeTestCollisionsButtonClicked();
+  void computeTestGraspsButtonClicked();
 
   // Vision widget.
   std::vector<std::string> computeObjectIdsInBinFromJson(const std::string& bin_id);

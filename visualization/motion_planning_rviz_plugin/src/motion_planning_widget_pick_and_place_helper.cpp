@@ -49,6 +49,9 @@
 #include <robot_calibration/urdf_loader.h>
 #include <boost/xpressive/xpressive.hpp>
 #include <apc_msgs/ComputePreGrasps.h>
+#include <apc_msgs/ComputeIk.h>
+#include <apc_msgs/CheckCollisions.h>
+#include <moveit/robot_state/conversions.h>
 
 
 namespace moveit_rviz_plugin
@@ -427,6 +430,128 @@ namespace moveit_rviz_plugin
         } catch (apc_exception::Exception& error) {
             ROS_ERROR("Caught error\n%s", error.what());
         }
+    }
+
+    void MotionPlanningFrame::computeTestIkButtonClicked()
+    {
+        apc_msgs::ComputeIk srv;
+        // Read off the highlighted item in the bin contents.
+        int row = ui_->bin_contents_table_widget->currentRow();
+        if (row < 0) return;
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        std::string item_id = bin_contents->item(row, 1)->text().toStdString();
+        std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
+
+        // Get all grasps for an item.
+        std::vector<apc_msgs::PrimitivePlan> item_grasps;
+        // retrieveItemGrasps(item_grasps, item_id);
+        retrieveBinPoses(item_grasps, "bin_A");
+
+        // Provide all grasps with keys.
+        robot_state::RobotState robot_state = *getQueryStartState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        for (int i = 0; i < item_grasps.size(); i++) {
+            try {
+                // APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
+                computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
+                // computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]); // Don't snap to IK location!
+                srv.request.actions.push_back(item_grasps[i].actions[1]);
+            } catch (apc_exception::Exception& error) {
+                ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
+            }
+        }
+
+        // Add bin items.
+        setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
+        setBinStatesToBinStatesMessage(srv.request.bin_states, world_state);
+        robotStateToRobotStateMsg(robot_state, srv.request.robot_state);
+
+        ROS_INFO("Computing test IK");
+
+        try {
+            APC_ASSERT(compute_ik_client_.call(srv),
+                       "Failed call to compute ik client");
+            apc_msgs::PrimitivePlan ik_actions;
+            ik_actions.actions = srv.response.actions;
+            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ik_actions));
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Caught error\n%s", error.what());
+        }
+    }
+
+    void MotionPlanningFrame::computeTestCollisionsButtonClicked()
+    {
+        apc_msgs::CheckCollisions srv;
+        // Read off the highlighted item in the bin contents.
+        int row = ui_->bin_contents_table_widget->currentRow();
+        if (row < 0) return;
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        std::string item_id = bin_contents->item(row, 1)->text().toStdString();
+        std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
+
+        // Get all grasps for an item.
+        std::vector<apc_msgs::PrimitivePlan> item_grasps;
+        retrieveItemGrasps(item_grasps, item_id);
+        // retrieveBinPoses(item_grasps, "bin_A");
+        // retrieveItemGrasps(item_grasps, item_id);
+
+        // Provide all grasps with keys.
+        robot_state::RobotState robot_state = *getQueryGoalState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        for (int i = 0; i < item_grasps.size(); i++) {
+            try {
+                APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
+                computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
+                // computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]); // Don't snap to IK location!
+                srv.request.actions.push_back(item_grasps[i].actions[0]);
+            } catch (apc_exception::Exception& error) {
+                ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
+            }
+        }
+
+        // Add bin items.
+
+        setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
+        setBinStatesToBinStatesMessage(srv.request.bin_states, world_state);
+        robotStateToRobotStateMsg(robot_state, srv.request.robot_state);
+
+        ROS_INFO("Computing check collisions");
+
+        try {
+            APC_ASSERT(check_collisions_client_.call(srv),
+                       "Failed call to check collisions service");
+            apc_msgs::PrimitivePlan ik_actions;
+            ik_actions.actions = srv.response.actions;
+            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ik_actions));
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Caught error\n%s", error.what());
+        }
+    }
+
+    void MotionPlanningFrame::computeTestGraspsButtonClicked()
+    {
+        // Aggregate the active actions into a plan.
+        apc_msgs::PrimitivePlan grasp = getPrimitivePlanFromActiveActions();
+
+        // Get the starting state.
+        robot_state::RobotState start_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+
+        // Compute the offset grasps.
+        std::vector<apc_msgs::PrimitivePlan> offset_grasps;
+        offset_grasps.push_back(grasp);
+        try {
+            KeyPoseMap world_state = computeWorldKeyPoseMap();
+            computeOffsetGrasps(offset_grasps, grasp, start_state, world_state);
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Error: %s", error.what());
+        }
+
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < offset_grasps.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), offset_grasps[i].actions.begin(),
+                               offset_grasps[i].actions.end());
+        }
+        loadPlanToActiveActions(ogs);
     }
 
 }

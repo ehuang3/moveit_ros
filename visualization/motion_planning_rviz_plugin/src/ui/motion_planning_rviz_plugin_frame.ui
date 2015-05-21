@@ -1423,14 +1423,14 @@ background-color: rgb(212, 208, 200);</string>
                   </item>
                   <item row="1" column="2" rowspan="2">
                    <layout class="QGridLayout" name="gridLayout_42">
-                    <item row="2" column="0">
+                    <item row="3" column="0">
                      <widget class="QPushButton" name="pushButton_6">
                       <property name="text">
                        <string>Detect Objects</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="2" column="1">
+                    <item row="3" column="1">
                      <widget class="QPushButton" name="pushButton_7">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -1443,7 +1443,20 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="0" column="0">
+                    <item row="1" column="1">
+                     <widget class="QPushButton" name="test_pregrasps_button">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="text">
+                       <string>Test Pregrasps</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="0">
                      <widget class="QPushButton" name="test_grasps_button">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -1456,16 +1469,17 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="0" column="1">
-                     <widget class="QPushButton" name="test_pregrasps_button">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
+                    <item row="0" column="0">
+                     <widget class="QPushButton" name="test_ik_button">
                       <property name="text">
-                       <string>Test Pregrasps</string>
+                       <string>Test IK</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="1">
+                     <widget class="QPushButton" name="test_collisions_button">
+                      <property name="text">
+                       <string>Test Collisions</string>
                       </property>
                      </widget>
                     </item>

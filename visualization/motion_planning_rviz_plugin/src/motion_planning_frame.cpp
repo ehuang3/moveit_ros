@@ -48,6 +48,8 @@
 #include <apc_msgs/RunVision.h>
 #include <apc_msgs/GetShelf.h>
 #include <apc_msgs/ComputePreGrasps.h>
+#include <apc_msgs/ComputeIk.h>
+#include <apc_msgs/CheckCollisions.h>
 
 #include <QMessageBox>
 #include <QInputDialog>
@@ -183,6 +185,11 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_7"));
 
   compute_pregrasps_client_ = nh_.serviceClient<apc_msgs::ComputePreGrasps>("compute_pregrasps");
+
+  compute_ik_client_ = nh_.serviceClient<apc_msgs::ComputeIk>("compute_ik");
+
+
+  check_collisions_client_ = nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions");
 
   // Tf listener
   _tf_listener;// = tf::TransformListener(nh_);

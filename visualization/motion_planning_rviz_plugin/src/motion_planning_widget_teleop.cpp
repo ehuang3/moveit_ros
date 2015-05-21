@@ -50,6 +50,13 @@
 #include <apc/eigen.h>
 #include <apc/planning.h>
 
+#include <boost/random/uniform_real.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_on_sphere.hpp>
+#include <boost/random/variate_generator.hpp>
+#include <ctime>
+
+
 using namespace apc_planning;
 
 
@@ -698,6 +705,8 @@ namespace moveit_rviz_plugin
         std::vector<std::string> item_ids;
         for (char c = 'A'; c <= 'L'; c++) {
             std::string bin_id = std::string("bin_") + c;
+            if (world_state.find(bin_id) == world_state.end())
+                return;
             item_keys = findItemKeysInBin(bin_id, world_state);
             item_ids.clear();
             for (int i = 0; i < item_keys.size(); i++) {
@@ -995,6 +1004,9 @@ namespace moveit_rviz_plugin
         computeNearestFrameAndObjectKeys(start_state, world_state, plan);
         computeActionJointTrajectoryPoints(start_state, world_state, plan);
         computeFullyConnectedPlan(start_state, plan);
+
+        computeLinearInterpolatedTrajectory(plan, start_state, world_state);
+
         apc_planning::partitionPlanBySubgroups(plan, start_state);
         apc_planning::validatePlanningArguements(plan);
         apc_planning::clampJointLimitsInPlan(plan, start_state);
@@ -1152,6 +1164,141 @@ namespace moveit_rviz_plugin
                                                       this,
                                                       state,
                                                       *result));
+    }
+
+
+    void MotionPlanningFrame::computeLinearInterpolatedTrajectory(apc_msgs::PrimitivePlan& plan,
+                                                         const robot_state::RobotState& start_state,
+                                                         const KeyPoseMap& world_state)
+    {
+        // PRECONDITIONS:
+        // The plan is fully connected.
+        // The robot is already IK'd to the correct locations.
+        for (int i = 0; i < plan.actions.size(); i++) {
+            computeLinearInterpolatedTrajectory(plan.actions[i], start_state, world_state);
+        }
+    }
+
+    void MotionPlanningFrame::computeLinearInterpolatedTrajectory(apc_msgs::PrimitiveAction& action,
+                                                                 const robot_state::RobotState& start_state,
+                                                                 const KeyPoseMap& world_state)
+    {
+        // PRECONDITIONS:
+        // Operate only on joint trajectory.
+        // Robot is already IK'd to the correct locations.
+        if (is_action_stationary(action))
+            return;
+        robot_state::RobotState robot_state = start_state;
+        // Get group for IK
+        kinematics::KinematicsBaseConstPtr solver = robot_state.getJointModelGroup(action.group_id)->getSolverInstance();
+        std::string group_id = action.group_id;
+        // If no solver exists, try searching the subgroups for a solver.
+        if (!solver) {
+            std::vector<const moveit::core::JointModelGroup*> subgroups;
+            robot_state.getJointModelGroup(action.group_id)->getSubgroups(subgroups);
+            for (int i = 0; i < subgroups.size(); i++)
+                if (solver = subgroups[i]->getSolverInstance()) {
+                    group_id = subgroups[i]->getName();
+                    break;
+                }
+        }
+        if (!solver) {
+            return;
+        }
+        APC_ASSERT(solver,
+                   "Missing IK solver for group %s in action %s", action.group_id.c_str(), action.action_name.c_str());
+        // Get eef link.
+        std::string eef_link = computeEefLink(action.group_id);
+        // Read off starting eef transform.
+        setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.front());
+        Eigen::Affine3d T_start = robot_state.getGlobalLinkTransform(eef_link);
+        // Read off ending eef transform.
+        setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.back());
+        Eigen::Affine3d T_end = robot_state.getGlobalLinkTransform(eef_link);
+        // Set robot state to the front of the trajectory.
+        setStateFromPoint(robot_state, action.joint_trajectory.joint_names, action.joint_trajectory.points.front());
+        // Interp between points.
+        apc_msgs::PrimitiveAction linear_action = action;
+        linear_action.joint_trajectory.points.clear();
+        int num_steps = 10;
+        linear_action.eef_trajectory.poses.resize(num_steps);
+        for (int i = 0; i < num_steps; i++) {
+            double t = (double) i / (double) (num_steps - 1);
+            // Lerp the translation component.
+            Eigen::Vector3d v_t = (1 - t) * T_start.translation() + (t) * T_end.translation();
+            // Slerp the rotation component.
+            Eigen::Quaterniond q_start(T_start.linear());
+            Eigen::Quaterniond q_end(T_end.linear());
+            Eigen::Quaterniond q_t = q_start.slerp(t, q_end);
+            // Recreate the affine transform.
+            Eigen::Affine3d T_t;
+            T_t.translation() = v_t;
+            T_t.linear() = q_t.matrix();
+            // IK the robot to the next state.
+            geometry_msgs::Pose pose_identity;
+            pose_identity.position.x = 0;
+            pose_identity.position.y = 0;
+            pose_identity.position.z = 0;
+            pose_identity.orientation.x = 0;
+            pose_identity.orientation.y = 0;
+            pose_identity.orientation.z = 0;
+            pose_identity.orientation.w = 1;
+            const std::string frame_id = "test_frame";
+            setStateFromIK(robot_state, eef_link, group_id, frame_id, T_t, pose_identity, false);
+            // Save IK'd state into the action.
+            appendStateToAction(linear_action, robot_state);
+            // Set eef pose into action.
+            tf::poseEigenToMsg(T_t, linear_action.eef_trajectory.poses[i]);
+        }
+        action = linear_action;
+    }
+
+    void MotionPlanningFrame::computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan> offset_grasps,
+                                                  const apc_msgs::PrimitivePlan& grasp_,
+                                                  const robot_state::RobotState& start,
+                                                  const KeyPoseMap& world)
+    {
+        // Precondition:
+        // Grasp is reachable and has been IK'd to.
+        // All grasps are two finger grasps.
+        APC_ASSERT(grasp_.actions.size() == 1, "Grasp more than one action");
+        apc_msgs::PrimitiveAction grasp = grasp_.actions[0];
+        APC_ASSERT(is_action_grasp(grasp), "Not a grasp!");
+        std::stringstream ss;
+        ss << grasp;
+        APC_ASSERT(is_action_stationary(grasp), "Not a sationary! %s", ss.str().c_str());
+        robot_state::RobotState robot_state = start;
+        // Set grasp to robot.
+        setStateFromPoint(robot_state, grasp.joint_trajectory.joint_names, grasp.joint_trajectory.points.front());
+        // Compute the finger grasp frame.
+        std::string group_id = grasp.group_id;
+        // Determine which side of the robot we are using.
+        using namespace boost::xpressive;
+        sregex rex = sregex::compile("^.*(left|right).*");
+        smatch what;
+        APC_ASSERT(regex_match(group_id, what, rex), "Can't determine side of group");
+        std::string side = what[1];
+        // Get the finger positions.
+        std::string l1 = "crichton_" + side + "_finger_13_link";
+        std::string l2 = "crichton_" + side + "_finger_23_link";
+        Eigen::Affine3d T_l1 = robot_state.getGlobalLinkTransform(l1);
+        Eigen::Affine3d T_l2 = robot_state.getGlobalLinkTransform(l2);
+        // Compute connecting line and midpoint between the two links.
+        Eigen::Vector3d pt_mid = 0.5 * (T_l1.translation() + T_l2.translation());
+        Eigen::Vector3d l_g = (T_l2.translation() - T_l1.translation()).normalized();
+        // Compute normal to midpoint (towards the hand).
+        Eigen::Vector3d n_p = -T_l1.linear().col(2);
+        // Generate random rotations around that cone.
+        int num_samples = 10;
+        typedef boost::random::mt19937 gen_type;
+        gen_type rand_gen;
+        rand_gen.seed(static_cast<unsigned int>(std::time(0)));
+        boost::uniform_real<> uni_dist(-1, 1);
+        boost::variate_generator<gen_type&, boost::uniform_real<double> > rand_real(rand_gen, uni_dist);
+        for (int i = 0; i < num_samples; i++) {
+            double z = rand_real();
+            ROS_INFO_STREAM("RANDOM: " << z);
+        }
     }
 
 }
