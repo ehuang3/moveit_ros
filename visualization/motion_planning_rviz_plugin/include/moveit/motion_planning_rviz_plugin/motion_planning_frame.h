@@ -205,6 +205,10 @@ private Q_SLOTS:
   // APC tab.
 
   void testGraspsButtonClicked();
+  void testEnterButtonClicked();
+  void testExitButtonClicked();
+  void testPlanButtonClicked();
+  void testTrajoptButtonClicked();
 
   // Teleoperation widget slots.
   void planButtonClicked();
@@ -337,6 +341,13 @@ private:
 
   // Teleoperation widget.
 
+    void computeEnter(std::vector<apc_msgs::PrimitivePlan>& pregrasps,
+                                           const apc_msgs::PrimitivePlan& bin_pose_,
+                                           const robot_state::RobotState& start,
+                                           const KeyPoseMap& world);
+    apc_msgs::PrimitiveAction getSubgroupAction(const std::string& subgroup_expr,
+                                                                     const apc_msgs::PrimitiveAction& action,
+                                                                     const robot_state::RobotState& robot_state);
     void computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan>& offset_grasps,
                                                   const apc_msgs::PrimitivePlan& grasp,
                                                   const robot_state::RobotState& start,
@@ -536,7 +547,21 @@ private:
   void computeTestIkButtonClicked();
   void computeTestCollisionsButtonClicked();
   void computeTestGraspsButtonClicked();
+  void computeTestEnterButtonClicked();
+  void computeTestExitButtonClicked();
+  void computeTestPlanButtonClicked();
+  void computeTestTrajoptButtonClicked();
 
+  void computeExit(std::vector<apc_msgs::PrimitivePlan>& grasps,
+                   const apc_msgs::PrimitivePlan& bin_pose_,
+                   const robot_state::RobotState& start,
+                   const KeyPoseMap& world);
+
+    void computePick(std::vector<apc_msgs::PrimitivePlan>& picks,
+                                          const std::string& item_id,
+                                          const std::string& bin_id,
+                                          const robot_state::RobotState& start,
+                                          const KeyPoseMap& world);
   // Vision widget.
   std::vector<std::string> computeObjectIdsInBinFromJson(const std::string& bin_id);
   void KinectRGBSubscriberCallback();

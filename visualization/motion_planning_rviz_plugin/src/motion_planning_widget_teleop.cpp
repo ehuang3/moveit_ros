@@ -50,6 +50,10 @@
 #include <apc/eigen.h>
 #include <apc/planning.h>
 
+
+#include <apc_msgs/CheckCollisions.h>
+#include <apc_msgs/ComputePreGrasps.h>
+
 #include <boost/random/uniform_real.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_on_sphere.hpp>
@@ -1171,11 +1175,34 @@ namespace moveit_rviz_plugin
                                                          const robot_state::RobotState& start_state,
                                                          const KeyPoseMap& world_state)
     {
+        typedef apc_msgs::PrimitiveAction Action;
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef trajectory_msgs::JointTrajectoryPoint Point;
+        typedef std::vector<std::string> JointNames;
         // PRECONDITIONS:
         // The plan is fully connected.
         // The robot is already IK'd to the correct locations.
+        robot_state::RobotState robot_state = start_state;
         for (int i = 0; i < plan.actions.size(); i++) {
             computeLinearInterpolatedTrajectory(plan.actions[i], start_state, world_state);
+            // Post condition; robot state is upto date.
+            setStateFromPoint(robot_state, plan.actions[i].joint_trajectory.joint_names, plan.actions[i].joint_trajectory.points.back());
+            // Make sure that the endpoints between the two
+            // trajectories stay connected
+            if (i == plan.actions.size()-1)
+                continue;
+            Action& prev = plan.actions[i];
+            Action& next = plan.actions[i+1];
+            robot_state::RobotState next_state = robot_state;
+            setStateFromPoint(next_state, next.joint_trajectory.joint_names, next.joint_trajectory.points.front());
+            if (next_state.distance(robot_state) > 1e-10) {
+                // APC_ASSERT(prev.group_id == next.group_id, "Disconnect between group ids?");
+                // overwrite starting joint angles with end of the prev state.
+                Action tmp = next;
+                appendStateToAction(tmp, robot_state);
+                // setting starting joint angles to the end of the prev state.
+                next.joint_trajectory.points[0] = tmp.joint_trajectory.points.back();
+            }
         }
     }
 
@@ -1316,7 +1343,7 @@ namespace moveit_rviz_plugin
         // ROS_INFO_STREAM("T_e_w\n" << T_e_w.matrix());
         APC_ASSERT(world.count(grasp.object_key) > 0, "Failed to find object key %s in world", grasp.object_key.c_str());
         Eigen::Affine3d T_o_w = world.find(grasp.object_key)->second;
-        ROS_INFO_STREAM("T_o_w\n" << T_o_w.matrix());
+        // ROS_INFO_STREAM("T_o_w\n" << T_o_w.matrix());
         // Compute normal to midpoint (towards the hand).
         Eigen::Vector3d n_p = -T_l1.linear().col(2);
         // Generate random rotations around that cone.
@@ -1377,9 +1404,230 @@ namespace moveit_rviz_plugin
             apc_msgs::PrimitivePlan offset_grasp_plan;
             offset_grasp_plan.actions.push_back(offset_grasp);
             offset_grasps.push_back(offset_grasp_plan);
-            ROS_INFO("Computed an offset grasp");
+            // ROS_INFO("Computed an offset grasp");
         }
 
     }
+
+    apc_msgs::PrimitiveAction MotionPlanningFrame::getSubgroupAction(const std::string& subgroup_expr,
+                                                                     const apc_msgs::PrimitiveAction& action,
+                                                                     const robot_state::RobotState& robot_state)
+    {
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        std::vector<const moveit::core::JointModelGroup*> subgroups;
+        robot_state.getJointModelGroup(action.group_id)->getSubgroups(subgroups);
+        for(int i =0; i < subgroups.size();i ++){
+            using namespace boost::xpressive;
+            sregex rex = sregex::compile(subgroup_expr);
+            smatch what;
+            std::string subgroup_id = subgroups[i]->getName();
+            // ROS_INFO_STREAM("subgroup_id " << subgroup_id);
+            if (regex_match(subgroup_id, what, rex)) {
+                Action subaction = action;
+                subaction.group_id = subgroup_id;
+                copyJointTrajectoryRestrictedToGroup(subaction, action, robot_state);
+                return subaction;
+            }
+        }
+        APC_ASSERT(false, "Failed to find a matching %s subgroup action for group %s",
+                   subgroup_expr.c_str(), action.group_id.c_str());
+    }
+
+    void MotionPlanningFrame::computeEnter(std::vector<apc_msgs::PrimitivePlan>& pregrasps,
+                                           const apc_msgs::PrimitivePlan& bin_pose_,
+                                           const robot_state::RobotState& start,
+                                           const KeyPoseMap& world)
+    {
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        // Set robot to end of trajectoy.
+        robot_state::RobotState robot_state = start;
+        setStateToPlanJointTrajectoryEnd(robot_state, bin_pose_);
+        // Compute enter trajecotyrs.
+        for (int i = 0; i < pregrasps.size(); i++) {
+            Action bin_pose = bin_pose_.actions.back();
+            Action pregrasp = pregrasps[i].actions.front();
+            // Partition plan so that the fingers open first, then we linearly interpolate.
+            Action pregrasp_hand = getSubgroupAction(".*hand", pregrasp, robot_state);
+            Action pregrasp_pose = getSubgroupAction(".*arm", pregrasp, robot_state);
+            Plan pose_to_pregrasp;
+            pose_to_pregrasp.actions.push_back(bin_pose);
+            pose_to_pregrasp.actions.push_back(pregrasp_hand);
+            pose_to_pregrasp.actions.push_back(pregrasp_pose);
+            for (int j =1 ; j < pregrasps[i].actions.size(); j++) {
+                const Action& grasp = pregrasps[i].actions[j];
+                Action grasp_hand = getSubgroupAction(".*hand", grasp, robot_state); // split so that linear interp will not overwrite hand movements.
+                Action grasp_pose = getSubgroupAction(".*arm", grasp, robot_state);
+                pose_to_pregrasp.actions.push_back(grasp_hand);
+                pose_to_pregrasp.actions.push_back(grasp_pose);
+            }
+            // Fill out things
+            computeNearestFrameAndObjectKeysPartial(robot_state, world, pose_to_pregrasp);
+            computeActionJointTrajectoryPoints(robot_state, world, pose_to_pregrasp);
+            computeFullyConnectedPlan(robot_state, pose_to_pregrasp);
+            // interpt
+            computeLinearInterpolatedTrajectory(pose_to_pregrasp, robot_state, world);
+            //
+            pregrasps[i] = pose_to_pregrasp;
+        }
+    }
+
+    void MotionPlanningFrame::computeExit(std::vector<apc_msgs::PrimitivePlan>& grasps,
+                                           const apc_msgs::PrimitivePlan& bin_pose_,
+                                           const robot_state::RobotState& start,
+                                           const KeyPoseMap& world)
+    {
+        // Preconditions:
+        // grasps is just the grasp?
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        Action bin_pose = bin_pose_.actions.back();
+        for (int i = 0; i < grasps.size(); i++) {
+            // Set robot to end of grasp.
+            robot_state::RobotState robot_state = start;
+            setStateToPlanJointTrajectoryEnd(robot_state, grasps[i]);
+            // last grasp pose
+            Action grasp_end = grasps[i].actions.back();
+            // Get the arm only pose of the end bin state.
+            Action exit_pose = getSubgroupAction(".*arm", bin_pose, robot_state);
+            Plan grasp_to_pose;
+            grasp_to_pose.actions.push_back(grasp_end);
+            grasp_to_pose.actions.push_back(exit_pose);
+            // Fill out things
+            computeNearestFrameAndObjectKeysPartial(robot_state, world, grasp_to_pose);
+            computeActionJointTrajectoryPoints(robot_state, world, grasp_to_pose);
+            computeFullyConnectedPlan(robot_state, grasp_to_pose);
+            // interpt
+            computeLinearInterpolatedTrajectory(grasp_to_pose, robot_state, world);
+            grasps[i].actions.insert(grasps[i].actions.end(),
+                                     grasp_to_pose.actions.begin() + 1,
+                                     grasp_to_pose.actions.end());
+        }
+    }
+
+    void MotionPlanningFrame::computePick(std::vector<apc_msgs::PrimitivePlan>& picks,
+                                          const std::string& item_id,
+                                          const std::string& bin_id,
+                                          const robot_state::RobotState& start,
+                                          const KeyPoseMap& world)
+    {
+        // get bin bppose
+                        typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        PlanList bin_poses;
+        retrieveBinPoses(bin_poses, bin_id);
+        // ik to bin pose
+        robot_state::RobotState robot_state = start;
+        setStateToPlanJointTrajectoryEnd(robot_state,
+                                         bin_poses[0]);
+        KeyPoseMap world_state = world;
+        //
+        // Get all grasps for an item.
+        std::vector<apc_msgs::PrimitivePlan> db_grasps;
+        retrieveItemGrasps(db_grasps, item_id);
+        //
+        std::vector<apc_msgs::PrimitivePlan> item_grasps;
+        int vanilla_grasp_count = db_grasps.size();
+        for (int i = 0; i < vanilla_grasp_count; i++) {
+            apc_msgs::PrimitivePlan grasp = db_grasps[i];
+            try {
+                computeNearestFrameAndObjectKeys(robot_state, world, grasp);
+                computeActionJointTrajectoryPoints(robot_state, world, grasp);
+                // ROS_INFO("grasp key %s", grasp.actions[0].object_key.c_str());
+                item_grasps.push_back(grasp);
+                computeOffsetGrasps(item_grasps, grasp, robot_state, world);
+            } catch (apc_exception::Exception& error) {
+                ROS_WARN("Skipping over grasp %s\n%s", db_grasps[i].plan_name.c_str(), error.what());
+            }
+        }
+                               //
+        // pruyne colliding grasps
+        apc_msgs::PrimitivePlan grasps;
+        apc_msgs::CheckCollisions collision_srv;
+        for (int i = 0; i < item_grasps.size(); i++) {
+            try {
+                APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
+                collision_srv.request.actions.push_back(item_grasps[i].actions[0]);
+            } catch (apc_exception::Exception& error) {
+                ROS_WARN("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
+            }
+        }
+        setWorldKeyPoseToWorldStateMessage(world_state, collision_srv.request.world_state);
+        setBinStatesToBinStatesMessage(collision_srv.request.bin_states, world_state);
+        robotStateToRobotStateMsg(robot_state, collision_srv.request.robot_state);
+        ROS_INFO("Computing check collisions");
+        try {
+            APC_ASSERT(check_collisions_client_.call(collision_srv),
+                       "Failed call to check collisions service");
+            apc_msgs::PrimitivePlan ik_actions;
+            grasps.actions = collision_srv.response.actions;
+            ik_actions.actions = collision_srv.response.actions;
+            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ik_actions));
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Caught error\n%s", error.what());
+            return;
+        }
+        //
+        apc_msgs::ComputePreGrasps pregrasp_srv;
+        pregrasp_srv.request.grasps = collision_srv.response.actions;
+        setWorldKeyPoseToWorldStateMessage(world_state, pregrasp_srv.request.world_state);
+        setBinStatesToBinStatesMessage(pregrasp_srv.request.bin_states, world_state);
+        apc_msgs::PrimitivePlan pregrasps;
+        try {
+            APC_ASSERT(compute_pregrasps_client_.call(pregrasp_srv),
+                       "Failed call to compute pregrasp client");
+            pregrasps.actions = pregrasp_srv.response.pregrasps;
+            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, pregrasps));
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Caught error\n%s", error.what());
+            return;
+        }
+        // check collisions of pregrasps again.n
+        collision_srv.request.actions = pregrasps.actions;
+        ROS_INFO("Computing check collisions");
+        try {
+            APC_ASSERT(check_collisions_client_.call(collision_srv),
+                       "Failed call to check collisions service");
+            pregrasps.actions = collision_srv.response.actions;
+            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, pregrasps));
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Caught error\n%s", error.what());
+            return;
+        }
+        // convert to plasn
+        PlanList grasp_plans;
+        // APC_ASSERT(pregrasps.actions.size() % 2 == 0,
+        //            "number of actions in pregrasps shouyld be even (pregrasp-grasp pairs)");
+        int i = 0;
+        for (i =0; i < pregrasps.actions.size();) {
+            if (pregrasps.actions[i++].grasp != false)
+                continue;
+            if (pregrasps.actions[i++].grasp != true)
+                continue;
+            Plan grasp;
+            grasp.actions.push_back(pregrasps.actions[i-2]); // pregrasp
+            grasp.actions.push_back(pregrasps.actions[i-1]); // grasp
+            grasp_plans.push_back(grasp);
+        }
+        // enter and exit
+        try {
+            computeEnter(grasp_plans, bin_poses[0], robot_state, world_state);
+            computeExit(grasp_plans, bin_poses[0], robot_state, world_state);
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("error %s", error.what());
+            return;
+        }
+        apc_msgs::PrimitivePlan diplsying;
+        for (int i = 0; i < picks.size(); i++) {
+            diplsying.actions.insert(diplsying.actions.end(), grasp_plans[i].actions.begin(),
+                               grasp_plans[i].actions.end());
+        }
+        loadPlanToActiveActions(diplsying);
+        picks = grasp_plans;
+    }
+
+
 
 }

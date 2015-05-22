@@ -48,9 +48,14 @@ namespace moveit_rviz_plugin
         connect( ui_->bin_contents_table_widget, SIGNAL( itemClicked(QTableWidgetItem*) ),
                  this, SLOT( binContentsItemClicked(QTableWidgetItem*) ));
         connect( ui_->test_pregrasps_button,    SIGNAL( clicked() ), this, SLOT( testPreGraspsButtonClicked() ));
-        connect( ui_->test_ik_button,    SIGNAL( clicked() ), this, SLOT( testIkButtonClicked() ));
+        // connect( ui_->test_ik_button,    SIGNAL( clicked() ), this, SLOT( testIkButtonClicked() ));
         connect( ui_->test_collisions_button,    SIGNAL( clicked() ), this, SLOT( testCollisionsButtonClicked() ));
         connect( ui_->test_grasps_button,    SIGNAL( clicked() ), this, SLOT( testGraspsButtonClicked() ));
+
+        connect( ui_->test_enter_button,    SIGNAL( clicked() ), this, SLOT( testEnterButtonClicked() ));
+        connect( ui_->test_exit_button,    SIGNAL( clicked() ), this, SLOT( testExitButtonClicked() ));
+        connect( ui_->test_plan_button,    SIGNAL( clicked() ), this, SLOT( testPlanButtonClicked() ));
+        connect( ui_->test_trajopt_button,    SIGNAL( clicked() ), this, SLOT( testTrajoptButtonClicked() ));
     }
 
     void MotionPlanningFrame::updateBinContentsTableWidget(rapidjson::Document& doc)
@@ -132,5 +137,22 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::testGraspsButtonClicked()
     {
         planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestGraspsButtonClicked, this), "test ik");
+    }
+
+    void MotionPlanningFrame::testEnterButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestEnterButtonClicked, this), "test ik");
+    }
+    void MotionPlanningFrame::testExitButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestExitButtonClicked, this), "test ik");
+    }
+    void MotionPlanningFrame::testPlanButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestPlanButtonClicked, this), "test ik");
+    }
+    void MotionPlanningFrame::testTrajoptButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestTrajoptButtonClicked, this), "test ik");
     }
 }

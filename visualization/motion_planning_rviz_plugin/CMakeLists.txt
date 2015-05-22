@@ -13,6 +13,7 @@ set( headers
   include/apc/vision.h
 )
 
+
 # Convert the Qt Signals and Slots for QWidget events
 qt4_wrap_cpp(MOC_SOURCES ${headers})
 
