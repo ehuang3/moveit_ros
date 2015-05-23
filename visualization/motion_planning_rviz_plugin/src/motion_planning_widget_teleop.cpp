@@ -1759,6 +1759,23 @@ namespace moveit_rviz_plugin
             throw error;
         }
 
+        robot_state::RobotState bin_robot = robot_state;
+        setStateToPlanJointTrajectoryEnd(bin_robot, bin_pose);
+#pragma omp parallel num_threads(8)
+        {
+#pragma omp for
+            for (int i = 0; i < grasp_plans.size(); i++) {
+                try {
+                    computeDenseMotionPlan(bin_robot,
+                                           world_state,
+                                           grasp_plans[i],
+                                           omp_get_thread_num() % _compute_dense_motion_clients.size());
+                } catch (apc_exception::Exception& e) {
+                    ROS_DEBUG("rejected: %s", e.what());
+                }
+            }
+        }
+
         apc_msgs::PrimitivePlan diplsying;
         for (int i = 0; i < picks.size(); i++) {
             diplsying.actions.insert(diplsying.actions.end(), grasp_plans[i].actions.begin(),

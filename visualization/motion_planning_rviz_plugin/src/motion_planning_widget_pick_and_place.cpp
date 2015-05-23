@@ -511,6 +511,7 @@ namespace moveit_rviz_plugin
 
         if (scoring_plans.size() > 0)
             item_plan = scoring_plans[0];
+
     }
 
 
@@ -672,7 +673,7 @@ namespace moveit_rviz_plugin
             setAttachedObjectFromAction(start_state, world, action, 0);
         }
 
-#pragma omp parallel num_threads(1)
+#pragma omp parallel num_threads(8)
         {
 #pragma omp for
             for (int i = 0; i < valid_grasps.size(); i++) {
@@ -810,7 +811,10 @@ namespace moveit_rviz_plugin
 
             // Compute a pick and place plan for the item.
             try {
+
                 computePickAndPlaceForItem(item_plan, bin_id, item_id, robot_state, world_state);
+
+
 
                 if (execute) {
                     // Call execution code.
