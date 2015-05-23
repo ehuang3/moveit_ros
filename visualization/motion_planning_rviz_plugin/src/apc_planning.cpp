@@ -350,9 +350,9 @@ void apc_planning::clampJointLimitsInPlan(apc_msgs::PrimitivePlan& plan,
 {
     for (int i = 0; i < plan.actions.size(); i++) {
         apc_msgs::PrimitiveAction& action = plan.actions[i];
-        APC_ASSERT(robot_state.getJointModelGroup(action.group_id)->getSubgroupNames().size() == 0,
-                   "Failed to assert that no subgroups exist for action %s in plan %s",
-                   action.action_name.c_str(), plan.plan_name.c_str());
+        // APC_ASSERT(robot_state.getJointModelGroup(action.group_id)->getSubgroupNames().size() == 0,
+        //            "Failed to assert that no subgroups exist for action %s in plan %s",
+        //            action.action_name.c_str(), plan.plan_name.c_str());
         APC_ASSERT(action.joint_trajectory.points.size() > 0,
                    "Failed to find joint trajectory for action %s in plan %s",
                    action.action_name.c_str(), plan.plan_name.c_str());
