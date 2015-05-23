@@ -154,12 +154,17 @@ namespace moveit_rviz_plugin
 
         // Save state and settings to action.
         apc_msgs::PrimitiveAction action;
-        saveStartAndGoalToAction(action);
-        saveFrameToAction(action);
-        saveObjectToAction(action);
-        saveOptionsToAction(action);
-        saveFormatToAction(action);
-        saveLockedStateToAction(action);
+        try {
+            saveStartAndGoalToAction(action);
+            saveFrameToAction(action);
+            saveObjectToAction(action);
+            saveOptionsToAction(action);
+            saveFormatToAction(action);
+            saveLockedStateToAction(action);
+        } catch (apc_exception::Exception& error) {
+            ROS_WARN("Warning:\n%s", error.what());
+            return;
+        }
 
         ROS_DEBUG_STREAM("==================== Action ====================\n"
                          << action
