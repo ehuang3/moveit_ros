@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>641</width>
+    <width>664</width>
     <height>919</height>
    </rect>
   </property>
@@ -1423,40 +1423,27 @@ background-color: rgb(212, 208, 200);</string>
                   </item>
                   <item row="1" column="2" rowspan="2">
                    <layout class="QGridLayout" name="gridLayout_42">
+                    <item row="2" column="1">
+                     <widget class="QPushButton" name="test_plan_button">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="text">
+                       <string>Test Picks</string>
+                      </property>
+                     </widget>
+                    </item>
                     <item row="3" column="0">
-                     <widget class="QPushButton" name="pushButton_6">
+                     <widget class="QPushButton" name="test_trajopt_button">
                       <property name="text">
-                       <string>Detect Objects</string>
+                       <string>Test Trajopt</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="3" column="1">
-                     <widget class="QPushButton" name="pushButton_7">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="text">
-                       <string>Build Order</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item row="1" column="1">
-                     <widget class="QPushButton" name="test_pregrasps_button">
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="text">
-                       <string>Test Pregrasps</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item row="1" column="0">
+                    <item row="0" column="0">
                      <widget class="QPushButton" name="test_grasps_button">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -1469,17 +1456,44 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="0" column="0">
-                     <widget class="QPushButton" name="test_ik_button">
+                    <item row="3" column="1">
+                     <widget class="QPushButton" name="set_item_button">
                       <property name="text">
-                       <string>Test IK</string>
+                       <string>Set Item</string>
                       </property>
                      </widget>
                     </item>
                     <item row="0" column="1">
                      <widget class="QPushButton" name="test_collisions_button">
                       <property name="text">
-                       <string>Test Collisions</string>
+                       <string>Prune Grasps</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="2" column="0">
+                     <widget class="QPushButton" name="test_exit_button">
+                      <property name="text">
+                       <string>Test Exit</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="0">
+                     <widget class="QPushButton" name="test_pregrasps_button">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="text">
+                       <string>Test Pregrasps</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="1">
+                     <widget class="QPushButton" name="test_enter_button">
+                      <property name="text">
+                       <string>Test Enter</string>
                       </property>
                      </widget>
                     </item>
@@ -2153,7 +2167,7 @@ background-color: rgb(212, 208, 200);</string>
                    <x>0</x>
                    <y>0</y>
                    <width>99</width>
-                   <height>70</height>
+                   <height>71</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2202,8 +2216,8 @@ background-color: rgb(212, 208, 200);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>205</width>
-                   <height>103</height>
+                   <width>216</width>
+                   <height>100</height>
                   </rect>
                  </property>
                  <attribute name="label">

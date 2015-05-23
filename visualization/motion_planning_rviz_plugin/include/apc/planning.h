@@ -50,6 +50,10 @@ class PrimitivePlanStorage;
 namespace apc_planning
 {
 
+    typedef std::map<std::string, Eigen::Affine3d, std::less<std::string>,
+                     Eigen::aligned_allocator<std::pair<const std::string, Eigen::Affine3d> > >
+    KeyPoseMap;
+
     bool _is_robot_moving_(const apc_msgs::PrimitiveAction& action);
     bool _is_object_moving_(const apc_msgs::PrimitiveAction& action);
     bool _is_object_moving_(const apc_msgs::PrimitiveAction& action);
@@ -82,4 +86,23 @@ namespace apc_planning
 
     void clampJointLimitsInPlan(apc_msgs::PrimitivePlan& plan,
                                 const robot_state::RobotState& robot_state);
+apc_msgs::PrimitiveAction getSubgroupAction(const std::string& subgroup_expr,
+                                                          const apc_msgs::PrimitiveAction& action,
+                                            const robot_state::RobotState& robot_state);
+
+    std::string toStringNoArr(const apc_msgs::PrimitiveAction& action);
+    std::string toStringNoArr(int index, const apc_msgs::PrimitivePlan& plan);
+    void assertPlanningPreconditions(const std::vector<apc_msgs::PrimitivePlan>& plans,
+                                     const robot_state::RobotState& start_state,
+                                     const KeyPoseMap& world_state);
+    void assertPlanningPreconditions(const apc_msgs::PrimitivePlan& plan,
+                                     const robot_state::RobotState& start_state,
+                                     const KeyPoseMap& world_start);
+    void setRobotStateToPoint(robot_state::RobotState& robot_state,
+                              const std::vector<std::string> joint_names,
+                              const trajectory_msgs::JointTrajectoryPoint& point);
+
+    std::string toStringJointDiff(const robot_state::RobotState& prev_state,
+                                  const robot_state::RobotState& next_state);
+    std::string toStringNoArr(const apc_msgs::PrimitivePlan& plan);
 }

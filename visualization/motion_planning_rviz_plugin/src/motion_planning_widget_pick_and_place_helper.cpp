@@ -399,9 +399,18 @@ namespace moveit_rviz_plugin
         std::string item_id = bin_contents->item(row, 1)->text().toStdString();
         std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
 
-        // Get all grasps for an item.
+        // // Get all grasps for an item.
+        // std::vector<apc_msgs::PrimitivePlan> item_grasps;
+        // retrieveItemGrasps(item_grasps, item_id);
+
+        //
+        apc_msgs::PrimitivePlan grasps = getPrimitivePlanFromActiveActions();
         std::vector<apc_msgs::PrimitivePlan> item_grasps;
-        retrieveItemGrasps(item_grasps, item_id);
+        for (int i = 0; i < grasps.actions.size(); i++) {
+            apc_msgs::PrimitivePlan grasp;
+            grasp.actions.push_back(grasps.actions[i]);
+            item_grasps.push_back(grasp);
+        }
 
         // Snap all grasps to the correct locations.
         robot_state::RobotState robot_state = *getQueryStartState();
@@ -409,26 +418,31 @@ namespace moveit_rviz_plugin
         for (int i = 0; i < item_grasps.size(); i++) {
             try {
                 APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
-                computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
+                computeNearestFrameAndObjectKeysPartial(robot_state, world_state, item_grasps[i]);
                 computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]);
-                srv.request.grasps.push_back(item_grasps[i].actions[0]);
             } catch (apc_exception::Exception& error) {
                 ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
             }
         }
 
-        // Add bin items.
-        setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
-        setBinStatesToBinStatesMessage(srv.request.bin_states, world_state);
-
         try {
-            APC_ASSERT(compute_pregrasps_client_.call(srv),
-                       "Failed call to compute pregrasp client");
-            apc_msgs::PrimitivePlan pregrasps;
-            pregrasps.actions = srv.response.pregrasps;
-            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, pregrasps));
-        } catch (apc_exception::Exception& error) {
-            ROS_ERROR("Caught error\n%s", error.what());
+            computePreGrasps(item_grasps, robot_state, world_state);
+        } catch (apc_exception::Exception& e) {
+            ROS_ERROR("%s", e.what());
+        }
+
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < item_grasps.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), item_grasps[i].actions.begin(),
+                               item_grasps[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+        // display trajectory
+        {
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, ogs);
+            // loadPlanToActiveActions(plan);
         }
     }
 
@@ -490,41 +504,47 @@ namespace moveit_rviz_plugin
         std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
 
         // Get all grasps for an item.
-        std::vector<apc_msgs::PrimitivePlan> item_grasps;
-        retrieveItemGrasps(item_grasps, item_id);
-        // retrieveBinPoses(item_grasps, "bin_A");
-        // retrieveItemGrasps(item_grasps, item_id);
+        std::vector<apc_msgs::PrimitivePlan> db_grasps;
+        retrieveItemGrasps(db_grasps, item_id);
 
-        // Provide all grasps with keys.
+        // Compute the offset grasps.
+        std::vector<apc_msgs::PrimitivePlan> item_grasps;
         robot_state::RobotState robot_state = *getQueryGoalState();
         KeyPoseMap world_state = computeWorldKeyPoseMap();
-        for (int i = 0; i < item_grasps.size(); i++) {
+        int vanilla_grasp_count = db_grasps.size();
+        for (int i = 0; i < vanilla_grasp_count; i++) {
+            apc_msgs::PrimitivePlan grasp = db_grasps[i];
             try {
-                APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
-                computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
-                // computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]); // Don't snap to IK location!
-                srv.request.actions.push_back(item_grasps[i].actions[0]);
+                computeNearestFrameAndObjectKeys(robot_state, world_state, grasp);
+                computeActionJointTrajectoryPoints(robot_state, world_state, grasp);
+                ROS_INFO("grasp key %s", grasp.actions[0].object_key.c_str());
+                item_grasps.push_back(grasp);
+                computeOffsetGrasps(item_grasps, grasp, robot_state, world_state);
             } catch (apc_exception::Exception& error) {
-                ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
+                ROS_ERROR("Skipping over grasp %s\n%s", db_grasps[i].plan_name.c_str(), error.what());
             }
         }
 
-        // Add bin items.
-
-        setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
-        setBinStatesToBinStatesMessage(srv.request.bin_states, world_state);
-        robotStateToRobotStateMsg(robot_state, srv.request.robot_state);
-
-        ROS_INFO("Computing check collisions");
-
         try {
-            APC_ASSERT(check_collisions_client_.call(srv),
-                       "Failed call to check collisions service");
-            apc_msgs::PrimitivePlan ik_actions;
-            ik_actions.actions = srv.response.actions;
-            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ik_actions));
-        } catch (apc_exception::Exception& error) {
-            ROS_ERROR("Caught error\n%s", error.what());
+        computeCheckCollisions(item_grasps,
+                               robot_state,
+                               world_state);
+        } catch (apc_exception::Exception& eror) {
+            ROS_ERROR("ERror %s", eror.what());
+        }
+
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < item_grasps.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), item_grasps[i].actions.begin(),
+                               item_grasps[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+        // display trajectory
+                {
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, ogs);
+            // loadPlanToActiveActions(plan);
         }
     }
 
@@ -541,17 +561,152 @@ namespace moveit_rviz_plugin
         offset_grasps.push_back(grasp);
         try {
             KeyPoseMap world_state = computeWorldKeyPoseMap();
+            computeNearestFrameAndObjectKeys(start_state, world_state, grasp);
+            computeActionJointTrajectoryPoints(start_state, world_state, grasp);
             computeOffsetGrasps(offset_grasps, grasp, start_state, world_state);
         } catch (apc_exception::Exception& error) {
             ROS_ERROR("Error: %s", error.what());
         }
-
+        ROS_INFO_STREAM("offset_grasps: " << offset_grasps.size());
         apc_msgs::PrimitivePlan ogs;
         for (int i = 0; i < offset_grasps.size(); i++) {
             ogs.actions.insert(ogs.actions.end(), offset_grasps[i].actions.begin(),
                                offset_grasps[i].actions.end());
         }
-        loadPlanToActiveActions(ogs);
+        ROS_INFO_STREAM("ogs: " << ogs.actions.size());
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+    }
+
+    void MotionPlanningFrame::computeTestEnterButtonClicked()
+    {
+        typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        // Get the to bin pose.
+        int row = ui_->bin_contents_table_widget->currentRow();
+        if (row < 0) return;
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        std::string bin_id = bin_contents->item(row, 0)->text().toStdString();
+        // Retrieve bin pose.
+        PlanList bin_poses;
+        retrieveBinPoses(bin_poses, bin_id);
+        // Get the pregrasps.
+        Plan aa = getPrimitivePlanFromActiveActions();
+        // Convert to list.
+        PlanList pregrasps;
+        for (int i = 0; i < aa.actions.size(); i++) {
+            Plan pg;
+            pg.actions.push_back(aa.actions[i]);
+            pregrasps.push_back(pg);
+        }
+        // Get things to call functionw ith.
+        robot_state::RobotState robot_state = *getQueryGoalState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        try {
+            computeEnter(pregrasps, bin_poses[0], robot_state, world_state);
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Error:%s", error.what());
+        }
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < pregrasps.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), pregrasps[i].actions.begin(),
+                               pregrasps[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+        // display trajectory
+                {
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, ogs);
+            // loadPlanToActiveActions(plan);
+        }
+    }
+
+    void MotionPlanningFrame::computeTestExitButtonClicked()
+    {
+                typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        // Get the to bin pose.
+        int row = ui_->bin_contents_table_widget->currentRow();
+        if (row < 0) return;
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        std::string bin_id = bin_contents->item(row, 0)->text().toStdString();
+        // Retrieve bin pose.
+        PlanList bin_poses;
+        retrieveBinPoses(bin_poses, bin_id);
+        // Get the pregrasps.
+        Plan aa = getPrimitivePlanFromActiveActions();
+        // Convert to list.
+        PlanList pregrasps;
+        for (int i = 0; i < aa.actions.size(); i++) {
+            Plan pg;
+            pg.actions.push_back(aa.actions[i]);
+            pregrasps.push_back(pg);
+        }
+        // Get things to call functionw ith.
+        robot_state::RobotState robot_state = *getQueryGoalState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        try {
+            computeExit(pregrasps, bin_poses[0], robot_state, world_state);
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Error:%s", error.what());
+        }
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < pregrasps.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), pregrasps[i].actions.begin(),
+                               pregrasps[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+        // display trajectory
+                {
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, ogs);
+            // loadPlanToActiveActions(plan);
+        }
+    }
+
+    void MotionPlanningFrame::computeTestPlanButtonClicked()
+    {
+                typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        // Get the to bin pose.
+        int row = ui_->bin_contents_table_widget->currentRow();
+        if (row < 0) return;
+        QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        std::string bin_id = bin_contents->item(row, 0)->text().toStdString();
+        std::string item_id = bin_contents->item(row, 1)->text().toStdString();
+        std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
+        // Get things to call functionw ith.
+        PlanList picks;
+        robot_state::RobotState robot_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        try {
+            PlanList bin_poses;
+            retrieveBinPoses(bin_poses, bin_id);
+            computePick(picks, item_id, bin_id, bin_poses[0], robot_state, world_state);
+
+        } catch (apc_exception::Exception& error) {
+            ROS_ERROR("Error:%s", error.what());
+        }
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < picks.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), picks[i].actions.begin(),
+                               picks[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+        // display trajectory
+                {
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, ogs);
+            // loadPlanToActiveActions(plan);
+        }
+    }
+    void MotionPlanningFrame::computeTestTrajoptButtonClicked()
+    {
     }
 
 }

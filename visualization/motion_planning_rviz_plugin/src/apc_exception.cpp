@@ -79,7 +79,7 @@ std::string apc_exception::GetResolvedStackTrace()
     Colorize c(stream);
     c.init();
 
-    for (int i = 3; i < st.size(); i++) {
+    for (int i = 1; i < st.size(); i++) {
         ResolvedTrace trace = tr.resolve(st[i]);
 
         ResolvedTrace::SourceLoc source = trace.source;
@@ -122,8 +122,8 @@ std::string apc_exception::GetResolvedStackTrace()
             if (regex_match(source_function, what, rex))
                 source_function = what[2];
             else {
-                ROS_DEBUG_STREAM(source_function);
-                continue;
+                // ROS_DEBUG_STREAM(source_function);
+                // continue;
             }
         }
         trace.source.function = source_function;

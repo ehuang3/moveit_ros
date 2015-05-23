@@ -1,6 +1,7 @@
 # set(CMAKE_CXX_FLAGS "-Wshadow -Wreturn-type -Wuninitialized")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -rdynamic -g")
 
+
 # Header files that need Qt Moc pre-processing for use with Qt signals, etc:
 set( headers
   include/moveit/motion_planning_rviz_plugin/motion_planning_display.h
@@ -12,6 +13,7 @@ set( headers
   include/apc/exception.h
   include/apc/vision.h
 )
+
 
 # Convert the Qt Signals and Slots for QWidget events
 qt4_wrap_cpp(MOC_SOURCES ${headers})
