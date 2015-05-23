@@ -188,8 +188,14 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
 
   compute_ik_client_ = nh_.serviceClient<apc_msgs::ComputeIk>("compute_ik");
 
-
-  check_collisions_client_ = nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions");
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_0"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_1"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_2"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_3"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_4"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_5"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_6"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_7"));
 
   // Tf listener
   _tf_listener;// = tf::TransformListener(nh_);

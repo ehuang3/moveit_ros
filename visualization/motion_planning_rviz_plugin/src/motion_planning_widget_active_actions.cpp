@@ -686,7 +686,7 @@ namespace moveit_rviz_plugin
 
             try {
 
-                ROS_INFO_STREAM(action);
+                ROS_INFO_STREAM(apc_planning::toStringNoArr(action));
 
                 // Load action into state.
                 loadStartAndGoalFromAction(start_waypoint, goal_waypoint, action);
@@ -753,8 +753,8 @@ namespace moveit_rviz_plugin
         // Copy data over to actions list.
         for (int j = 0; j < actions.size(); j++)
         {
-            if (actions[j].action_name == "vvvvv")
-                continue;
+            // if (actions[j].action_name == "vvvvv")
+            //     continue;
 
             // Create a new list item.
             QListWidgetItem* item = new QListWidgetItem;

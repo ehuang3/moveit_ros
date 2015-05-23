@@ -420,24 +420,29 @@ namespace moveit_rviz_plugin
                 APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
                 computeNearestFrameAndObjectKeysPartial(robot_state, world_state, item_grasps[i]);
                 computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]);
-                srv.request.grasps.push_back(item_grasps[i].actions[0]);
             } catch (apc_exception::Exception& error) {
                 ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
             }
         }
 
-        // Add bin items.
-        setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
-        setBinStatesToBinStatesMessage(srv.request.bin_states, world_state);
-
         try {
-            APC_ASSERT(compute_pregrasps_client_.call(srv),
-                       "Failed call to compute pregrasp client");
-            apc_msgs::PrimitivePlan pregrasps;
-            pregrasps.actions = srv.response.pregrasps;
-            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, pregrasps));
-        } catch (apc_exception::Exception& error) {
-            ROS_ERROR("Caught error\n%s", error.what());
+            computePreGrasps(item_grasps, robot_state, world_state);
+        } catch (apc_exception::Exception& e) {
+            ROS_ERROR("%s", e.what());
+        }
+
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < item_grasps.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), item_grasps[i].actions.begin(),
+                               item_grasps[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+        // display trajectory
+        {
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, ogs);
+            // loadPlanToActiveActions(plan);
         }
     }
 
@@ -520,34 +525,26 @@ namespace moveit_rviz_plugin
             }
         }
 
-        // Provide all grasps with keys.
-        for (int i = 0; i < item_grasps.size(); i++) {
-            try {
-                APC_ASSERT(item_grasps[i].actions.size() == 1, "Bad grasp, too many actions");
-                // computeNearestFrameAndObjectKeys(robot_state, world_state, item_grasps[i]);
-                // computeActionJointTrajectoryPoints(robot_state, world_state, item_grasps[i]);
-                srv.request.actions.push_back(item_grasps[i].actions[0]);
-            } catch (apc_exception::Exception& error) {
-                ROS_ERROR("Skipping over grasp %s\n%s", item_grasps[i].plan_name.c_str(), error.what());
-            }
+        try {
+        computeCheckCollisions(item_grasps,
+                               robot_state,
+                               world_state);
+        } catch (apc_exception::Exception& eror) {
+            ROS_ERROR("ERror %s", eror.what());
         }
 
-        // Add bin items.
-
-        setWorldKeyPoseToWorldStateMessage(world_state, srv.request.world_state);
-        setBinStatesToBinStatesMessage(srv.request.bin_states, world_state);
-        robotStateToRobotStateMsg(robot_state, srv.request.robot_state);
-
-        ROS_INFO("Computing check collisions");
-
-        try {
-            APC_ASSERT(check_collisions_client_.call(srv),
-                       "Failed call to check collisions service");
-            apc_msgs::PrimitivePlan ik_actions;
-            ik_actions.actions = srv.response.actions;
-            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ik_actions));
-        } catch (apc_exception::Exception& error) {
-            ROS_ERROR("Caught error\n%s", error.what());
+        apc_msgs::PrimitivePlan ogs;
+        for (int i = 0; i < item_grasps.size(); i++) {
+            ogs.actions.insert(ogs.actions.end(), item_grasps[i].actions.begin(),
+                               item_grasps[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
+        // display trajectory
+                {
+            moveit_msgs::RobotState start_state_msg;
+            robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            loadPlanToPreview(start_state_msg, ogs);
+            // loadPlanToActiveActions(plan);
         }
     }
 
@@ -577,7 +574,7 @@ namespace moveit_rviz_plugin
                                offset_grasps[i].actions.end());
         }
         ROS_INFO_STREAM("ogs: " << ogs.actions.size());
-        loadPlanToActiveActions(ogs);
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
     }
 
     void MotionPlanningFrame::computeTestEnterButtonClicked()
@@ -615,7 +612,7 @@ namespace moveit_rviz_plugin
             ogs.actions.insert(ogs.actions.end(), pregrasps[i].actions.begin(),
                                pregrasps[i].actions.end());
         }
-        loadPlanToActiveActions(ogs);
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
         // display trajectory
                 {
             moveit_msgs::RobotState start_state_msg;
@@ -660,7 +657,7 @@ namespace moveit_rviz_plugin
             ogs.actions.insert(ogs.actions.end(), pregrasps[i].actions.begin(),
                                pregrasps[i].actions.end());
         }
-        loadPlanToActiveActions(ogs);
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
         // display trajectory
                 {
             moveit_msgs::RobotState start_state_msg;
@@ -687,8 +684,9 @@ namespace moveit_rviz_plugin
         robot_state::RobotState robot_state = planning_display_->getPlanningSceneRO()->getCurrentState();
         KeyPoseMap world_state = computeWorldKeyPoseMap();
         try {
-
-            computePick(picks, item_id, bin_id, robot_state, world_state);
+            PlanList bin_poses;
+            retrieveBinPoses(bin_poses, bin_id);
+            computePick(picks, item_id, bin_id, bin_poses[0], robot_state, world_state);
 
         } catch (apc_exception::Exception& error) {
             ROS_ERROR("Error:%s", error.what());
@@ -698,7 +696,7 @@ namespace moveit_rviz_plugin
             ogs.actions.insert(ogs.actions.end(), picks[i].actions.begin(),
                                picks[i].actions.end());
         }
-        loadPlanToActiveActions(ogs);
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, ogs));
         // display trajectory
                 {
             moveit_msgs::RobotState start_state_msg;

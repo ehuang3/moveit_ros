@@ -1457,9 +1457,9 @@ background-color: rgb(212, 208, 200);</string>
                      </widget>
                     </item>
                     <item row="3" column="1">
-                     <widget class="QPushButton" name="pushButton_4">
+                     <widget class="QPushButton" name="set_item_button">
                       <property name="text">
-                       <string>PushButton</string>
+                       <string>Set Item</string>
                       </property>
                      </widget>
                     </item>

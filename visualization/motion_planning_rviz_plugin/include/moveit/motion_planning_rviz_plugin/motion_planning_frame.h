@@ -183,7 +183,7 @@ private:
 
   ros::ServiceClient compute_ik_client_;
 
-  ros::ServiceClient check_collisions_client_;
+  std::vector<ros::ServiceClient> check_collisions_clients_;
 
   // ros::ServiceClient _compute_dense_motion_client;
 
@@ -340,14 +340,20 @@ private:
 
 
   // Teleoperation widget.
+  void stripToJointAngleTrajectoryActionsOnly(apc_msgs::PrimitivePlan& plan);
+  void stripStationaryActions(apc_msgs::PrimitivePlan& plan);
+    void computeCheckCollisions(std::vector<apc_msgs::PrimitivePlan>& plans,
+                                const robot_state::RobotState& start,
+                                const KeyPoseMap& world);
+    void computePreGrasps(std::vector<apc_msgs::PrimitivePlan>& grasps,
+                                               const robot_state::RobotState& start,
+                                               const KeyPoseMap& world);
 
     void computeEnter(std::vector<apc_msgs::PrimitivePlan>& pregrasps,
                                            const apc_msgs::PrimitivePlan& bin_pose_,
                                            const robot_state::RobotState& start,
                                            const KeyPoseMap& world);
-    apc_msgs::PrimitiveAction getSubgroupAction(const std::string& subgroup_expr,
-                                                                     const apc_msgs::PrimitiveAction& action,
-                                                                     const robot_state::RobotState& robot_state);
+
     void computeOffsetGrasps(std::vector<apc_msgs::PrimitivePlan>& offset_grasps,
                                                   const apc_msgs::PrimitivePlan& grasp,
                                                   const robot_state::RobotState& start,
@@ -359,6 +365,10 @@ private:
     void computeLinearInterpolatedTrajectory(apc_msgs::PrimitiveAction& action,
                                                                  const robot_state::RobotState& start_state,
                                                                  const KeyPoseMap& world_state);
+
+    void setItemPoseFromAction(KeyPoseMap& world_state,
+                               const apc_msgs::PrimitiveAction& action,
+                               const robot_state::RobotState&   state);
 
   KeyPoseMap computeWorldKeyPoseMap();
   std::string computeNearestFrameKey(const std::string& frame_id,
@@ -560,6 +570,7 @@ private:
     void computePick(std::vector<apc_msgs::PrimitivePlan>& picks,
                                           const std::string& item_id,
                                           const std::string& bin_id,
+                     const apc_msgs::PrimitivePlan& bin_pose,
                                           const robot_state::RobotState& start,
                                           const KeyPoseMap& world);
   // Vision widget.
