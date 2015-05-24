@@ -171,6 +171,16 @@ namespace moveit_rviz_plugin
             run_vision.request.bins[bin_index].header.frame_id = target_frame;
         }
         run_vision.request.camera_id = "kinect_lower";
+
+        // Add target objects.
+        QTableWidget* work_order = ui_->json_table_widget;
+        for (int i = 0; i < work_order->rowCount(); i++) {
+            std::string bin_id = work_order->item(i, 0)->text().toStdString();
+            std::string item_id = work_order->item(i, 1)->text().toStdString();
+            int bin_index = bin_id[4] - 'A';
+            run_vision.request.bins[bin_index].target_item = item_id;
+        }
+
         // Run service.
         APC_ASSERT(_run_vision_client.call(run_vision),
                    "Failed call run vision service");
