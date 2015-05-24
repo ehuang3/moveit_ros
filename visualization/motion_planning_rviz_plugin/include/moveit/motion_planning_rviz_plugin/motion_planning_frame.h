@@ -415,7 +415,8 @@ private:
   void setBinStatesToBinStatesMessage(std::vector<apc_msgs::BinState>& bin_states,
                                       const KeyPoseMap& world_state);
   void computeFullyConnectedPlan(const robot_state::RobotState& start,
-                                 apc_msgs::PrimitivePlan& plan);
+                                 apc_msgs::PrimitivePlan& plan,
+                                 bool start_grasped = false);
   bool doesActionMoveAnItem(const apc_msgs::PrimitiveAction& action);
   KeyPoseMap computeDenseMotionPlan(const robot_state::RobotState& start,
                                     const KeyPoseMap& world,
@@ -427,7 +428,8 @@ private:
   void computePlan(apc_msgs::PrimitivePlan& plan,
                    const robot_state::RobotState start_state,
                    const KeyPoseMap& world_state,
-                   int client_index = 0);
+                   int client_index = 0,
+                   bool start_grasped = false);
   void computePlanButtonClicked();
 
   void loadPlanToPreview(const moveit_msgs::RobotState& start_state,

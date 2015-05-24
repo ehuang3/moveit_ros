@@ -608,7 +608,8 @@ namespace moveit_rviz_plugin
     }
 
     void MotionPlanningFrame::computeFullyConnectedPlan(const robot_state::RobotState& start,
-                                                        apc_msgs::PrimitivePlan& plan)
+                                                        apc_msgs::PrimitivePlan& plan,
+                                                        bool start_grasped)
     {
         // Insert additional actions to connect the previous robot
         // state to the next start state.
@@ -630,8 +631,7 @@ namespace moveit_rviz_plugin
                 appendStateToAction(action, next_state);
 
                 // check robot state for attached objects.
-                if (!plan.actions[i].object_id.empty() &&
-                    start.getAttachedBody(plan.actions[i].object_id)) {
+                if (!plan.actions[i].object_id.empty() && start_grasped) {
                     action.grasp = true;
                     action.object_id = plan.actions[i].object_id;
                     action.object_key = plan.actions[i].object_key;
@@ -1039,12 +1039,13 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::computePlan(apc_msgs::PrimitivePlan& plan,
                                           const robot_state::RobotState start_state,
                                           const KeyPoseMap& world_state,
-                                          int client_index)
+                                          int client_index,
+                                          bool start_grasped)
     {
         apc_planning::resetPlanJointTrajectories(plan);
         computeNearestFrameAndObjectKeysPartial(start_state, world_state, plan);
         computeActionJointTrajectoryPoints(start_state, world_state, plan);
-        computeFullyConnectedPlan(start_state, plan);
+        computeFullyConnectedPlan(start_state, plan, start_grasped);
 
         // computeLinearInterpolatedTrajectory(plan, start_state, world_state);
         apc_planning::partitionPlanBySubgroups(plan, start_state);
@@ -1553,11 +1554,16 @@ namespace moveit_rviz_plugin
                 exit.action_name = "exit_" + exit.action_name;
             }
             // Fill out things
-            computeNearestFrameAndObjectKeysPartial(robot_state, world, grasp_to_pose);
-            computeActionJointTrajectoryPoints(robot_state, world, grasp_to_pose);
-            computeFullyConnectedPlan(robot_state, grasp_to_pose);
-            // interpt
-            computeLinearInterpolatedTrajectory(grasp_to_pose, robot_state, world);
+            try {
+                computeNearestFrameAndObjectKeysPartial(robot_state, world, grasp_to_pose);
+                computeActionJointTrajectoryPoints(robot_state, world, grasp_to_pose);
+                computeFullyConnectedPlan(robot_state, grasp_to_pose);
+                // interpt
+                computeLinearInterpolatedTrajectory(grasp_to_pose, robot_state, world);
+            } catch (apc_exception::Exception& e) {
+                ROS_DEBUG("Failed to interpolate this %s", e.what());
+                continue;
+            }
             grasps[i].actions.insert(grasps[i].actions.end(),
                                      grasp_to_pose.actions.begin() + 1,
                                      grasp_to_pose.actions.end());
@@ -1700,6 +1706,10 @@ namespace moveit_rviz_plugin
             }
         }
 
+        // FIXME Something smarter.
+        // if (item_grasps.size() > 20)
+        //     item_grasps.resize(20);
+
         // apc_planning::assertPlanningPreconditions(item_grasps, robot_state, world_state);
 
         try {
@@ -1759,8 +1769,13 @@ namespace moveit_rviz_plugin
             throw error;
         }
 
+        // FIXME Something smarter.
+        if (grasp_plans.size() > 20)
+            grasp_plans.resize(20);
+
         robot_state::RobotState bin_robot = robot_state;
         setStateToPlanJointTrajectoryEnd(bin_robot, bin_pose);
+        PlanList valid_picks;
 #pragma omp parallel num_threads(8)
         {
 #pragma omp for
@@ -1770,6 +1785,10 @@ namespace moveit_rviz_plugin
                                            world_state,
                                            grasp_plans[i],
                                            omp_get_thread_num() % _compute_dense_motion_clients.size());
+#pragma omp critical
+                    {
+                        valid_picks.push_back(grasp_plans[i]);
+                    }
                 } catch (apc_exception::Exception& e) {
                     ROS_DEBUG("rejected: %s", e.what());
                 }
@@ -1778,11 +1797,11 @@ namespace moveit_rviz_plugin
 
         apc_msgs::PrimitivePlan diplsying;
         for (int i = 0; i < picks.size(); i++) {
-            diplsying.actions.insert(diplsying.actions.end(), grasp_plans[i].actions.begin(),
-                               grasp_plans[i].actions.end());
+            diplsying.actions.insert(diplsying.actions.end(), valid_picks[i].actions.begin(),
+                               valid_picks[i].actions.end());
         }
         loadPlanToActiveActions(diplsying);
-        picks = grasp_plans;
+        picks = valid_picks;
         // strip all frames. to avoid problmes later on
         typedef std::vector<Plan> PlanList;
         typedef std::vector<Action> ActionList;

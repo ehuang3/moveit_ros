@@ -324,8 +324,8 @@ namespace moveit_rviz_plugin
 
         }
 
-        APC_ASSERT_PLAN_VECTOR(valid_bins.size() > 0, starting_x_bin_poses,
-                               "No reachable poses for bin %s!", bin_id.c_str());
+        APC_ASSERT(valid_bins.size() > 0,
+                   "No reachable poses for bin %s!", bin_id.c_str());
 
         apc_msgs::PrimitivePlan ogs;
         for (int i = 0; i < valid_bins.size(); i++) {
@@ -512,6 +512,7 @@ namespace moveit_rviz_plugin
         if (scoring_plans.size() > 0)
             item_plan = scoring_plans[0];
 
+        computeDenseMotionPlan(start_state, world_state, item_plan, 0);
     }
 
 
@@ -664,14 +665,9 @@ namespace moveit_rviz_plugin
         std::vector<apc_msgs::PrimitivePlan> grasp_x_score;
         grasp_x_score.resize(valid_grasps.size() * score_poses.size());
 
-        //
         // HACK Attach object to robot state so that the planner
         // will know we start in a grasp.
         robot_state::RobotState start_state = start;
-        {
-            const apc_msgs::PrimitiveAction& action = valid_grasps[0].actions.back();
-            setAttachedObjectFromAction(start_state, world, action, 0);
-        }
 
 #pragma omp parallel num_threads(8)
         {
@@ -705,6 +701,8 @@ namespace moveit_rviz_plugin
                                 query_grasp = gc.actions[i];
                             }
                         }
+                        APC_ASSERT(!query_grasp.object_id.empty(),
+                                   "Failed to find a grasp in valid grasp!");
                         // Attach object for the entire duration of the trajectory.
                         for (std::vector<Action>::iterator action = score_pose.actions.begin();
                              action != score_pose.actions.end(); ++action) {
@@ -723,7 +721,8 @@ namespace moveit_rviz_plugin
                         ROS_DEBUG("Testing scoring pose: %s", score_pose.plan_name.c_str());
                         // On failure an exception is thrown.
                         computePlan(score_pose, robot_state,
-                                    world, omp_get_thread_num() % _compute_dense_motion_clients.size());
+                                    world, omp_get_thread_num() % _compute_dense_motion_clients.size(),
+                                    true); // start grasped
 
                         // This line will only be reached if the bin pose was valid.
                         valid = true;
@@ -751,8 +750,8 @@ namespace moveit_rviz_plugin
             }
         }
 
-        APC_ASSERT_PLAN_VECTOR(valid_scores.size() > 0, grasp_x_score,
-                               "No reachable scoring poses!");
+        APC_ASSERT(valid_scores.size() > 0,
+                   "No reachable scoring poses!");
     }
 
     KeyPoseMap MotionPlanningFrame::computeExpectedWorldState(const apc_msgs::PrimitivePlan& plan,
@@ -795,6 +794,7 @@ namespace moveit_rviz_plugin
                 computeRunVision(world_state);
             } catch (apc_exception::Exception& error) {
                 ROS_ERROR("Caught exception in\n%s", error.what());
+                return;
             }
         }
 
@@ -807,14 +807,13 @@ namespace moveit_rviz_plugin
                 // Get the current state of the robot.
                 const planning_scene_monitor::LockedPlanningSceneRO &ps = planning_display_->getPlanningSceneRO();
                 robot_state = ps->getCurrentState();
+                robot_state.enforceBounds();
             }
 
             // Compute a pick and place plan for the item.
             try {
 
                 computePickAndPlaceForItem(item_plan, bin_id, item_id, robot_state, world_state);
-
-
 
                 if (execute) {
                     // Call execution code.

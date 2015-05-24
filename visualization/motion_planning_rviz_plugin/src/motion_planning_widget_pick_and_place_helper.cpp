@@ -298,7 +298,7 @@ namespace moveit_rviz_plugin
 
             double d_x = -item_depth / 2.0;
 
-            T_bin.translate(Eigen::Vector3d(d_x, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
+            T_bin.translate(Eigen::Vector3d(-10 + d_x, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
             item_pose = T_pod * T_bin;
         }
 
