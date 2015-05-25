@@ -52,6 +52,7 @@
 #include <apc_msgs/ComputeIk.h>
 #include <apc_msgs/CheckCollisions.h>
 #include <moveit/robot_state/conversions.h>
+#include <apc/planning.h>
 
 
 namespace moveit_rviz_plugin
@@ -707,6 +708,49 @@ namespace moveit_rviz_plugin
     }
     void MotionPlanningFrame::computeTestTrajoptButtonClicked()
     {
+    }
+
+    void
+    MotionPlanningFrame::computeFixGraspsButtonClicked()
+    {
+        typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+        typedef apc_msgs::PrimitivePlan Plan;
+        typedef apc_msgs::PrimitiveAction Action;
+        PlanList grasps;
+        grasps = findMatchingPlansAny("", "grasp.*", ".*", ".*", ".*", ".*", true);
+        PlanList invalid_grasps;
+        for (int i = 0; i < grasps.size(); i++) {
+            try {
+                apc_planning::assertGraspPreconditions(grasps[i]);
+            } catch (apc_exception::Exception& e) {
+                ROS_INFO("INVALID -> grasp[%d]: %s\n%s", i, grasps[i].plan_name.c_str(), e.what());
+                invalid_grasps.push_back(grasps[i]);
+                // if (invalid_grasps.back().actions.size() == 1)
+                //     break;
+            }
+        }
+        ROS_INFO("Found %ld invalid grasps", invalid_grasps.size());
+        PlanList fixed_grasps;
+        robot_state::RobotState robot_state = *getQueryGoalState();
+        KeyPoseMap world_state = computeWorldKeyPoseMap();
+        for (int i = 0; i < invalid_grasps.size(); i++) {
+            try {
+                apc_planning::fixGrasp(invalid_grasps[i], robot_state, world_state);
+                apc_planning::assertGraspPreconditions(invalid_grasps[i]);
+                fixed_grasps.push_back(invalid_grasps[i]);
+            } catch (apc_exception::Exception& e) {
+                // ROS_INFO("INVALID -> grasp[%d]: %s\n%s", i, grasps[i].plan_name.c_str(), e.what());
+            }
+        }
+        ROS_INFO("Fixed %ld invalid grasps", fixed_grasps.size());
+        // Load to display.
+        Plan I;
+        apc_planning::convertPlanListToPlanActions(invalid_grasps, I);
+        Action divider;
+        divider.action_name = "---";
+        I.actions.push_back(divider);
+        apc_planning::convertPlanListToPlanActions(fixed_grasps, I);
+        loadPlanToActiveActions(I);
     }
 
 }

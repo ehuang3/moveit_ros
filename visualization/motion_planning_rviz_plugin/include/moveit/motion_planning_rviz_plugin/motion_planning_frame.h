@@ -209,6 +209,7 @@ private Q_SLOTS:
   void testExitButtonClicked();
   void testPlanButtonClicked();
   void testTrajoptButtonClicked();
+  void fixGraspsButtonClicked();
 
   // Teleoperation widget slots.
   void planButtonClicked();
@@ -563,6 +564,8 @@ private:
   void computeTestExitButtonClicked();
   void computeTestPlanButtonClicked();
   void computeTestTrajoptButtonClicked();
+    void
+    computeFixGraspsButtonClicked();
 
   void computeExit(std::vector<apc_msgs::PrimitivePlan>& grasps,
                    const apc_msgs::PrimitivePlan& bin_pose_,

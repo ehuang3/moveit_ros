@@ -48,6 +48,10 @@
 #include <moveit/robot_state/conversions.h>
 #include <eigen_conversions/eigen_msg.h>
 
+typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+typedef apc_msgs::PrimitivePlan Plan;
+typedef apc_msgs::PrimitiveAction Action;
+
 
 bool apc_planning::_is_robot_moving_(const apc_msgs::PrimitiveAction& action)
 {
@@ -599,88 +603,121 @@ void apc_planning::assertPlanningPreconditions(const apc_msgs::PrimitivePlan& pl
     }
 }
 
-// void apc_planning::assertGraspPreconditions(const astd::vector<apc_msgs::PrimitivePlan>& grasps)
-// {
-//     for (int i = 0; i < grasps.size(); i++) {
-//         assertGraspPreconditions(grasps[i]);
-//     }
-// }
+void apc_planning::assertGraspPreconditions(const std::vector<apc_msgs::PrimitivePlan>& grasps)
+{
+    for (int i = 0; i < grasps.size(); i++) {
+        assertGraspPreconditions(grasps[i]);
+    }
+}
 
-// void apc_planning::assertGraspPreconditions(const apc_msgs::Primitive& grasp)
-// {
-//     APC_ASSERT_PLAN(grasp.actions.size() == 1, grasp,
-//                     "Grasp has more than one action!\n%s",
-//                     toStringNoArr(0, grasp));
-//     for (int i = 0; i < grasp.actions.size(); i++) {
-//         const apc_msgs::PrimitiveAction& action = grasp.actions[i];
-//         using namespace boost::xpressive;
-//         APC_ASSERT_PLAN(!action.object_id.empty(), grasp,
-//                         "Grasp is missing object ID",
-//                         toStringNoArr(i, grasp).c_str());
-//         APC_ASSERT_PLAN(!action.frame_id.empty(), grasp,
-//                         "Grasp is missing frame ID",
-//                         toStringNoArr(i, grasp).c_str());
-//         APC_ASSERT_PLAN(!action.attached_link_id.empty(), grasp,
-//                         "Grasp is missing link ID",
-//                         toStringNoArr(i, grasp).c_str());
-//         APC_ASSERT_PLAN(action.grasp, grasp,
-//                         "Grasp is missing grasp on",
-//                         toStringNoArr(i, grasp).c_str());
-//         {
-//             sregex rex = sregex::compile(".*torso");
-//             smatch what;
-//             APC_ASSERT_PLAN(regex_match(action.group_id, what, rex), grasp,
-//                             "Grasp group ID failed to match .*torso",
-//                             toStringNoArr(i, grasp).c_str());
-//         }
-//         {
-//             sregex rex = sregex::compile(".*7_link");
-//             smatch what;
-//             APC_ASSERT_PLAN(regex_match(action.group_id, what, rex), grasp,
-//                             "Grasp link ID failed to match .*7_link",
-//                             toStringNoArr(i, grasp).c_str());
-//         }
-//     }
+void apc_planning::assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp)
+{
+    APC_ASSERT_PLAN(grasp.actions.size() == 1, grasp,
+                    "Grasp has more than one action!\n%s",
+                    toStringNoArr(0, grasp).c_str());
+    for (int i = 0; i < grasp.actions.size(); i++) {
+        const apc_msgs::PrimitiveAction& action = grasp.actions[i];
+        using namespace boost::xpressive;
+        APC_ASSERT_PLAN(!action.object_id.empty(), grasp,
+                        "Grasp is missing object ID\n%s",
+                        toStringNoArr(i, grasp).c_str());
+        APC_ASSERT_PLAN(!action.frame_id.empty(), grasp,
+                        "Grasp is missing frame ID\n%s",
+                        toStringNoArr(i, grasp).c_str());
+        APC_ASSERT_PLAN(!action.attached_link_id.empty(), grasp,
+                        "Grasp is missing link ID\n%s",
+                        toStringNoArr(i, grasp).c_str());
+        APC_ASSERT_PLAN(action.grasp, grasp,
+                        "Grasp is missing grasp on\n%s",
+                        toStringNoArr(i, grasp).c_str());
+        {
+            sregex rex = sregex::compile(".*torso");
+            smatch what;
+            APC_ASSERT_PLAN(regex_match(action.group_id, what, rex), grasp,
+                            "Grasp group ID failed to match .*torso\n%s",
+                            toStringNoArr(i, grasp).c_str());
+        }
+        {
+            sregex rex = sregex::compile(".*7_link");
+            smatch what;
+            APC_ASSERT_PLAN(regex_match(action.attached_link_id, what, rex), grasp,
+                            "Grasp link ID failed to match .*7_link\n%s",
+                            toStringNoArr(i, grasp).c_str());
+        }
+    }
+}
 
-// }
+void apc_planning::fixGrasp(std::vector<apc_msgs::PrimitivePlan>& grasps,
+                            const robot_state::RobotState& robot_state,
+                            const KeyPoseMap& world_state)
+{
+    for (int i = 0; i < grasps.size(); i++) {
+        fixGrasp(grasps[i], robot_state, world_state);
+    }
+}
 
-// void apc_planning::fixGrasp(std::vector<apc_msgs::PrimitivePlan>& grasps,
-//                             const robot_state::RobotState& robot_state,
-//                             const KeyPoseMap& world_state)
-// {
-//     for (int i = 0; i < grasps.size(); i++) {
-//         fixGrasp(grasp);
-//     }
-// }
+void apc_planning::convertPlanListToPlanActions(const std::vector<apc_msgs::PrimitivePlan>& input,
+                                  apc_msgs::PrimitivePlan& output)
+{
+    for (PlanList::const_iterator i = input.begin(); i != input.end(); ++i) {
+        output.actions.insert(output.actions.end(),
+                      i->actions.begin(),
+                      i->actions.end());
+    }
+}
 
-// void apc_planning::fixGrasp(apc_msgs::PrimitivePlan& grasp,
-//                             const robot_state::RobotState& robot,
-//                             const KeyPoseMap& world)
-// {
-//     APC_ASSERT_PLAN(grasp.actions.size() == 1, grasp,
-//                     "Grasp has more than one action!\n%s",
-//                     toStringNoArr(0, grasp));
-//     apc_msgs::PrimitiveAction& action = grasp.actions.front();
-//     robot_state::RobotState robot_state = robot;
-//     KeyPoseMap world_state = world;
-//     // if the group is not arm_7 group
-//     using namespace boost::xpressive;
-//     {
-//         sregex rex = sregex::compile(".*7_link");
-//         smatch what;
-//         if (!regex_match(action.group_id, what, rex)) {
-//             setRobotStateToPoint(robot_state, action.joint_trajectory.joint_names,
-//                                  action.joint_trajectory.points.front());
-//             APC_ASSERT_PLAN(!action.attached_link_id.empty(), grasp,
-//                             "Grasp is missing link ID",
-//                             toStringNoArr(i, grasp).c_str());
-//             Eigen::Affine3d T_tip_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
-//             // get side
-//             rex = sregex::compile("^.*(left|right).*");
-//             APC_ASSERT(regex_match(group_id, what, rex), "Can't determine side of group");
-//             std::string side = what[1];
-//             // true eef link
-//             // std::string link_id = "crichton_" + side + "_
-//         }
-//     }
-// }
+void apc_planning::fixGrasp(apc_msgs::PrimitivePlan& grasp,
+                            const robot_state::RobotState& robot,
+                            const KeyPoseMap& world)
+{
+    if (grasp.actions.size() == 3) {
+        // Combine all grasps into one?
+    }
+
+    if (grasp.actions.size() == 1) {
+        APC_ASSERT_PLAN(grasp.actions.size() == 1, grasp,
+                        "Grasp has more than one action!\n%s",
+                        toStringNoArr(0, grasp).c_str());
+        apc_msgs::PrimitiveAction& action = grasp.actions.front();
+        robot_state::RobotState robot_state = robot;
+        KeyPoseMap world_state = world;
+        // if the group is not arm_7 group
+        using namespace boost::xpressive;
+        {
+            sregex rex = sregex::compile(".*7_link");
+            smatch what;
+            if (!regex_match(action.attached_link_id, what, rex)) {
+                setRobotStateToPoint(robot_state, action.joint_trajectory.joint_names,
+                                     action.joint_trajectory.points.front());
+                APC_ASSERT_PLAN(!action.attached_link_id.empty(), grasp,
+                                "Grasp is missing link ID\n%s",
+                                toStringNoArr(0, grasp).c_str());
+                Eigen::Affine3d T_tip_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
+                // get side
+                rex = sregex::compile("^.*(left|right).*");
+                APC_ASSERT(regex_match(action.group_id, what, rex), "Can't determine side of group");
+                std::string side = what[1];
+                // true eef link
+                std::string link_id = "crichton_" + side + "_7_link";
+                Eigen::Affine3d T_eef_world = robot_state.getGlobalLinkTransform(link_id);
+                // object world
+                Eigen::Affine3d T_object_tip;
+                APC_ASSERT(action.object_trajectory.poses.size() > 0,
+                           "Failed to assert object trajectory");
+                tf::poseMsgToEigen(action.object_trajectory.poses.front(), T_object_tip);
+                // math
+                Eigen::Affine3d T_item_world = T_tip_world * T_object_tip;
+                Eigen::Affine3d T_item_eef = T_eef_world.inverse() * T_item_world;
+                geometry_msgs::Pose pose_item_eef;
+                tf::poseEigenToMsg(T_item_eef, pose_item_eef);
+                // write
+                action.group_id = "crichton_" + side + "arm_torso";
+                action.attached_link_id = link_id;
+                action.object_trajectory.poses.resize(2);
+                action.object_trajectory.poses[0] = pose_item_eef;
+                action.object_trajectory.poses[1] = pose_item_eef;
+                action.action_name = action.action_name + "_fix";
+            }
+        }
+    }
+}

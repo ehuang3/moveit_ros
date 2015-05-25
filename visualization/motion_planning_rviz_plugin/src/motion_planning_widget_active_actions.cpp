@@ -689,7 +689,28 @@ namespace moveit_rviz_plugin
                 ROS_INFO_STREAM(apc_planning::toStringNoArr(action));
 
                 // Load action into state.
-                loadStartAndGoalFromAction(start_waypoint, goal_waypoint, action);
+
+                try {
+                    loadStartAndGoalFromAction(start_waypoint, goal_waypoint, action);
+                } catch (apc_exception::Exception& e) {
+                    try {
+                        KeyPoseMap world_state = computeWorldKeyPoseMap();
+                        apc_msgs::PrimitiveAction A = action;
+                        setStateFromPoint(start_waypoint, A.joint_trajectory.joint_names,
+                                          A.joint_trajectory.points.front());
+                        setStateFromPoint(goal_waypoint, A.joint_trajectory.joint_names,
+                                          A.joint_trajectory.points.back());
+                        if (!A.object_id.empty()) {
+                            A.object_key = A.object_id + "_0";
+                            setAttachedObjectFromAction(start_waypoint, world_state, A, 0);
+                            setAttachedObjectFromAction(goal_waypoint, world_state, A, -1);
+                        } else {
+                        }
+                    } catch (apc_exception::Exception& f) {
+                        throw f;
+                    }
+                    // throw e;
+                }
 
                 // Update the dirty transforms, etc.
                 start_waypoint.update();

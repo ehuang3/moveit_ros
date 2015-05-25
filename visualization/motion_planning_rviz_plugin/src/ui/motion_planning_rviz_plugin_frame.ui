@@ -1423,7 +1423,7 @@ background-color: rgb(212, 208, 200);</string>
                   </item>
                   <item row="1" column="2" rowspan="2">
                    <layout class="QGridLayout" name="gridLayout_42">
-                    <item row="2" column="1">
+                    <item row="2" column="2">
                      <widget class="QPushButton" name="test_plan_button">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -1436,14 +1436,14 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="3" column="0">
+                    <item row="3" column="1">
                      <widget class="QPushButton" name="test_trajopt_button">
                       <property name="text">
                        <string>Test Trajopt</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="0" column="0">
+                    <item row="0" column="1">
                      <widget class="QPushButton" name="test_grasps_button">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -1456,28 +1456,28 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="3" column="1">
+                    <item row="3" column="2">
                      <widget class="QPushButton" name="set_item_button">
                       <property name="text">
                        <string>Set Item</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="0" column="1">
+                    <item row="0" column="2">
                      <widget class="QPushButton" name="test_collisions_button">
                       <property name="text">
                        <string>Prune Grasps</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="2" column="0">
+                    <item row="2" column="1">
                      <widget class="QPushButton" name="test_exit_button">
                       <property name="text">
                        <string>Test Exit</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="1" column="0">
+                    <item row="1" column="1">
                      <widget class="QPushButton" name="test_pregrasps_button">
                       <property name="sizePolicy">
                        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -1490,10 +1490,17 @@ background-color: rgb(212, 208, 200);</string>
                       </property>
                      </widget>
                     </item>
-                    <item row="1" column="1">
+                    <item row="1" column="2">
                      <widget class="QPushButton" name="test_enter_button">
                       <property name="text">
                        <string>Test Enter</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="0">
+                     <widget class="QPushButton" name="fix_grasps_button">
+                      <property name="text">
+                       <string>Fix Grasps</string>
                       </property>
                      </widget>
                     </item>
@@ -2216,8 +2223,8 @@ background-color: rgb(212, 208, 200);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>99</width>
-                   <height>70</height>
+                   <width>225</width>
+                   <height>103</height>
                   </rect>
                  </property>
                  <attribute name="label">

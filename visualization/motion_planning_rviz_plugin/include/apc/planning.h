@@ -105,4 +105,14 @@ apc_msgs::PrimitiveAction getSubgroupAction(const std::string& subgroup_expr,
     std::string toStringJointDiff(const robot_state::RobotState& prev_state,
                                   const robot_state::RobotState& next_state);
     std::string toStringNoArr(const apc_msgs::PrimitivePlan& plan);
+    void assertGraspPreconditions(const std::vector<apc_msgs::PrimitivePlan>& grasps);
+    void assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp);
+    void fixGrasp(std::vector<apc_msgs::PrimitivePlan>& grasps,
+                  const robot_state::RobotState& robot_state,
+                  const KeyPoseMap& world_state);
+    void fixGrasp(apc_msgs::PrimitivePlan& grasp,
+                  const robot_state::RobotState& robot,
+                  const KeyPoseMap& world);
+    void convertPlanListToPlanActions(const std::vector<apc_msgs::PrimitivePlan>& input,
+                                      apc_msgs::PrimitivePlan& output);
 }

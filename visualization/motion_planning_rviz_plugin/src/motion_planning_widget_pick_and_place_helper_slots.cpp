@@ -56,6 +56,7 @@ namespace moveit_rviz_plugin
         connect( ui_->test_exit_button,    SIGNAL( clicked() ), this, SLOT( testExitButtonClicked() ));
         connect( ui_->test_plan_button,    SIGNAL( clicked() ), this, SLOT( testPlanButtonClicked() ));
         connect( ui_->test_trajopt_button,    SIGNAL( clicked() ), this, SLOT( testTrajoptButtonClicked() ));
+        connect( ui_->fix_grasps_button,    SIGNAL( clicked() ), this, SLOT( fixGraspsButtonClicked() ));
     }
 
     void MotionPlanningFrame::updateBinContentsTableWidget(rapidjson::Document& doc)
@@ -154,5 +155,10 @@ namespace moveit_rviz_plugin
     void MotionPlanningFrame::testTrajoptButtonClicked()
     {
         planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeTestTrajoptButtonClicked, this), "test ik");
+    }
+
+    void MotionPlanningFrame::fixGraspsButtonClicked()
+    {
+        planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeFixGraspsButtonClicked, this), "test ik");
     }
 }
