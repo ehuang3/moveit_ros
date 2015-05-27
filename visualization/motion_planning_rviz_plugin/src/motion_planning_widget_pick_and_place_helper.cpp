@@ -282,7 +282,7 @@ namespace moveit_rviz_plugin
             item_shape = ps->getWorld()->getObject(item_key)->shapes_[0];
         }
 
-        // Compute pose of the object.
+        // compute pose of the object.
         Eigen::Affine3d item_pose = Eigen::Affine3d::Identity();
         if (_kiva_pod)
         {
@@ -299,7 +299,7 @@ namespace moveit_rviz_plugin
 
             double d_x = -item_depth / 2.0;
 
-            T_bin.translate(Eigen::Vector3d(-10 + d_x, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
+            T_bin.translate(Eigen::Vector3d(d_x, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
             item_pose = T_pod * T_bin;
         }
 
@@ -501,6 +501,7 @@ namespace moveit_rviz_plugin
         int row = ui_->bin_contents_table_widget->currentRow();
         if (row < 0) return;
         QTableWidget* bin_contents = ui_->bin_contents_table_widget;
+        std::string bin_id = bin_contents->item(row, 0)->text().toStdString();
         std::string item_id = bin_contents->item(row, 1)->text().toStdString();
         std::string item_key = bin_contents->item(row, 1)->data(Qt::UserRole).toString().toStdString();
 
@@ -527,11 +528,17 @@ namespace moveit_rviz_plugin
         }
 
         try {
-        computeCheckCollisions(item_grasps,
-                               robot_state,
-                               world_state);
+            computeCheckCollisions(item_grasps,
+                                   robot_state,
+                                   world_state);
         } catch (apc_exception::Exception& eror) {
             ROS_ERROR("ERror %s", eror.what());
+        }
+
+        try {
+            std::sort(item_grasps.begin(), item_grasps.end(), apc_planning::less_than_dot_x(robot_state, world_state, bin_id));
+        } catch (apc_exception::Exception& e) {
+            ROS_ERROR("Failed to sort %s", e.what());
         }
 
         apc_msgs::PrimitivePlan ogs;
@@ -716,14 +723,16 @@ namespace moveit_rviz_plugin
         typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
         typedef apc_msgs::PrimitivePlan Plan;
         typedef apc_msgs::PrimitiveAction Action;
+        robot_state::RobotState robot_state = *getQueryGoalState();
         PlanList grasps;
         grasps = findMatchingPlansAny("", "grasp.*", ".*", ".*", ".*", ".*", true);
         PlanList invalid_grasps;
         for (int i = 0; i < grasps.size(); i++) {
             try {
-                apc_planning::assertGraspPreconditions(grasps[i]);
+                apc_planning::assertGraspPreconditions(grasps[i], robot_state);
             } catch (apc_exception::Exception& e) {
-                ROS_INFO("INVALID -> grasp[%d]: %s\n%s", i, grasps[i].plan_name.c_str(), e.what());
+                ROS_DEBUG("INVALID -> grasp[%d]: \n%s\n%s", i, apc_planning::toStringNoArr(grasps[i]).c_str(),
+                         e.what());
                 invalid_grasps.push_back(grasps[i]);
                 // if (invalid_grasps.back().actions.size() == 1)
                 //     break;
@@ -731,15 +740,15 @@ namespace moveit_rviz_plugin
         }
         ROS_INFO("Found %ld invalid grasps", invalid_grasps.size());
         PlanList fixed_grasps;
-        robot_state::RobotState robot_state = *getQueryGoalState();
+
         KeyPoseMap world_state = computeWorldKeyPoseMap();
         for (int i = 0; i < invalid_grasps.size(); i++) {
             try {
                 apc_planning::fixGrasp(invalid_grasps[i], robot_state, world_state);
-                apc_planning::assertGraspPreconditions(invalid_grasps[i]);
+                apc_planning::assertGraspPreconditions(invalid_grasps[i], robot_state);
                 fixed_grasps.push_back(invalid_grasps[i]);
             } catch (apc_exception::Exception& e) {
-                // ROS_INFO("INVALID -> grasp[%d]: %s\n%s", i, grasps[i].plan_name.c_str(), e.what());
+                ROS_WARN("INVALID -> grasp[%d]: %s\n%s", i, grasps[i].plan_name.c_str(), e.what());
             }
         }
         ROS_INFO("Fixed %ld invalid grasps", fixed_grasps.size());
@@ -751,6 +760,8 @@ namespace moveit_rviz_plugin
         I.actions.push_back(divider);
         apc_planning::convertPlanListToPlanActions(fixed_grasps, I);
         loadPlanToActiveActions(I);
+        // Save fixed actions back to list.
+        overwriteStoredPlans(fixed_grasps);
     }
 
 }

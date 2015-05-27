@@ -221,10 +221,10 @@ namespace moveit_rviz_plugin
             // Load the currently selected item into the query start and goal state.
             loadStartAndGoalFromAction(action);
 
-        } catch (std::exception& error) {
+        } catch (apc_exception::Exception& error) {
             ROS_ERROR("Caught exception in %s",
                       error.what());
-            return;
+            // return;
         }
 
         // Load the action into the GUI.

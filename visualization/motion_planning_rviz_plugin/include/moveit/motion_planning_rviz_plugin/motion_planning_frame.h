@@ -322,6 +322,8 @@ Q_SIGNALS:
 
 private:
 
+  void overwriteStoredPlans(const std::vector<apc_msgs::PrimitivePlan>& write_plans);
+
   // Widget slots.
   void connectTeleopSlots();
   void connectTeleopHelperSlots();
@@ -339,6 +341,8 @@ private:
   void getItemSymmetriesCached(const std::string& item_id,
                                EigenSTL::vector_Affine3d& symmetries);
 
+  void setStoredPlansList(const std::vector<apc_msgs::PrimitivePlan>& plans);
+  void getStoredPlansList(std::vector<apc_msgs::PrimitivePlan>& plans);
 
   // Teleoperation widget.
   void stripToJointAngleTrajectoryActionsOnly(apc_msgs::PrimitivePlan& plan);

@@ -47,12 +47,43 @@ namespace moveit_warehouse
 class PrimitivePlanStorage;
 }
 
+
 namespace apc_planning
 {
-
     typedef std::map<std::string, Eigen::Affine3d, std::less<std::string>,
                      Eigen::aligned_allocator<std::pair<const std::string, Eigen::Affine3d> > >
     KeyPoseMap;
+
+    struct less_than_plan_name {
+        inline bool operator() (const apc_msgs::PrimitivePlan& p1,
+                                const apc_msgs::PrimitivePlan& p2) {
+            return p1.plan_name < p2.plan_name;
+        }
+    };
+
+    struct less_than_action_name {
+        inline bool operator() (const apc_msgs::PrimitiveAction& a1,
+                                const apc_msgs::PrimitiveAction& a2) {
+            return a1.action_name < a2.action_name;
+        }
+    };
+
+    struct less_than_dot_x {
+        less_than_dot_x(const robot_state::RobotState& robot,
+                        const KeyPoseMap& world,
+                        const std::string& bin_id)
+            : _robot_state(robot),
+              _world_state(world),
+              _bin_id(bin_id)
+        {}
+
+        bool operator() (const apc_msgs::PrimitivePlan& p1,
+                         const apc_msgs::PrimitivePlan& p2);
+
+        robot_state::RobotState _robot_state;
+        KeyPoseMap _world_state;
+        std::string _bin_id;
+    };
 
     bool _is_robot_moving_(const apc_msgs::PrimitiveAction& action);
     bool _is_object_moving_(const apc_msgs::PrimitiveAction& action);
@@ -105,8 +136,10 @@ apc_msgs::PrimitiveAction getSubgroupAction(const std::string& subgroup_expr,
     std::string toStringJointDiff(const robot_state::RobotState& prev_state,
                                   const robot_state::RobotState& next_state);
     std::string toStringNoArr(const apc_msgs::PrimitivePlan& plan);
-    void assertGraspPreconditions(const std::vector<apc_msgs::PrimitivePlan>& grasps);
-    void assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp);
+    void assertGraspPreconditions(const std::vector<apc_msgs::PrimitivePlan>& grasps,
+                                  const robot_state::RobotState& robot_state);
+    void assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp,
+                                  const robot_state::RobotState& robot_state);
     void fixGrasp(std::vector<apc_msgs::PrimitivePlan>& grasps,
                   const robot_state::RobotState& robot_state,
                   const KeyPoseMap& world_state);
@@ -115,4 +148,6 @@ apc_msgs::PrimitiveAction getSubgroupAction(const std::string& subgroup_expr,
                   const KeyPoseMap& world);
     void convertPlanListToPlanActions(const std::vector<apc_msgs::PrimitivePlan>& input,
                                       apc_msgs::PrimitivePlan& output);
+    void setRobotStateToTrajectoryEnd(robot_state::RobotState& robot_state,
+                                      const apc_msgs::PrimitivePlan& plan);
 }

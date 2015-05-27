@@ -159,118 +159,126 @@ bool apc_planning::is_action_nonprehensile(const apc_msgs::PrimitiveAction& acti
     return _action_type_(action) == "nonprehensile";
 }
 
-bool apc_planning::is_action_stationary(const apc_msgs::PrimitiveAction& action)
-{
-    return !_is_robot_moving_(action);
-}
+ bool apc_planning::is_action_stationary(const apc_msgs::PrimitiveAction& action)
+ {
+     return !_is_robot_moving_(action);
+ }
 
-void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
-                                                        const apc_msgs::PrimitiveAction& source,
-                                                        const robot_state::RobotState& robot_state)
-{
-    APC_ASSERT(target.group_id != source.group_id,
-               "Why are you copying the same group from source to target?");
-    typedef std::vector<std::string> JointNames;
-    JointNames target_names = robot_state.getJointModelGroup(target.group_id)->getVariableNames();
-    JointNames source_names = source.joint_trajectory.joint_names;
-    trajectory_msgs::JointTrajectory target_traj = target.joint_trajectory;
-    trajectory_msgs::JointTrajectory source_traj = source.joint_trajectory;
-    target_traj.joint_names.clear();
-    target_traj.points.clear();
-    target_traj.points.resize(source_traj.points.size());
-    for (int i = 0; i < source_names.size(); i++) {
-        if (std::find(target_names.begin(), target_names.end(), source_names[i]) != target_names.end()) {
-            target_traj.joint_names.push_back(source_names[i]);
-            for (int j = 0; j < source_traj.points.size(); j++) {
-                target_traj.points[j].positions.push_back(source_traj.points[j].positions[i]);
-            }
-        }
-    }
-    APC_ASSERT(target_names.size() == target_traj.joint_names.size(),
-               "Failed to find some variable name in source %s", source.action_name.c_str());
-    target.joint_trajectory = target_traj;
-}
+ void apc_planning::copyJointTrajectoryRestrictedToGroup(apc_msgs::PrimitiveAction& target,
+                                                         const apc_msgs::PrimitiveAction& source,
+                                                         const robot_state::RobotState& robot_state)
+ {
+     APC_ASSERT(target.group_id != source.group_id,
+                "Why are you copying the same group from source to target?");
+     typedef std::vector<std::string> JointNames;
+     JointNames target_names = robot_state.getJointModelGroup(target.group_id)->getVariableNames();
+     JointNames source_names = source.joint_trajectory.joint_names;
+     trajectory_msgs::JointTrajectory target_traj = target.joint_trajectory;
+     trajectory_msgs::JointTrajectory source_traj = source.joint_trajectory;
+     target_traj.joint_names.clear();
+     target_traj.points.clear();
+     target_traj.points.resize(source_traj.points.size());
+     for (int i = 0; i < source_names.size(); i++) {
+         if (std::find(target_names.begin(), target_names.end(), source_names[i]) != target_names.end()) {
+             target_traj.joint_names.push_back(source_names[i]);
+             for (int j = 0; j < source_traj.points.size(); j++) {
+                 target_traj.points[j].positions.push_back(source_traj.points[j].positions[i]);
+             }
+         }
+     }
+     APC_ASSERT(target_names.size() == target_traj.joint_names.size(),
+                "Failed to find some variable name in source %s", source.action_name.c_str());
+     target.joint_trajectory = target_traj;
+ }
 
 
-apc_msgs::PrimitiveAction apc_planning::getSubgroupAction(const std::string& subgroup_expr,
-                                                          const apc_msgs::PrimitiveAction& action,
-                                                          const robot_state::RobotState& robot_state)
-{
-    typedef apc_msgs::PrimitivePlan Plan;
-    typedef apc_msgs::PrimitiveAction Action;
-    std::vector<const moveit::core::JointModelGroup*> subgroups;
-    robot_state.getJointModelGroup(action.group_id)->getSubgroups(subgroups);
-    subgroups.push_back(robot_state.getJointModelGroup(action.group_id));
-    for(int i =0; i < subgroups.size();i ++){
-        using namespace boost::xpressive;
-        sregex rex = sregex::compile(subgroup_expr);
-        smatch what;
-        std::string subgroup_id = subgroups[i]->getName();
-        // ROS_INFO_STREAM("subgroup_id " << subgroup_id);
-        if (regex_match(subgroup_id, what, rex)) {
-            Action subaction = action;
-            subaction.group_id = subgroup_id;
-            if (subaction.group_id == action.group_id)
-                return subaction;
-            else
-                copyJointTrajectoryRestrictedToGroup(subaction, action, robot_state);
-            return subaction;
-        }
-    }
-    APC_ASSERT(false, "Failed to find a matching %s subgroup action for group %s",
-               subgroup_expr.c_str(), action.group_id.c_str());
-}
+ apc_msgs::PrimitiveAction apc_planning::getSubgroupAction(const std::string& subgroup_expr,
+                                                           const apc_msgs::PrimitiveAction& action,
+                                                           const robot_state::RobotState& robot_state)
+ {
+     typedef apc_msgs::PrimitivePlan Plan;
+     typedef apc_msgs::PrimitiveAction Action;
+     std::vector<const moveit::core::JointModelGroup*> subgroups;
+     robot_state.getJointModelGroup(action.group_id)->getSubgroups(subgroups);
+     subgroups.push_back(robot_state.getJointModelGroup(action.group_id));
+     for(int i =0; i < subgroups.size();i ++){
+         using namespace boost::xpressive;
+         sregex rex = sregex::compile(subgroup_expr);
+         smatch what;
+         std::string subgroup_id = subgroups[i]->getName();
+         // ROS_INFO_STREAM("subgroup_id " << subgroup_id);
+         if (regex_match(subgroup_id, what, rex)) {
+             Action subaction = action;
+             subaction.group_id = subgroup_id;
+             if (subaction.group_id == action.group_id)
+                 return subaction;
+             else
+                 copyJointTrajectoryRestrictedToGroup(subaction, action, robot_state);
+             return subaction;
+         }
+     }
+     APC_ASSERT(false, "Failed to find a matching %s subgroup action for group %s",
+                subgroup_expr.c_str(), action.group_id.c_str());
+ }
 
-std::string apc_planning::toStringNoArr(int index, const apc_msgs::PrimitivePlan& plan)
-{
-    std::stringstream ss;
-    ss << "   plan name: " << plan.plan_name << std::endl;
-    for (int i = 0; i < plan.actions.size(); i++) {
-    ss << "   action[" << i << "]:" << plan.actions[i].action_name << std::endl;
-    }
-    ss << "action index: " << index << std::endl;
-    ss << toStringNoArr(plan.actions[index]);
-    return ss.str();
-}
+ std::string apc_planning::toStringNoArr(int index, const apc_msgs::PrimitivePlan& plan)
+ {
+     std::stringstream ss;
+     ss << "   plan name: " << plan.plan_name << std::endl;
+     for (int i = 0; i < plan.actions.size(); i++) {
+     ss << "   action[" << i << "]:" << plan.actions[i].action_name << std::endl;
+     }
+     ss << "action index: " << index << std::endl;
+     ss << toStringNoArr(plan.actions[index]);
+     return ss.str();
+ }
 
-std::string apc_planning::toStringNoArr(const apc_msgs::PrimitivePlan& plan)
-{
-    std::stringstream ss;
-    ss << "   plan name: " << plan.plan_name << std::endl;
-    for (int i = 0; i < plan.actions.size(); i++) {
-        ss << "   action[" << i << "]:" << std::endl;
-        ss << toStringNoArr(plan.actions[i]);
-    }
-    return ss.str();
-}
+ std::string apc_planning::toStringNoArr(const apc_msgs::PrimitivePlan& plan)
+ {
+     std::stringstream ss;
+     ss << "   plan name: " << plan.plan_name << std::endl;
+     for (int i = 0; i < plan.actions.size(); i++) {
+         ss << "   action[" << i << "]:" << std::endl;
+         ss << toStringNoArr(plan.actions[i]);
+     }
+     return ss.str();
+ }
 
-std::string apc_planning::toStringNoArr(const apc_msgs::PrimitiveAction& action)
-{
-    std::stringstream ss;
-    ss << " action name: " << action.action_name << std::endl
-       << "    group ID: " << action.group_id << std::endl
-       << "    frame ID: " << action.frame_id << std::endl
-       << "   frame key: " << action.frame_key << std::endl
-       << " frame poses: " << action.eef_trajectory.poses.size() << std::endl
-       << "  frame link: " << action.eef_link_id << std::endl
-       << "   object ID: " << action.object_id << std::endl
-       << "  object key: " << action.object_key << std::endl
-       << "object poses: " << action.object_trajectory.poses.size() << std::endl
-       << " object link: " << action.attached_link_id << std::endl
-       << "     joint T: " << action.joint_trajectory.points.size() << std::endl;
-    Eigen::MatrixXd T;
-    T.resize(action.joint_trajectory.joint_names.size(), action.joint_trajectory.points.size());
-    for (int c = 0; c < T.cols(); c++) {
-        for (int r = 0; r < T.rows(); r++) {
-            T(r,c) = action.joint_trajectory.points[c].positions[r];
-        }
-    }
-    ss << "       grasp: " << (action.grasp ? "True" : "False") << std::endl
-       << "      locked: " << (action.eef_locked ? "True" : "False") << std::endl
-       << "    duration: " << action.duration << std::endl
-       << "   cartesian: " << (action.interpolate_cartesian ? "True" : "False") << std::endl
-       << " action type: " << _action_type_(action) << std::endl
-       << "           T:\n" << T << std::endl;
+ std::string apc_planning::toStringNoArr(const apc_msgs::PrimitiveAction& action)
+ {
+     std::stringstream ss;
+     ss << " action name: " << action.action_name << std::endl
+        << "    group ID: " << action.group_id << std::endl
+        << "    frame ID: " << action.frame_id << std::endl
+        << "   frame key: " << action.frame_key << std::endl
+        << " frame poses: " << action.eef_trajectory.poses.size() << std::endl
+        << "  frame link: " << action.eef_link_id << std::endl
+        << "   object ID: " << action.object_id << std::endl
+        << "  object key: " << action.object_key << std::endl
+        << "object poses: " << action.object_trajectory.poses.size() << std::endl
+        << " object link: " << action.attached_link_id << std::endl
+        << "     joint T: " << action.joint_trajectory.points.size() << std::endl;
+     Eigen::MatrixXd T;
+     T.resize(action.joint_trajectory.joint_names.size(), action.joint_trajectory.points.size());
+     for (int c = 0; c < T.cols(); c++) {
+         for (int r = 0; r < T.rows(); r++) {
+             T(r,c) = action.joint_trajectory.points[c].positions[r];
+         }
+     }
+     ss << "       grasp: " << (action.grasp ? "True" : "False") << std::endl
+        << "      locked: " << (action.eef_locked ? "True" : "False") << std::endl
+        << "    duration: " << action.duration << std::endl
+        << "   cartesian: " << (action.interpolate_cartesian ? "True" : "False") << std::endl
+        << " action type: " << _action_type_(action) << std::endl;
+     ss << "           J: " << std::endl;
+     const std::vector<std::string>& J = action.joint_trajectory.joint_names;
+     for (int i = 0; i < J.size(); i++) {
+         ss << J[i] << ", ";
+     }
+     ss << std::endl;
+     ss << "           T:\n" << T << std::endl
+        << "           E:\n" << action.eef_trajectory << std::endl
+        << "           O:\n" << action.object_trajectory << std::endl;
     return ss.str();
 }
 
@@ -603,14 +611,16 @@ void apc_planning::assertPlanningPreconditions(const apc_msgs::PrimitivePlan& pl
     }
 }
 
-void apc_planning::assertGraspPreconditions(const std::vector<apc_msgs::PrimitivePlan>& grasps)
+void apc_planning::assertGraspPreconditions(const std::vector<apc_msgs::PrimitivePlan>& grasps,
+                                            const robot_state::RobotState& robot_state)
 {
     for (int i = 0; i < grasps.size(); i++) {
-        assertGraspPreconditions(grasps[i]);
+        assertGraspPreconditions(grasps[i], robot_state);
     }
 }
 
-void apc_planning::assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp)
+void apc_planning::assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp,
+                                            const robot_state::RobotState& robot_state)
 {
     APC_ASSERT_PLAN(grasp.actions.size() == 1, grasp,
                     "Grasp has more than one action!\n%s",
@@ -630,6 +640,10 @@ void apc_planning::assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp
         APC_ASSERT_PLAN(action.grasp, grasp,
                         "Grasp is missing grasp on\n%s",
                         toStringNoArr(i, grasp).c_str());
+        APC_ASSERT_PLAN(action.frame_id == action.object_id, grasp,
+                        "action.frame_id != action.object_id");
+        APC_ASSERT_PLAN(action.frame_key == action.object_key, grasp,
+                        "action.frame_key != action.object_key");
         {
             sregex rex = sregex::compile(".*torso");
             smatch what;
@@ -643,6 +657,58 @@ void apc_planning::assertGraspPreconditions(const apc_msgs::PrimitivePlan& grasp
             APC_ASSERT_PLAN(regex_match(action.attached_link_id, what, rex), grasp,
                             "Grasp link ID failed to match .*7_link\n%s",
                             toStringNoArr(i, grasp).c_str());
+        }
+        {
+            sregex rex = sregex::compile(".*7_link");
+            smatch what;
+            APC_ASSERT_PLAN(regex_match(action.eef_link_id, what, rex), grasp,
+                            "Grasp link ID failed to match .*7_link\n%s",
+                            toStringNoArr(i, grasp).c_str());
+        }
+        {
+            typedef std::vector<std::string> StringList;
+            StringList V = robot_state.getJointModelGroup(action.group_id)->getVariableNames();
+            StringList J = action.joint_trajectory.joint_names;
+            for (int i = 0; i < V.size(); i++) {
+                APC_ASSERT_PLAN(std::find(J.begin(), J.end(), V[i]) != J.end(), grasp,
+                                "Failed to find joint %s in grasp\n%s", V[i].c_str(),
+                                toStringNoArr(i, grasp).c_str());
+            }
+        }
+        {
+            typedef trajectory_msgs::JointTrajectory Traj;
+            const Traj& T = action.joint_trajectory;
+            for (int i = 0; i < T.points.size(); i++)
+                APC_ASSERT_PLAN(T.joint_names.size() == T.points[i].positions.size(), grasp,
+                                "Mismatch between joint names and joint positions in trajectory");
+        }
+        {
+            // APC_ASSERT_PLAN(action.eef_trajectory.poses.size() == action.object_trajectory.poses.size(),
+            //                 grasp, "action.eef_trajectory.poses.size() != action.object_trajectory.poses.size()");
+            // double TOL = 1e-3;
+            // for (int i = 0; i < action.eef_trajectory.poses.size(); i++) {
+            //     APC_ASSERT_PLAN(std::abs(action.eef_trajectory.poses[i].position.x -
+            //                     action.object_trajectory.poses[i].position.x) < TOL, grasp,
+            //                     "pos x");
+            //     APC_ASSERT_PLAN(std::abs(action.eef_trajectory.poses[i].position.y -
+            //                     action.object_trajectory.poses[i].position.y) < TOL, grasp,
+            //                     "pos y");
+            //     APC_ASSERT_PLAN(std::abs(action.eef_trajectory.poses[i].position.z -
+            //                     action.object_trajectory.poses[i].position.z) < TOL, grasp,
+            //                     "pos z");
+            //     APC_ASSERT_PLAN(std::abs(action.eef_trajectory.poses[i].orientation.x -
+            //                     action.object_trajectory.poses[i].orientation.x) < TOL, grasp,
+            //                     "ori x");
+            //     APC_ASSERT_PLAN(std::abs(action.eef_trajectory.poses[i].orientation.y -
+            //                     action.object_trajectory.poses[i].orientation.y) < TOL, grasp,
+            //                     "ori y");
+            //     APC_ASSERT_PLAN(std::abs(action.eef_trajectory.poses[i].orientation.z -
+            //                     action.object_trajectory.poses[i].orientation.z) < TOL, grasp,
+            //                     "ori z");
+            //     APC_ASSERT_PLAN(std::abs(action.eef_trajectory.poses[i].orientation.w -
+            //                     action.object_trajectory.poses[i].orientation.w) < TOL, grasp,
+            //                     "ori w");
+            // }
         }
     }
 }
@@ -681,43 +747,118 @@ void apc_planning::fixGrasp(apc_msgs::PrimitivePlan& grasp,
         apc_msgs::PrimitiveAction& action = grasp.actions.front();
         robot_state::RobotState robot_state = robot;
         KeyPoseMap world_state = world;
+        APC_ASSERT_PLAN(!action.object_id.empty(), grasp,
+                        "!action.object_id.empty()");
+        APC_ASSERT_PLAN(action.frame_id == action.object_id, grasp,
+                        "action.frame_id != action.object_id");
         // if the group is not arm_7 group
         using namespace boost::xpressive;
-        {
-            sregex rex = sregex::compile(".*7_link");
-            smatch what;
-            if (!regex_match(action.attached_link_id, what, rex)) {
-                setRobotStateToPoint(robot_state, action.joint_trajectory.joint_names,
-                                     action.joint_trajectory.points.front());
-                APC_ASSERT_PLAN(!action.attached_link_id.empty(), grasp,
-                                "Grasp is missing link ID\n%s",
-                                toStringNoArr(0, grasp).c_str());
-                Eigen::Affine3d T_tip_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
-                // get side
-                rex = sregex::compile("^.*(left|right).*");
-                APC_ASSERT(regex_match(action.group_id, what, rex), "Can't determine side of group");
-                std::string side = what[1];
-                // true eef link
-                std::string link_id = "crichton_" + side + "_7_link";
-                Eigen::Affine3d T_eef_world = robot_state.getGlobalLinkTransform(link_id);
-                // object world
-                Eigen::Affine3d T_object_tip;
-                APC_ASSERT(action.object_trajectory.poses.size() > 0,
-                           "Failed to assert object trajectory");
-                tf::poseMsgToEigen(action.object_trajectory.poses.front(), T_object_tip);
-                // math
-                Eigen::Affine3d T_item_world = T_tip_world * T_object_tip;
-                Eigen::Affine3d T_item_eef = T_eef_world.inverse() * T_item_world;
-                geometry_msgs::Pose pose_item_eef;
-                tf::poseEigenToMsg(T_item_eef, pose_item_eef);
-                // write
-                action.group_id = "crichton_" + side + "arm_torso";
-                action.attached_link_id = link_id;
-                action.object_trajectory.poses.resize(2);
-                action.object_trajectory.poses[0] = pose_item_eef;
-                action.object_trajectory.poses[1] = pose_item_eef;
-                action.action_name = action.action_name + "_fix";
+        sregex rex = sregex::compile(".*7_link");
+        smatch what;
+        if (!regex_match(action.attached_link_id, what, rex)) {
+            setRobotStateToPoint(robot_state, action.joint_trajectory.joint_names,
+                                 action.joint_trajectory.points.front());
+            APC_ASSERT_PLAN(!action.attached_link_id.empty(), grasp,
+                            "Grasp is missing link ID\n%s",
+                            toStringNoArr(0, grasp).c_str());
+            Eigen::Affine3d T_tip_world = robot_state.getGlobalLinkTransform(action.attached_link_id);
+            // get side
+            rex = sregex::compile("^.*(left|right).*");
+            APC_ASSERT(regex_match(action.group_id, what, rex), "Can't determine side of group");
+            std::string side = what[1];
+            // true eef link
+            std::string link_id = "crichton_" + side + "_7_link";
+            Eigen::Affine3d T_eef_world = robot_state.getGlobalLinkTransform(link_id);
+            // object world
+            Eigen::Affine3d T_object_tip;
+            APC_ASSERT(action.object_trajectory.poses.size() > 0,
+                       "Failed to assert object trajectory");
+            tf::poseMsgToEigen(action.object_trajectory.poses.front(), T_object_tip);
+            // math
+            Eigen::Affine3d T_item_world = T_tip_world * T_object_tip;
+            Eigen::Affine3d T_item_eef = T_eef_world.inverse() * T_item_world;
+            geometry_msgs::Pose pose_item_eef;
+            tf::poseEigenToMsg(T_item_eef, pose_item_eef);
+            // write
+            action.group_id = "crichton_" + side + "arm_torso";
+            action.attached_link_id = link_id;
+            action.object_trajectory.poses.resize(2);
+            action.object_trajectory.poses[0] = pose_item_eef;
+            action.object_trajectory.poses[1] = pose_item_eef;
+            action.eef_link_id = link_id;
+            action.eef_trajectory.poses[0] = pose_item_eef;
+            action.eef_trajectory.poses[1] = pose_item_eef;
+            action.action_name = action.action_name + "_fix";
+            // add variable names
+            {
+                typedef std::vector<std::string> StringList;
+                typedef trajectory_msgs::JointTrajectory Traj;
+                StringList  V = robot_state.getJointModelGroup(action.group_id)->getVariableNames();
+                StringList& J = action.joint_trajectory.joint_names;
+                Traj& T = action.joint_trajectory;
+                for (int i = 0; i < V.size(); i++) {
+                    if (std::find(J.begin(), J.end(), V[i]) == J.end()) {
+                        J.push_back(V[i]);
+                        for (int t = 0; t < T.points.size(); t++) {
+                            T.points[t].positions.push_back(0);
+                        }
+                    }
+                }
             }
         }
+
     }
+}
+
+void apc_planning::setRobotStateToTrajectoryEnd(robot_state::RobotState& robot_state,
+                                                const apc_msgs::PrimitivePlan& plan)
+{
+    // Set robot state to the starting pose. We do this by setting
+    // the robot state to the end state of each individual action.
+    for (int k = 0; k < plan.actions.size(); k++) {
+        const apc_msgs::PrimitiveAction& action = plan.actions[k];
+        setRobotStateToPoint(robot_state,
+                             action.joint_trajectory.joint_names,
+                             action.joint_trajectory.points.back());
+    }
+}
+
+bool apc_planning::less_than_dot_x::operator() (const apc_msgs::PrimitivePlan& p1,
+                                                const apc_msgs::PrimitivePlan& p2)
+{
+    typedef apc_msgs::PrimitiveAction Action;
+    // project to x
+    robot_state::RobotState robot_state = _robot_state;
+    KeyPoseMap world_state = _world_state;
+    std::string bin_id = _bin_id;
+    Eigen::Affine3d T_bin_world = world_state[bin_id];
+    Eigen::Affine3d T_bin_forward = T_bin_world;
+    T_bin_forward.translate(Eigen::Vector3d(1, 0, 0));
+    Eigen::Vector3d pose_bin = T_bin_world.translation();
+    Eigen::Vector3d x_axis_bin = T_bin_forward.translation() - T_bin_world.translation();
+    // ROS_INFO_STREAM("x_axis_bin = " << x_axis_bin.transpose());
+    x_axis_bin.y() = 0;
+    x_axis_bin.z() = 0;
+    x_axis_bin.normalize();
+    // do the dot
+    setRobotStateToTrajectoryEnd(robot_state, p1);
+    Action a1 = p1.actions.back();
+    // APC_ASSERT(a1.grasp,
+    //            "Got a non-grasp to compare :(\n%s",
+    //            toStringNoArr(a1).c_str());
+    Eigen::Vector3d pose1 = robot_state.getGlobalLinkTransform(a1.attached_link_id).translation();
+    // ROS_INFO_STREAM("pose1 = " << pose1.transpose());
+    setRobotStateToTrajectoryEnd(robot_state, p2);
+    Action a2 = p2.actions.back();
+    // APC_ASSERT(a2.grasp,
+    //            "Got a non-grasp to compare :(\n%s",
+    //            toStringNoArr(a2).c_str());
+    Eigen::Vector3d pose2 = robot_state.getGlobalLinkTransform(a2.attached_link_id).translation();
+    // ROS_INFO_STREAM("pose2 = " << pose2.transpose());
+    //
+    double d1 =  (pose1 - pose_bin - x_axis_bin.dot(pose1 - pose_bin) * x_axis_bin).norm();
+    double d2 =  (pose2 - pose_bin - x_axis_bin.dot(pose2 - pose_bin) * x_axis_bin).norm();
+    ROS_INFO_STREAM(d1);
+    ROS_INFO_STREAM(d2);
+    return d1 < d2;
 }

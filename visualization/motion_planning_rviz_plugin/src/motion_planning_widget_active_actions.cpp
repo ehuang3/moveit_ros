@@ -155,7 +155,10 @@ namespace moveit_rviz_plugin
         // Set joint variable names if they are missing.
         if (action.joint_trajectory.joint_names.size() == 0) {
             action.joint_trajectory.joint_names = joint_names;
+        } else if (action.joint_trajectory.joint_names.size() != joint_names.size()) {
+            action.joint_trajectory.joint_names = joint_names;
         }
+        action.joint_trajectory.joint_names = joint_names; // HACK
 
         // Append joint angles of state to the joint trajectory.
         Eigen::VectorXd variable_values;

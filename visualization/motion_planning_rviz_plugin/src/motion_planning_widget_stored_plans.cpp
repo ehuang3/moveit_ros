@@ -41,6 +41,7 @@
 #include "ui_motion_planning_rviz_plugin_frame.h"
 #include <moveit/warehouse/primitive_plan_storage.h>
 #include <QtGui/QMessageBox>
+#include <apc/planning.h>
 
 
 namespace moveit_rviz_plugin
@@ -162,6 +163,85 @@ namespace moveit_rviz_plugin
 
             ui_->stored_plans_tree->addTopLevelItem(root);
         }
+    }
+
+    void MotionPlanningFrame::setStoredPlansList(const std::vector<apc_msgs::PrimitivePlan>& plans)
+    {
+        ui_->stored_plans_tree->clear();
+
+        for (int i = 0; i < plans.size(); i++)
+        {
+            const apc_msgs::PrimitivePlan& plan = plans[i];
+
+            // Create tree widget item to hold the plan.
+            QTreeWidgetItem* root = new QTreeWidgetItem;
+            root->setFlags(root->flags() | Qt::ItemIsEditable);
+
+            root->setText(0, QString(plan.plan_name.c_str()));
+
+            // Store overall plan in root node.
+            QVariant data;
+            setMessageToUserData<apc_msgs::PrimitivePlan>(data, plan);
+            root->setData(0, Qt::UserRole, data);
+
+            for (int j = 0; j < plan.actions.size(); j++)
+            {
+                QTreeWidgetItem* child = new QTreeWidgetItem;
+                child->setFlags(child->flags() | Qt::ItemIsEditable);
+
+                // Set the child's name.
+                child->setText(0, QString(plan.actions[j].action_name.c_str()));
+
+                // Store primitive action in the data.
+                setMessageToUserData<apc_msgs::PrimitiveAction>(data, plan.actions[j]);
+
+                // Store data into the child node.
+                child->setData(0, Qt::UserRole, data);
+
+                // Append to root.
+                root->addChild(child);
+            }
+
+            ui_->stored_plans_tree->addTopLevelItem(root);
+        }
+    }
+
+    void MotionPlanningFrame::getStoredPlansList(std::vector<apc_msgs::PrimitivePlan>& plans)
+    {
+        plans.clear();
+        QTreeWidget* stored_plans = ui_->stored_plans_tree;
+        for (int i = 0; i < stored_plans->topLevelItemCount(); i++) {
+            apc_msgs::PrimitivePlan plan =
+                getMessageFromUserData<apc_msgs::PrimitivePlan>(stored_plans->
+                                                                topLevelItem(i)->data(0, Qt::UserRole));
+            plans.push_back(plan);
+        }
+    }
+
+    void MotionPlanningFrame::overwriteStoredPlans(const std::vector<apc_msgs::PrimitivePlan>& write_plans)
+    {
+        // Sort the overwriting plans.
+        typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+        PlanList write = write_plans;
+        std::sort(write.begin(), write.end(), apc_planning::less_than_plan_name());
+        // Get stored plans list.
+        PlanList stored;
+        getStoredPlansList(stored);
+        std::sort(stored.begin(), stored.end(), apc_planning::less_than_plan_name());
+        // replace the plans with the same names.
+        int i = 0, j = 0;
+        while (i < write.size() && j < stored.size()) {
+            std::string ni = write[i].plan_name;
+            std::string nj = stored[j].plan_name;
+            if (ni < nj)
+                i++;
+            if (ni == nj)
+                stored[j++] = write[i++];
+            if (ni > nj)
+                j++;
+        }
+        // write to plan list.
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::setStoredPlansList, this, stored));
     }
 
 }
