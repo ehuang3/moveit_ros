@@ -75,7 +75,12 @@ namespace moveit_rviz_plugin
         Keys keys = computeLoadBinContentsToScene(bin_contents);
         for (int i = 0; i < widget->rowCount(); i++)
         {
-            widget->item(i, 0)->setData(Qt::UserRole, QString::fromStdString("kiva_pod")); // HACK
+            if (i == 0)
+                widget->item(i, 0)->setData(Qt::UserRole, QString::fromStdString("kiva_pod")); // HACK
+            if (i == 1)
+                widget->item(i, 0)->setData(Qt::UserRole, QString::fromStdString("order_bin")); // HACK
+            if (i == 2)
+                widget->item(i, 0)->setData(Qt::UserRole, QString::fromStdString("work_table")); // HACK
             widget->item(i, 1)->setData(Qt::UserRole, QString::fromStdString(keys[i]));
         }
         // Set current row to none.
@@ -109,8 +114,10 @@ namespace moveit_rviz_plugin
             std::string item = iter->second;
             std::string item_model_path = computeItemModelPath(item);
             std::string item_key = computeItemSceneKey(item, item_count[item]++);
-            // Load/add item to scene.
-            addItemToScene(item_model_path, item_key, bin);
+            //
+            bool push_back = !(ui_->json_table_widget->findItems(QString::fromStdString(item), Qt::MatchExactly).size() > 0);
+            // Load/add item to sc
+            addItemToScene(item_model_path, item_key, bin, push_back);
             // Store the item key.
             keys.push_back(item_key);
         }
@@ -129,10 +136,14 @@ namespace moveit_rviz_plugin
         std::string object_model_path = computeItemModelPath("order_bin");
         Eigen::Matrix4d T_object_world;
         T_object_world.matrix() <<
-            1, 0, 0, -0.4,
-            0, 1, 0, -0.8,
-            0, 0, 1,  0.7,
-            0, 0, 0,  1;
+            -0.00814543,     0.999967, -1.00864e-06,    -0.455882,
+            -0.999967,  -0.00814543,  2.28449e-06,   -0.0150576,
+            2.2762e-06,  1.02722e-06,            1,     0.505588,
+            0,            0,            0,            1;
+            // 1, 0, 0, -0.4,
+            // 0, 1, 0, -0.8,
+            // 0, 0, 1,  0.7,
+            // 0, 0, 0,  1;
         loadObjectToScene(object_key, object_model_path, Eigen::Affine3d(T_object_world));
     }
 
@@ -144,7 +155,7 @@ namespace moveit_rviz_plugin
         T_object_world.matrix() <<
             1, 0, 0, -0.4,
             0, 1, 0,  0.0,
-            0, 0, 1,  0.0,
+            0, 0, 1,  -0.23675,
             0, 0, 0,  1;
         loadObjectToScene(object_key, object_model_path, Eigen::Affine3d(T_object_world));
     }
@@ -207,7 +218,11 @@ namespace moveit_rviz_plugin
         std::string item_key = "kiva_pod";
         shapes::ShapeConstPtr item_shape = _kiva_pod->getRootLink()->getState().shapes[0];
         Eigen::Isometry3d item_pose = Eigen::Isometry3d::Identity();
-        item_pose.translation() = Eigen::Vector3d(-1.2, 0, 0);
+        item_pose.matrix() <<
+            0.999796,   -0.0201899,  4.50288e-10,     -1.25476,
+            0.0201899,     0.999796,  2.12423e-09,   -0.0194015,
+            -4.93084e-10, -2.11471e-09,            1,   -0.0294048,
+            0,            0,            0,            1;
 
         planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
         collision_detection::WorldPtr world = ps->getWorldNonConst();
@@ -244,7 +259,8 @@ namespace moveit_rviz_plugin
 
     void MotionPlanningFrame::addItemToScene(const std::string& item_model_path,
                                              const std::string& item_key,
-                                             const std::string& item_bin)
+                                             const std::string& item_bin,
+                                             bool push_back)
     {
         if (!planning_display_->getPlanningSceneMonitor())
         {
@@ -299,7 +315,10 @@ namespace moveit_rviz_plugin
 
             double d_x = -item_depth / 2.0;
 
-            T_bin.translate(Eigen::Vector3d(d_x, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
+            if (push_back)
+                T_bin.translate(Eigen::Vector3d(-2 + d_x, 0, 0)); //-bin_height / 2.0 + bin_height/5.0));
+            else
+                T_bin.translate(Eigen::Vector3d(d_x, 0, -item_height / 4.0));
             item_pose = T_pod * T_bin;
         }
 
@@ -356,6 +375,8 @@ namespace moveit_rviz_plugin
         marker_msg.header.frame_id = context_->getFrameManager()->getFixedFrame();
         marker_msg.description = item_key;
         interactive_markers::autoComplete(marker_msg);
+
+        ROS_INFO_STREAM("Marker for " << item_key << " at\n" << pose.matrix());
 
         rviz::InteractiveMarker* marker = new rviz::InteractiveMarker(planning_display_->getSceneNode(), context_);
         marker->processMessage(marker_msg);
@@ -695,7 +716,6 @@ namespace moveit_rviz_plugin
             PlanList bin_poses;
             retrieveBinPoses(bin_poses, bin_id);
             computePick(picks, item_id, bin_id, bin_poses[0], robot_state, world_state);
-
         } catch (apc_exception::Exception& error) {
             ROS_ERROR("Error:%s", error.what());
         }

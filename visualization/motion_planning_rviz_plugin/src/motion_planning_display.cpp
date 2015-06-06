@@ -1597,6 +1597,11 @@ void MotionPlanningDisplay::updateInternal(float wall_dt, float ros_dt)
 {
   PlanningSceneDisplay::updateInternal(wall_dt, ros_dt);
 
+  if (animating_path_ && trajectory_message_to_display_)
+  {
+    animating_path_ = false;
+  }
+
   if (!animating_path_ && !trajectory_message_to_display_ && loop_display_property_->getBool() && displaying_trajectory_message_)
   {
     animating_path_ = true;

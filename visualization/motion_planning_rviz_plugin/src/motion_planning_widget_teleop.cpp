@@ -1178,6 +1178,32 @@ namespace moveit_rviz_plugin
                 execute_client_->cancelAllGoals();
                 throw error;
             }
+
+            // Double up!
+            trajectory_msgs::JointTrajectoryPoint end = goal.plan.actions[0].joint_trajectory.points.back();
+            goal.plan.actions[0].joint_trajectory.points.resize(2);
+            goal.plan.actions[0].joint_trajectory.points[0] = end;
+            goal.plan.actions[0].joint_trajectory.points[1] = end;
+
+            // Send the goal again.
+            execute_client_->sendGoal(goal,
+                                      boost::bind(&MotionPlanningFrame::executeDoneCallback, this, _1, _2),
+                                      boost::bind(&MotionPlanningFrame::executeActiveCallback, this),
+                                      boost::bind(&MotionPlanningFrame::executeFeedbackCallback, this, _1));
+
+            // Verify that the goal has been executed in < 30 seconds.
+            try {
+                APC_ASSERT(execute_client_->waitForResult(ros::Duration(30.0)),
+                           "Failed to complete action in less than 30 seconds\n"
+                           "          plan name: %s\n"
+                           "    action[%d] name: %s\n"
+                           "       action group: %s\n",
+                           goal.plan.plan_name.c_str(), i, goal.plan.actions[0].action_name.c_str(),
+                           goal.plan.actions[0].group_id.c_str());
+            } catch (apc_exception::Exception& error) {
+                execute_client_->cancelAllGoals();
+                throw error;
+            }
         }
     }
 
@@ -1514,6 +1540,10 @@ namespace moveit_rviz_plugin
         using namespace boost::xpressive;
         sregex rex = sregex::compile("^.*(left|right).*");
         smatch what;
+        APC_ASSERT(grasps.size() > 0,
+                   "No grasps");
+        APC_ASSERT(grasps[0].actions.size() > 0,
+                   "No actions");
         APC_ASSERT(regex_match(grasps[0].actions[0].group_id, what, rex), "Can't determine side of group");
         std::string side = what[1];
         // Get the arm only pose of the end bin state.
@@ -1525,7 +1555,7 @@ namespace moveit_rviz_plugin
                 std::stringstream ss;
                 ss << ".*" << side << ".*arm";
                 std::string expr = ss.str();
-                ROS_INFO_STREAM("expr: "<< expr);
+                // ROS_INFO_STREAM("expr: "<< expr);
                 exit_pose = apc_planning::getSubgroupAction(expr, bin_pose, start);
                 found_exit = true;
                 break;
@@ -1665,6 +1695,21 @@ namespace moveit_rviz_plugin
         }
     }
 
+    void MotionPlanningFrame::queuePlansToActiveActions(const std::vector<apc_msgs::PrimitivePlan>& plans)
+    {
+        apc_msgs::PrimitivePlan displaying;
+        for (int i = 0; i < plans.size(); i++) {
+            displaying.actions.insert(displaying.actions.end(), plans[i].actions.begin(),
+                               plans[i].actions.end());
+        }
+        planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, displaying));
+        robot_state::RobotState current_state = planning_display_->getPlanningSceneRO()->getCurrentState();
+        current_state.enforceBounds();
+        moveit_msgs::RobotState current_state_msg;
+        robot_state::robotStateToRobotStateMsg(current_state, current_state_msg);
+        loadPlanToPreview(current_state_msg, displaying);
+    }
+
     void MotionPlanningFrame::computePick(std::vector<apc_msgs::PrimitivePlan>& picks,
                                           const std::string& item_id,
                                           const std::string& bin_id,
@@ -1673,11 +1718,11 @@ namespace moveit_rviz_plugin
                                           const KeyPoseMap& world)
     {
         // get bin bppose
-                        typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+        typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
         typedef apc_msgs::PrimitivePlan Plan;
         typedef apc_msgs::PrimitiveAction Action;
 
-        ROS_WARN_STREAM(bin_pose);
+        // ROS_WARN_STREAM(bin_pose);
 
         // PlanList bin_poses;
         // retrieveBinPoses(bin_poses, bin_id);
@@ -1693,22 +1738,42 @@ namespace moveit_rviz_plugin
         //
         std::vector<apc_msgs::PrimitivePlan> item_grasps;
         int vanilla_grasp_count = db_grasps.size();
-        for (int i = 0; i < vanilla_grasp_count; i++) {
-            apc_msgs::PrimitivePlan grasp = db_grasps[i];
-            try {
-                computeNearestFrameAndObjectKeys(robot_state, world, grasp);
-                computeActionJointTrajectoryPoints(robot_state, world, grasp);
-                // ROS_INFO("grasp key %s", grasp.actions[0].object_key.c_str());
-                item_grasps.push_back(grasp);
-                computeOffsetGrasps(item_grasps, grasp, robot_state, world);
-            } catch (apc_exception::Exception& error) {
-                // ROS_WARN("Skipping over grasp %s\n%s", db_grasps[i].plan_name.c_str(), error.what());
+#pragma omp parallel num_threads(1) // Cannot parallize IK. :(
+        {
+#pragma omp for
+            for (int i = 0; i < vanilla_grasp_count; i++) {
+                apc_msgs::PrimitivePlan grasp = db_grasps[i];
+                try {
+                    computeNearestFrameAndObjectKeys(robot_state, world, grasp);
+                    computeActionJointTrajectoryPoints(robot_state, world, grasp);
+                    // ROS_INFO("grasp key %s", grasp.actions[0].object_key.c_str());
+                    PlanList offset_grasps;
+                    offset_grasps.push_back(grasp);
+                    computeOffsetGrasps(offset_grasps, grasp, robot_state, world);
+
+#pragma omp critical
+                    {
+                        item_grasps.insert(item_grasps.end(),
+                                           offset_grasps.begin(),
+                                           offset_grasps.end());
+                    }
+
+                } catch (apc_exception::Exception& error) {
+                    // ROS_WARN("Skipping over grasp %s\n%s", db_grasps[i].plan_name.c_str(), error.what());
+                }
             }
         }
 
-        // FIXME Something smarter.
-        // if (item_grasps.size() > 20)
-        //     item_grasps.resize(20);
+        ROS_INFO("Computed %ld grasps", item_grasps.size());
+        queuePlansToActiveActions(item_grasps);
+        APC_ASSERT(item_grasps.size() > 0,
+                   "No grasps found");
+
+        // Sort by distance from bin center axis. Then truncate the list.
+        std::sort(item_grasps.begin(), item_grasps.end(),
+                  apc_planning::less_than_dot_x(robot_state, world_state, bin_id));
+        if (item_grasps.size() > 20)
+            item_grasps.resize(20);
 
         // apc_planning::assertPlanningPreconditions(item_grasps, robot_state, world_state);
 
@@ -1720,6 +1785,11 @@ namespace moveit_rviz_plugin
             ROS_ERROR("%s", error.what());
             throw error;
         }
+
+        ROS_INFO("Computed %ld collision free grasps", item_grasps.size());
+        queuePlansToActiveActions(item_grasps);
+        APC_ASSERT(item_grasps.size() > 0,
+                   "No collision free grasps found");
 
         // apc_planning::assertPlanningPreconditions(item_grasps, robot_state, world_state);
 
@@ -1732,6 +1802,11 @@ namespace moveit_rviz_plugin
             throw error;
         }
 
+        ROS_INFO("Computed %ld pre-grasps", item_grasps.size());
+        queuePlansToActiveActions(item_grasps);
+        APC_ASSERT(item_grasps.size() > 0,
+                   "No pre-grasps found");
+
         // apc_planning::assertPlanningPreconditions(item_grasps, robot_state, world_state);
 
         try {
@@ -1742,6 +1817,11 @@ namespace moveit_rviz_plugin
             ROS_ERROR("%s", error.what());
             throw error;
         }
+
+        ROS_INFO("Computed %ld collision free pre-grasps", item_grasps.size());
+        queuePlansToActiveActions(item_grasps);
+        APC_ASSERT(item_grasps.size() > 0,
+                   "No collision free pre-grasps found");
 
         // apc_planning::assertPlanningPreconditions(item_grasps, robot_state, world_state);
 
@@ -1756,6 +1836,11 @@ namespace moveit_rviz_plugin
                 apc_planning::assertPlanningPreconditions(grasp_plans, test_robot, world_state);
             }
 
+            ROS_INFO("Computed %ld enter trajectories", grasp_plans.size());
+            queuePlansToActiveActions(grasp_plans);
+            APC_ASSERT(grasp_plans.size() > 0,
+                       "No enter trajectories found");
+
             computeExit(grasp_plans, bin_pose, robot_state, world_state);
 
             {
@@ -1763,6 +1848,11 @@ namespace moveit_rviz_plugin
                 setStateToPlanJointTrajectoryEnd(test_robot, bin_pose);
                 apc_planning::assertPlanningPreconditions(grasp_plans, test_robot, world_state);
             }
+
+            ROS_INFO("Computed %ld exit trajectories", grasp_plans.size());
+            queuePlansToActiveActions(grasp_plans);
+            APC_ASSERT(grasp_plans.size() > 0,
+                       "No exit trajectories found");
 
         } catch (apc_exception::Exception& error) {
             ROS_ERROR("error %s", error.what());
@@ -1795,12 +1885,8 @@ namespace moveit_rviz_plugin
             }
         }
 
-        apc_msgs::PrimitivePlan diplsying;
-        for (int i = 0; i < picks.size(); i++) {
-            diplsying.actions.insert(diplsying.actions.end(), valid_picks[i].actions.begin(),
-                               valid_picks[i].actions.end());
-        }
-        loadPlanToActiveActions(diplsying);
+        queuePlansToActiveActions(valid_picks);
+
         picks = valid_picks;
         // strip all frames. to avoid problmes later on
         typedef std::vector<Plan> PlanList;

@@ -586,12 +586,12 @@ void apc_planning::assertPlanningPreconditions(const apc_msgs::PrimitivePlan& pl
         // TODO that hands include the mimic knuckle joint.
         // TODO no torso group, only hand and arm
         {
-            using namespace boost::xpressive;
-            sregex rex = sregex::compile(".*torso");
-            smatch what;
-            if (regex_match(action.group_id, what, rex))
-                ROS_WARN("Detected arm_torso group before planning\n%s",
-                         toStringNoArr(i, plan).c_str());
+            // using namespace boost::xpressive;
+            // sregex rex = sregex::compile(".*torso");
+            // smatch what;
+            // if (regex_match(action.group_id, what, rex))
+            //     ROS_WARN("Detected arm_torso group before planning\n%s",
+            //              toStringNoArr(i, plan).c_str());
         }
         // update to end points
         setRobotStateToPoint(prev_state,
@@ -858,7 +858,7 @@ bool apc_planning::less_than_dot_x::operator() (const apc_msgs::PrimitivePlan& p
     //
     double d1 =  (pose1 - pose_bin - x_axis_bin.dot(pose1 - pose_bin) * x_axis_bin).norm();
     double d2 =  (pose2 - pose_bin - x_axis_bin.dot(pose2 - pose_bin) * x_axis_bin).norm();
-    ROS_INFO_STREAM(d1);
-    ROS_INFO_STREAM(d2);
+    // ROS_INFO_STREAM(d1);
+    // ROS_INFO_STREAM(d2);
     return d1 < d2;
 }

@@ -539,6 +539,7 @@ private:
                                 const KeyPoseMap& world_state);
 
   void loadPlanToActiveActions(const apc_msgs::PrimitivePlan& plan);
+  void queuePlansToActiveActions(const std::vector<apc_msgs::PrimitivePlan>& plans);
 
 
   // Pick and place widget helper.
@@ -555,7 +556,8 @@ private:
                                   const int number);
   void addItemToScene(const std::string& item_model_path,
                       const std::string& item_key,
-                      const std::string& item_bin);
+                      const std::string& item_bin,
+                      bool push_back);
   void removeItemFromScene(const std::string& item_key);
   void createInteractiveMarkerForItem(const std::string& item_key);
   void updateInteractiveMarkerForItem(float wall_dt);

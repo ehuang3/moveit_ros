@@ -97,7 +97,7 @@ namespace moveit_rviz_plugin
         // HACK Move all other items to the last bin by reloading them to 'bin_L'.
         for (int i = 0; i < object_keys.size(); i++) {
             if (testForItemKey(object_keys[i])) {
-                addItemToScene("", object_keys[i], "bin_L");
+                addItemToScene("", object_keys[i], "bin_L", true);
             }
         }
 
@@ -109,10 +109,10 @@ namespace moveit_rviz_plugin
 
         addItemToScene(item_model_path,
                        item_key_origin,
-                       "bin_A");
+                       "bin_A", true);
         addItemToScene(item_model_path,
                        item_key_symmetry,
-                       "bin_A");
+                       "bin_A", true);
 
         // Create interactive marker for the symmetry marker.
         createInteractiveMarkerForItem(item_key_symmetry);

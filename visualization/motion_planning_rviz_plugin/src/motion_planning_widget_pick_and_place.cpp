@@ -473,7 +473,7 @@ namespace moveit_rviz_plugin
 
         APC_ASSERT(bin_poses[0].actions.size() > 0, "WHAT");
 
-        ROS_INFO("FOO");
+        ROS_INFO("Picking %s from %s", item_id.c_str(), bin_id.c_str());
 
         apc_planning::assertPlanningPreconditions(bin_poses, start_state, world_state);
 
@@ -485,8 +485,6 @@ namespace moveit_rviz_plugin
             ROS_ERROR("%s", e.what());
             throw e;
         }
-
-        ROS_INFO("FOO");
 
         {
             robot_state::RobotState test_robot = start_state;
@@ -512,7 +510,11 @@ namespace moveit_rviz_plugin
         if (scoring_plans.size() > 0)
             item_plan = scoring_plans[0];
 
+        apc_planning::assertPlanningPreconditions(item_plan, start_state, world_state);
+
         computeDenseMotionPlan(start_state, world_state, item_plan, 0);
+
+        apc_planning::assertPlanningPreconditions(item_plan, start_state, world_state);
     }
 
 
@@ -815,15 +817,29 @@ namespace moveit_rviz_plugin
 
                 computePickAndPlaceForItem(item_plan, bin_id, item_id, robot_state, world_state);
 
+                apc_planning::assertPlanningPreconditions(item_plan, robot_state, world_state);
+
+                computeDenseMotionPlan(robot_state, world_state, item_plan, 0);
+
+                computeSmoothedPath(item_plan);
+
+                ROS_INFO("Computed plan successfully. Ready to execute.");
+
+                typedef std::vector<apc_msgs::PrimitivePlan> PlanList;
+                PlanList plist;
+                plist.push_back(item_plan);
+                queuePlansToActiveActions(plist);
+
                 if (execute) {
                     // Call execution code.
                     computeExecute(item_plan);
                 }
 
             } catch (apc_exception::Exception& error) {
-                ROS_ERROR("Caught exception\n%s", error.what());
+                ROS_ERROR("Caught exception\n%.500s", error.what());
 
-                ROS_INFO_STREAM(apc_planning::toStringNoArr(error.what_plan));
+                if (error.what_plan.actions.size() > 0)
+                    ROS_INFO_STREAM(apc_planning::toStringNoArr(error.what_plan));
             }
 
             // Compute the expected states after executing the plan. FIXME Remove.
@@ -835,6 +851,7 @@ namespace moveit_rviz_plugin
                                      item_plan.actions.begin(),
                                      item_plan.actions.end());
         }
+
     }
 
     WorkOrder MotionPlanningFrame::computeWorkOrder(bool single_step) {
@@ -894,13 +911,13 @@ namespace moveit_rviz_plugin
         if (check_plan) {
             // ROS_DEBUG_STREAM("work_plan:\n" << work_plan);
 
-            planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, work_plan));
-            {
-                computeSmoothedPath(work_plan);
-                moveit_msgs::RobotState start_state_msg;
-                robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
-                loadPlanToPreview(start_state_msg, work_plan);
-            }
+            // planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::loadPlanToActiveActions, this, work_plan));
+            // {
+            //     computeSmoothedPath(work_plan);
+            //     moveit_msgs::RobotState start_state_msg;
+            //     robot_state::robotStateToRobotStateMsg(robot_state, start_state_msg);
+            //     loadPlanToPreview(start_state_msg, work_plan);
+            // }
         }
     }
 
