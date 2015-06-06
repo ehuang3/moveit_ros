@@ -38,6 +38,7 @@
 #include <moveit/warehouse/constraints_storage.h>
 #include <moveit/warehouse/state_storage.h>
 #include <moveit/warehouse/primitive_plan_storage.h>
+#include <moveit/warehouse/item_symmetry_storage.h>
 
 #include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
 #include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
@@ -91,6 +92,7 @@ void MotionPlanningFrame::resetDbButtonClicked()
   dbs.append("Constraints");
   dbs.append("Robot States");
   QString database_name = QString("Primitive Plans: %1").arg(primitive_plan_storage_->getDatabaseSuffix().c_str());
+  dbs.append("Item Symmetries");
   dbs.append(database_name);
 
   bool ok = false;
@@ -114,6 +116,7 @@ void MotionPlanningFrame::computeDatabaseConnectButtonClicked()
     robot_state_storage_.reset();
     constraints_storage_.reset();
     primitive_plan_storage_.reset();
+    item_symmetry_storage_.reset();
     planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::computeDatabaseConnectButtonClickedHelper, this, 1));
   }
   else
@@ -132,6 +135,11 @@ void MotionPlanningFrame::computeDatabaseConnectButtonClicked()
                                                                                ui_->database_port->value(), 5.0));
       primitive_plan_storage_->setDatabaseSuffix(ui_->plan_database_name_combobox->currentText().toStdString());
       primitive_plan_storage_->loadDatabase();
+
+      item_symmetry_storage_.reset(new moveit_warehouse::ItemSymmetryStorage(ui_->database_host->text().toStdString(),
+                                                                             ui_->database_port->value(), 5.0));
+      item_symmetry_storage_->setDatabaseSuffix("");
+      item_symmetry_storage_->loadDatabase();
 
     }
     catch(std::runtime_error &ex)
@@ -196,7 +204,8 @@ void MotionPlanningFrame::computeDatabaseConnectButtonClickedHelper(int mode)
           loadStoredStates(".*"); // automatically populate the 'Stored States' tab with all states
 
           // Populate the 'Stored Plans' tab with all the plans. ; FIXME This should append, not overwrite...
-          // computeLoadPlansButtonClicked();
+          computeLoadPlansButtonClicked();
+          loadSymmetriesButtonClicked();
 
           if (move_group_)
           {
@@ -218,5 +227,7 @@ void MotionPlanningFrame::computeResetDbButtonClicked(const std::string &db)
         planning_scene_storage_->reset();
       else if (db == QString("Primitive Plans: %1").arg(primitive_plan_storage_->getDatabaseSuffix().c_str()).toStdString())
         primitive_plan_storage_->reset();
+      else if (db == QString("Item Symmetries").toStdString())
+        item_symmetry_storage_->reset();
 }
 }

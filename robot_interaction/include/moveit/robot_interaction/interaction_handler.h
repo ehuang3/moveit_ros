@@ -167,7 +167,6 @@ public:
   void setMenuHandler(
         const boost::shared_ptr<interactive_markers::MenuHandler>& mh);
 
-
   /** \brief Get the menu handler that defines menus and callbacks for all
    *         interactive markers drawn by this interaction handler.
    * @return  The menu handler. */
@@ -243,6 +242,11 @@ public:
    */
   void setRobotInteraction(RobotInteraction* robot_interaction);
 
+  bool getEndEffectorFixedOrientation() const;
+  bool getJointMarkerSymmetry() const;
+  void setEndEffectorFixedOrientation(bool fixed);
+  void setJointMarkerSymmetry(bool symmetric);
+
 protected:
 
   bool transformFeedbackPose(
@@ -253,6 +257,9 @@ protected:
   const std::string name_;
   const std::string planning_frame_;
   boost::shared_ptr<tf::Transformer> tf_;
+
+  bool end_effector_fixed_orientation_;
+  bool joint_markers_symmetric_;
 
 private:
 

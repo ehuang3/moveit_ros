@@ -50,17 +50,17 @@
 namespace moveit_rviz_plugin
 {
 
-void MotionPlanningFrame::planButtonClicked()
-{
-  // Compute plan.
-  planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computePlanButtonClicked, this), "compute plan");
-}
+// void MotionPlanningFrame::planButtonClicked()
+// {
+//   // Compute plan.
+//   planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computePlanButtonClicked, this), "compute plan");
+// }
 
-void MotionPlanningFrame::executeButtonClicked()
-{
-  ui_->execute_button->setEnabled(false);
-  planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeExecuteButtonClicked, this), "execute");
-}
+// void MotionPlanningFrame::executeButtonClicked()
+// {
+//   ui_->execute_button->setEnabled(false);
+//   planning_display_->addBackgroundJob(boost::bind(&MotionPlanningFrame::computeExecuteButtonClicked, this), "execute");
+// }
 
 void MotionPlanningFrame::planAndExecuteButtonClicked()
 {
@@ -102,35 +102,35 @@ void MotionPlanningFrame::onClearOctomapClicked()
   clear_octomap_service_client_.call(srv);
 }
 
-void MotionPlanningFrame::computePlanButtonClicked()
-{
-  ui_->result_label->setText("Planning...");
+// void MotionPlanningFrame::computePlanButtonClicked()
+// {
+//   ui_->result_label->setText("Planning...");
 
-  configureForPlanning();
+//   configureForPlanning();
 
-  current_plan_.reset(new moveit::planning_interface::MoveGroup::Plan());
-  if (move_group_->plan(*current_plan_))
-  {
-     ui_->execute_button->setEnabled(true);
+//   current_plan_.reset(new moveit::planning_interface::MoveGroup::Plan());
+//   if (move_group_->plan(*current_plan_))
+//   {
+//      ui_->execute_button->setEnabled(true);
 
-    // Success
-    ui_->result_label->setText(QString("Time: ").append(
-        QString::number(current_plan_->planning_time_,'f',3)));
-  }
-  else
-  {
-    current_plan_.reset();
+//     // Success
+//     ui_->result_label->setText(QString("Time: ").append(
+//         QString::number(current_plan_->planning_time_,'f',3)));
+//   }
+//   else
+//   {
+//     current_plan_.reset();
 
-    // Failure
-    ui_->result_label->setText("Failed");
-   }
-}
+//     // Failure
+//     ui_->result_label->setText("Failed");
+//    }
+// }
 
-void MotionPlanningFrame::computeExecuteButtonClicked()
-{
-  if (move_group_ && current_plan_)
-    move_group_->execute(*current_plan_);
-}
+// void MotionPlanningFrame::computeExecuteButtonClicked()
+// {
+//   if (move_group_ && current_plan_)
+//     move_group_->execute(*current_plan_);
+// }
 
 void MotionPlanningFrame::computePlanAndExecuteButtonClicked()
 {
@@ -384,5 +384,4 @@ void MotionPlanningFrame::remoteUpdateGoalStateCallback(const std_msgs::EmptyCon
   }
 }
 
-  
 }

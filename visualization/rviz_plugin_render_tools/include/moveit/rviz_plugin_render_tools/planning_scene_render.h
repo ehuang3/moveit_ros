@@ -86,12 +86,18 @@ public:
                            float default_scene_alpha);
   void clear();
 
+  void resetObjectVisibilities();
+
+  void setObjectVisibility(const std::string& object_key,
+                           bool visible);
+
 private:
 
   Ogre::SceneNode *planning_scene_geometry_node_;
   rviz::DisplayContext *context_;
   RenderShapesPtr render_shapes_;
   RobotStateVisualizationPtr scene_robot_;
+  std::map<std::string, bool> show_object_;
 
 };
 

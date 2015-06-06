@@ -62,6 +62,7 @@ namespace moveit_rviz_plugin
 void MotionPlanningFrame::importFileButtonClicked()
 {
   QString path = QFileDialog::getOpenFileName(this, tr("Import Object"));
+
   if (!path.isEmpty())
     importResource("file://" + path.toStdString());
 }
@@ -829,7 +830,17 @@ void MotionPlanningFrame::attachDetachCollisionObject(QListWidgetItem *item)
         known_collision_objects_[i].second = checked;
         break;
       }
-    ps->processAttachedCollisionObjectMsg(aco);
+    Eigen::Affine3d tf_offset = planning_display_->getQueryGoalState()->getGlobalLinkTransform(aco.link_name).inverse();
+    ps->processAttachedCollisionObjectMsg(aco, &tf_offset);
+  }
+
+  // HACK to make the object show up at the end of the goal link.
+  {
+    robot_state::RobotState goal = *planning_display_->getQueryGoalState();
+    robot_state::RobotState fake_goal(goal);
+    updateQueryStateHelper(fake_goal, "<current>");
+    planning_display_->setQueryGoalState(fake_goal);
+    planning_display_->setQueryGoalState(goal);
   }
 
   selectedCollisionObjectChanged();

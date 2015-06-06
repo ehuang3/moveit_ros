@@ -88,7 +88,9 @@ MotionPlanningDisplay::MotionPlanningDisplay() :
   frame_dock_(NULL),
   menu_handler_start_(new interactive_markers::MenuHandler),
   menu_handler_goal_(new interactive_markers::MenuHandler),
-  int_marker_display_(NULL)
+  int_marker_display_(NULL),
+  show_query_start_(true),
+  show_query_goal_(true)
 {
   // Category Groups
   plan_category_  = new rviz::Property("Planning Request", QVariant(), "", this);
@@ -739,7 +741,7 @@ void MotionPlanningDisplay::drawQueryStartState()
       
       // update link poses
       query_robot_start_->update(state);
-      query_robot_start_->setVisible(true);
+      query_robot_start_->setVisible(show_query_start_);
       
       // update link colors
       std::vector<std::string> collision_links;
@@ -866,7 +868,7 @@ void MotionPlanningDisplay::drawQueryGoalState()
       
       // update link poses
       query_robot_goal_->update(state);
-      query_robot_goal_->setVisible(true);
+      query_robot_goal_->setVisible(show_query_goal_);
 
       // update link colors
       std::vector<std::string> collision_links;
@@ -942,21 +944,32 @@ void MotionPlanningDisplay::publishInteractiveMarkers(bool pose_update)
 {
   if (robot_interaction_)
   {
+    bool show_start = (query_start_state_property_->getBool() &&
+                       frame_->showQueryStartInteractiveMarkers());
+    bool show_goal  = (query_goal_state_property_->getBool() &&
+                       frame_->showQueryGoalInteractiveMarkers());
+
     if (pose_update &&
-        robot_interaction_->showingMarkers(query_start_state_) == query_start_state_property_->getBool() &&
-        robot_interaction_->showingMarkers(query_goal_state_) == query_goal_state_property_->getBool())
+        robot_interaction_->showingMarkers(query_start_state_) == show_start &&
+        robot_interaction_->showingMarkers(query_goal_state_) == show_goal)
     {
-      if (query_start_state_property_->getBool())
+      if (show_start)
         robot_interaction_->updateInteractiveMarkers(query_start_state_);
-      if (query_goal_state_property_->getBool())
+      if (show_goal)
         robot_interaction_->updateInteractiveMarkers(query_goal_state_);
     }
     else
     {
+      // populateMenuHandler(menu_handler_start_);
+      // populateMenuHandler(menu_handler_goal_);
+      // query_start_state_->setMenuHandler(menu_handler_start_);
+      // query_goal_state_->setMenuHandler(menu_handler_goal_);
+
+
       robot_interaction_->clearInteractiveMarkers();
-      if (query_start_state_property_->getBool())
+      if (show_start)
         robot_interaction_->addInteractiveMarkers(query_start_state_, query_marker_scale_property_->getFloat());
-      if (query_goal_state_property_->getBool())
+      if (show_goal)
         robot_interaction_->addInteractiveMarkers(query_goal_state_, query_marker_scale_property_->getFloat());
       robot_interaction_->publishInteractiveMarkers();
     }
@@ -1126,9 +1139,6 @@ void MotionPlanningDisplay::addDisplayWaypoint(const robot_state::RobotState& wa
   if (getRobotModel() && getRobotModel()->getURDF())
     robot->load(*getRobotModel()->getURDF());
 
-  // Copy state over to the visualization.
-  robot->update(waypoint);
-
   // Set visibility constraints.
   robot->setCollisionVisible(false);
   robot->setVisualVisible(true);
@@ -1140,19 +1150,20 @@ void MotionPlanningDisplay::addDisplayWaypoint(const robot_state::RobotState& wa
 
   // Set default attached object color.
   std_msgs::ColorRGBA color;
-  color.r = qcolor.redF(); color.g = qcolor.greenF(); color.b = qcolor.blueF(); color.a = 1.0f;
+  color.r = qcolor.redF(); color.g = qcolor.greenF(); color.b = qcolor.blueF(); color.a = qcolor.alphaF();
   robot->setDefaultAttachedObjectColor(color);
 
   // TODO Set alpha according to the waypoint's distance from focus.
   robot->setAlpha(display_waypoints_alpha_property_->getFloat());
+
+  // Copy state over to the visualization.
+  robot->update(waypoint);
 
   // Disable link selection, so we can move things behind the link.
   std::map<std::string, rviz::RobotLink*> links = robot->getRobot().getLinks();
   typedef std::map<std::string, rviz::RobotLink*>::iterator LinkIterator;
   for (LinkIterator iter = links.begin(); iter != links.end(); ++iter)
     iter->second->setSelectable(false);
-
-  // TODO Only display the group and link names.
 
   // Store robot visualization internally.
   display_waypoints_.push_back(robot);
@@ -1334,6 +1345,22 @@ void MotionPlanningDisplay::setQueryStateHelper(bool use_start_state, const std:
 void MotionPlanningDisplay::populateMenuHandler(boost::shared_ptr<interactive_markers::MenuHandler>& mh)
 {
   typedef interactive_markers::MenuHandler immh;
+
+  immh::EntryHandle eef_fixed =
+    mh->insert("EEF Fixed", boost::bind(&MotionPlanningDisplay::toggleEndEffectorMarkerFixedOrientation, this));
+  immh::EntryHandle joint_symmetry =
+    mh->insert("Joint Symmetry", boost::bind(&MotionPlanningDisplay::toggleJointMarkerSymmetry, this));
+
+  bool fixed = true;
+  if (query_start_state_)
+    fixed = query_start_state_->getEndEffectorFixedOrientation();
+  mh->setCheckState(eef_fixed, (fixed ? immh::CHECKED : immh::UNCHECKED));
+
+  bool symmetric = true;
+  if (query_start_state_)
+    symmetric = query_start_state_->getJointMarkerSymmetry();
+  mh->setCheckState(joint_symmetry, (symmetric ? immh::CHECKED : immh::UNCHECKED));
+
   std::vector<std::string> state_names;
   state_names.push_back("random");
   state_names.push_back("current");
@@ -1354,7 +1381,7 @@ void MotionPlanningDisplay::populateMenuHandler(boost::shared_ptr<interactive_ma
     mh->insert(menu_states, state_names[i],
                boost::bind(&MotionPlanningDisplay::setQueryStateHelper, this, is_start, state_names[i]));
   }
-  
+
   //  // Group commands, which end up being the same for both interaction handlers
   //  const std::vector<std::string>& group_names = getRobotModel()->getJointModelGroupNames();
   //  immh::EntryHandle menu_groups = mh->insert("Planning Group", immh::FeedbackCallback());
@@ -1362,6 +1389,23 @@ void MotionPlanningDisplay::populateMenuHandler(boost::shared_ptr<interactive_ma
   //    mh->insert(menu_groups, group_names[i],
   //               boost::bind(&MotionPlanningDisplay::changePlanningGroup, this, group_names[i]));
 
+}
+
+void MotionPlanningDisplay::toggleEndEffectorMarkerFixedOrientation()
+{
+  bool fixed = query_start_state_->getEndEffectorFixedOrientation();
+  ROS_DEBUG_STREAM("Toggling EEF orientation to " << (!fixed ? "fixed" : "free"));
+  query_start_state_->setEndEffectorFixedOrientation(!fixed);
+  query_goal_state_->setEndEffectorFixedOrientation(!fixed);
+  addMainLoopJob(boost::bind(&MotionPlanningDisplay::changedPlanningGroup, this));
+}
+
+void MotionPlanningDisplay::toggleJointMarkerSymmetry()
+{
+  bool symmetric = query_start_state_->getJointMarkerSymmetry();
+  ROS_DEBUG_STREAM("Toggling joint symmetry to " << (!symmetric ? "on" : "off"));
+  query_start_state_->setJointMarkerSymmetry(!symmetric);
+  query_goal_state_->setJointMarkerSymmetry(!symmetric);
 }
 
 void MotionPlanningDisplay::onRobotModelLoaded()
@@ -1543,6 +1587,8 @@ void MotionPlanningDisplay::update(float wall_dt, float ros_dt)
     int_marker_display_->update(wall_dt, ros_dt);
   if (frame_)
     frame_->updateSceneMarkers(wall_dt, ros_dt);
+  if (frame_)
+    frame_->updateInteractiveMarkerForItem(wall_dt);
 
   PlanningSceneDisplay::update(wall_dt, ros_dt);
 }
@@ -1550,6 +1596,11 @@ void MotionPlanningDisplay::update(float wall_dt, float ros_dt)
 void MotionPlanningDisplay::updateInternal(float wall_dt, float ros_dt)
 {
   PlanningSceneDisplay::updateInternal(wall_dt, ros_dt);
+
+  if (animating_path_ && trajectory_message_to_display_)
+  {
+    animating_path_ = false;
+  }
 
   if (!animating_path_ && !trajectory_message_to_display_ && loop_display_property_->getBool() && displaying_trajectory_message_)
   {
@@ -1710,6 +1761,30 @@ void MotionPlanningDisplay::visualizePlaceLocations(const std::vector<geometry_m
     place_locations_display_[i]->setScale(extents);
     place_locations_display_[i]->setPosition(center);
   }
+}
+
+void MotionPlanningDisplay::setQueryStartVisualEnabled(bool enable)
+{
+  show_query_start_ = enable;
+  drawQueryStartState();
+}
+
+void MotionPlanningDisplay::setQueryGoalVisualEnabled(bool enable)
+{
+  show_query_goal_ = enable;
+  drawQueryGoalState();
+}
+
+void MotionPlanningDisplay::setEefMarkersActive(bool active)
+{
+  robot_interaction_->setEndEffectorMarkersActive(active);
+  changedPlanningGroup();
+}
+
+void MotionPlanningDisplay::setJointMarkersActive(bool active)
+{
+  robot_interaction_->setJointMarkersActive(active);
+  changedPlanningGroup();
 }
 
 

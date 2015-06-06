@@ -44,7 +44,12 @@
 #include <rviz/frame_manager.h>
 
 #include <std_srvs/Empty.h>
-#include <apc_msgs/GetMotionPlan.h>
+#include <apc_msgs/ComputeDenseMotion.h>
+#include <apc_msgs/RunVision.h>
+#include <apc_msgs/GetShelf.h>
+#include <apc_msgs/ComputePreGrasps.h>
+#include <apc_msgs/ComputeIk.h>
+#include <apc_msgs/CheckCollisions.h>
 
 #include <QMessageBox>
 #include <QInputDialog>
@@ -61,15 +66,18 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   context_(context),
   ui_(new Ui::MotionPlanningUI()),
   first_time_(true),
-  clear_octomap_service_client_(nh_.serviceClient<std_srvs::Empty>(move_group::CLEAR_OCTOMAP_SERVICE_NAME))
+  clear_octomap_service_client_(nh_.serviceClient<std_srvs::Empty>(move_group::CLEAR_OCTOMAP_SERVICE_NAME)),
+  show_kiva_pod_(true),
+  show_objects_(true)
 {
   // set up the GUI
   ui_->setupUi(this);
 
   // connect bottons to actions; each action usually registers the function pointer for the actual computation,
   // to keep the GUI more responsive (using the background job processing)
-  connect( ui_->plan_button, SIGNAL( clicked() ), this, SLOT( planButtonClicked() ));
-  connect( ui_->execute_button, SIGNAL( clicked() ), this, SLOT( executeButtonClicked() ));
+  // FIXME Disabled plan and execute buttons.
+  // connect( ui_->plan_button, SIGNAL( clicked() ), this, SLOT( planButtonClicked() ));
+  // connect( ui_->execute_button, SIGNAL( clicked() ), this, SLOT( executeButtonClicked() ));
   connect( ui_->plan_and_execute_button, SIGNAL( clicked() ), this, SLOT( planAndExecuteButtonClicked() ));
   connect( ui_->use_start_state_button, SIGNAL( clicked() ), this, SLOT( useStartStateButtonClicked() ));
   connect( ui_->use_goal_state_button, SIGNAL( clicked() ), this, SLOT( useGoalStateButtonClicked() ));
@@ -115,50 +123,28 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   connect( ui_->remove_state_button, SIGNAL( clicked() ), this, SLOT( removeStateButtonClicked() ));
   connect( ui_->clear_states_button, SIGNAL( clicked() ), this, SLOT( clearStatesButtonClicked() ));
   connect( ui_->approximate_ik, SIGNAL( stateChanged(int) ), this, SLOT( approximateIKChanged(int) ));
-  // Stored plans tab
-  // teleop commands
-  connect( ui_->plan_goals_button, SIGNAL( clicked() ), this, SLOT( planGoalsButtonClicked() ));
-  connect( ui_->execute_goals_button, SIGNAL( clicked() ), this, SLOT( executePlansButtonClicked() ));
-  connect( ui_->preview_button, SIGNAL( clicked() ), this, SLOT( previewButtonClicked() ));
-  connect( ui_->stop_button, SIGNAL( clicked() ), this, SLOT( stopExecutionButtonClicked() ));
-  // pick and place commands
-  connect( ui_->pick_and_place_button, SIGNAL( clicked() ), this, SLOT( pickAndPlaceButtonClicked() ));
-  // active goals commands
-  connect( ui_->start_to_current_button, SIGNAL( clicked() ), this, SLOT( setStartToCurrentButtonClicked() ));
-  connect( ui_->goal_to_current_button, SIGNAL( clicked() ), this, SLOT( setGoalToCurrentButtonClicked() ));
-  connect( ui_->insert_goal_button, SIGNAL( clicked() ), this, SLOT( insertGoalButtonClicked() ));
-  connect( ui_->delete_goal_button, SIGNAL( clicked() ), this, SLOT( deleteGoalButtonClicked() ));
-  // active goals list
-  connect( ui_->active_goals_list, SIGNAL( itemSelectionChanged() ), this,
-           SLOT( activeGoalSelectionChanged() ));
-  connect( ui_->active_goals_list, SIGNAL( itemClicked(QListWidgetItem*) ), this,
-           SLOT( activeGoalItemClicked(QListWidgetItem*) ));
-  connect( ui_->active_goals_list, SIGNAL( itemDoubleClicked(QListWidgetItem*) ), this,
-           SLOT( activeGoalItemDoubleClicked(QListWidgetItem*) ));
-  // active <-> stored commands
-  connect( ui_->active_to_stored_button, SIGNAL( clicked() ), this, SLOT( activeToStoredPlansButtonClicked() ));
-  connect( ui_->stored_to_active_button, SIGNAL( clicked() ), this, SLOT( storedToActiveGoalsButtonClicked() ));
-  // stored plans database commands
-  connect( ui_->save_plans_button, SIGNAL( clicked() ), this, SLOT( savePlansButtonClicked() ));
-  connect( ui_->load_plans_button, SIGNAL( clicked() ), this, SLOT( loadPlansButtonClicked() ));
-  connect( ui_->delete_plan_button, SIGNAL( clicked() ), this, SLOT( deleteStoredPlanButtonClicked() ));
-  connect( ui_->plan_database_name_combobox, SIGNAL( currentIndexChanged(const QString&) ), this,
-           SLOT( planDatabaseNameChanged(const QString&) ));
-  // stored plans tree
-  // connect( ui_->stored_plans_tree, SIGNAL( clicked(const QModelIndex&) ), this,
-  //          SLOT( storedPlanTreeClicked(const QModelIndex&) ));
-  connect( ui_->stored_plans_tree, SIGNAL( itemClicked(QTreeWidgetItem*, int) ), this,
-           SLOT( storedPlanItemClicked(QTreeWidgetItem*, int) ));
-  connect( ui_->stored_plans_tree, SIGNAL( itemDoubleClicked(QTreeWidgetItem*, int) ), this,
-           SLOT( storedPlanItemDoubleClicked(QTreeWidgetItem*, int) ));
-  // stored plans options
-  connect( ui_->relative_to_object_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-  connect( ui_->relative_to_pose_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-  connect( ui_->eef_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-  connect( ui_->dense_trajectory_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-  connect( ui_->monitor_contact_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-  connect( ui_->monitor_profile_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
-  connect( ui_->cartesian_interpolate_checkbox, SIGNAL( clicked() ), this, SLOT( optionsCheckBoxClicked() ));
+
+
+
+  // APC tab
+  // Connect teleoperation slots.
+  connectTeleopSlots();
+  connectTeleopHelperSlots();
+  // Connect pick and place slots.
+  connectPickAndPlaceSlots();
+  connectPickAndPlaceHelperSlots();
+  // Connect vision slots.
+  connectVisionSlots();
+  connectVisionHelperSlots();
+  // Connect calibration slots.
+  connectCalibrationSlots();
+  connectCalibrationHelperSlots();
+  // Connect active actions slots.
+  connectActiveActionsSlots();
+  // Connect stored plans slots.
+  connectStoredPlansSlots();
+  // Connect symmetry slots.
+  connectSymmetrySlots();
 
 
 
@@ -188,8 +174,36 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay *pdisplay, rviz::
   object_recognition_client_.reset(new actionlib::SimpleActionClient<object_recognition_msgs::ObjectRecognitionAction>(OBJECT_RECOGNITION_ACTION, false));
   object_recognition_subscriber_ = nh_.subscribe("recognized_object_array", 1, &MotionPlanningFrame::listenDetectedObjects, this);
 
-  // Setup primitive planning service client.
-  motion_plan_client_ = nh_.serviceClient<apc_msgs::GetMotionPlan>("motion_planning_service");
+  // Setup trajopt service client.
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_0"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_1"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_2"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_3"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_4"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_5"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_6"));
+  _compute_dense_motion_clients.push_back(nh_.serviceClient<apc_msgs::ComputeDenseMotion>("compute_dense_motion_service_7"));
+
+  compute_pregrasps_client_ = nh_.serviceClient<apc_msgs::ComputePreGrasps>("compute_pregrasps");
+
+  compute_ik_client_ = nh_.serviceClient<apc_msgs::ComputeIk>("compute_ik");
+
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_0"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_1"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_2"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_3"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_4"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_5"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_6"));
+  check_collisions_clients_.push_back(nh_.serviceClient<apc_msgs::CheckCollisions>("check_collisions_7"));
+
+  // Tf listener
+  _tf_listener;// = tf::TransformListener(nh_);
+
+  // Setup trajopt service client.
+  _run_vision_client = nh_.serviceClient<apc_msgs::RunVision>("run_vision");
+
+  _publish_shelf_client = nh_.serviceClient<apc_msgs::GetShelf>("get_shelf");
 
   if(object_recognition_client_)
   {
@@ -322,6 +336,8 @@ void MotionPlanningFrame::changePlanningGroupHelper(const std::string& group)
   if (!planning_display_->getPlanningSceneMonitor())
     return;
 
+  planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::updateGroupComboBox, this));
+
   planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::fillStateSelectionOptions, this));
   planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::populateConstraintsList, this, std::vector<std::string>()));
 
@@ -380,7 +396,7 @@ void MotionPlanningFrame::sceneUpdate(planning_scene_monitor::PlanningSceneMonit
     planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::populateCollisionObjectsList, this));
 }
 
-void MotionPlanningFrame::importResource(const std::string &path)
+void MotionPlanningFrame::importResource(const std::string &path, std::string name, Eigen::Affine3d pose)
 {
   if (planning_display_->getPlanningSceneMonitor())
   {
@@ -388,10 +404,11 @@ void MotionPlanningFrame::importResource(const std::string &path)
     if (mesh)
     {
       std::size_t slash = path.find_last_of("/\\");
-      std::string name = path.substr(slash + 1);
+      if (name.empty())
+        name = path.substr(slash + 1);
       shapes::ShapeConstPtr shape(mesh);
-      Eigen::Affine3d pose;
-      pose.setIdentity();
+      // Eigen::Affine3d pose;
+      // pose.setIdentity();
 
       if (planning_display_->getPlanningSceneRO()->getCurrentState().hasAttachedBody(name))
       {
@@ -462,6 +479,9 @@ void MotionPlanningFrame::importResource(const std::string &path)
         if (ps)
           addObject(ps->getWorldNonConst(), name, shape, pose);
       }
+
+      // Store path for saving later.
+      object_paths_[name] = path;
     }
     else
     {

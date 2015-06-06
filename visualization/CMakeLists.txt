@@ -34,8 +34,10 @@ find_package(catkin REQUIRED COMPONENTS
   rosconsole
   object_recognition_msgs
   apc_msgs
+  apc_path
   actionlib
   actionlib_msgs
+  robot_calibration
 )
 find_package(Eigen REQUIRED)
 catkin_python_setup()
@@ -53,6 +55,7 @@ catkin_package(
   CATKIN_DEPENDS
     moveit_ros_planning_interface
     moveit_ros_robot_interaction
+    robot_calibration
     )
 
 include_directories(rviz_plugin_render_tools/include

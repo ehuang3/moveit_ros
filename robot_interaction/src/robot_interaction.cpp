@@ -64,7 +64,9 @@ const std::string RobotInteraction::INTERACTIVE_MARKER_TOPIC = "robot_interactio
 
 RobotInteraction::RobotInteraction(const robot_model::RobotModelConstPtr &robot_model, const std::string &ns)
 : robot_model_(robot_model)
-, kinematic_options_map_(new KinematicOptionsMap)
+, kinematic_options_map_(new KinematicOptionsMap),
+  eef_markers_active_(true),
+  joint_markers_active_(true)
 {
   topic_ = ns.empty() ? INTERACTIVE_MARKER_TOPIC : ns + "/" + INTERACTIVE_MARKER_TOPIC;
   int_marker_server_ = new interactive_markers::InteractiveMarkerServer(topic_);
@@ -84,6 +86,16 @@ RobotInteraction::~RobotInteraction()
   delete int_marker_server_;
 }
 
+void RobotInteraction::setEndEffectorMarkersActive(bool active)
+{
+  eef_markers_active_ = active;
+}
+
+void RobotInteraction::setJointMarkersActive(bool active)
+{
+  joint_markers_active_ = active;
+}
+
 void RobotInteraction::decideActiveComponents(const std::string &group)
 {
   decideActiveComponents(group, InteractionStyle::SIX_DOF);
@@ -93,6 +105,10 @@ void RobotInteraction::decideActiveComponents(const std::string &group, Interact
 {
   decideActiveEndEffectors(group, style);
   decideActiveJoints(group);
+
+  if (!eef_markers_active_ && !joint_markers_active_)
+    return;
+
   if (active_eef_.empty() && active_vj_.empty() && active_generic_.empty())
     ROS_INFO_NAMED("robot_interaction",
                    "No active joints or end effectors found for group '%s'. "
@@ -168,6 +184,9 @@ void RobotInteraction::decideActiveJoints(const std::string &group)
   active_vj_.clear();
 
   ROS_DEBUG_NAMED("robot_interaction", "Deciding active joints for group '%s'", group.c_str());
+
+  if (!joint_markers_active_)
+    return;
 
   if (group.empty())
     return;
@@ -259,6 +278,9 @@ void RobotInteraction::decideActiveEndEffectors(const std::string &group, Intera
   active_eef_.clear();
 
   ROS_DEBUG_NAMED("robot_interaction", "Deciding active end-effectors for group '%s'", group.c_str());
+
+  if (!eef_markers_active_)
+    return;
 
   if (group.empty())
     return;
@@ -394,9 +416,11 @@ void RobotInteraction::addEndEffectorMarkers(
   if (eef.parent_group == eef.eef_group || !robot_model_->hasLinkModel(eef.parent_link))
     return;
 
+  bool eef_orientation_fixed = handler->getEndEffectorFixedOrientation();
+
   visualization_msgs::InteractiveMarkerControl m_control;
   m_control.always_visible = false;
-  if (position && orientation)
+  if (position && orientation && !eef_orientation_fixed)
     m_control.interaction_mode = m_control.MOVE_ROTATE_3D;
   else if (orientation)
     m_control.interaction_mode = m_control.ROTATE_3D;
@@ -433,10 +457,69 @@ void RobotInteraction::addEndEffectorMarkers(
     tf::Pose tf_root_to_mesh_new = tf_root_to_im * tf_im_to_mesh;
     tf::poseTFToMsg(tf_root_to_mesh_new, marker_array.markers[i].pose);
     // - - - - - - - - - - - - - - - - - - - - - - - - - -
-    m_control.markers.push_back(marker_array.markers[i]);
+    // m_control.markers.push_back(marker_array.markers[i]); // FIXME No weird hand thing!
   }
 
   im.controls.push_back(m_control);
+
+  // HACK Fixed orientation (until more sophisticated tools)
+  if (eef_orientation_fixed) {
+    im.controls.clear();
+
+    visualization_msgs::InteractiveMarkerControl control;
+
+    control.orientation_mode = visualization_msgs::InteractiveMarkerControl::FIXED;
+
+    control.orientation.w = 1;
+    control.orientation.x = 1;
+    control.orientation.y = 0;
+    control.orientation.z = 0;
+    control.name = "move_x";
+    control.interaction_mode = visualization_msgs::InteractiveMarkerControl::MOVE_AXIS;
+    im.controls.push_back(control);
+
+    control.orientation.w = 1;
+    control.orientation.x = 0;
+    control.orientation.y = 1;
+    control.orientation.z = 0;
+    control.name = "move_z";
+    control.interaction_mode = visualization_msgs::InteractiveMarkerControl::MOVE_AXIS;
+    im.controls.push_back(control);
+
+    control.orientation.w = 1;
+    control.orientation.x = 0;
+    control.orientation.y = 0;
+    control.orientation.z = 1;
+    control.name = "move_y";
+    control.interaction_mode = visualization_msgs::InteractiveMarkerControl::MOVE_AXIS;
+    im.controls.push_back(control);
+
+    // control.orientation_mode = visualization_msgs::InteractiveMarkerControl::INHERIT;
+
+    control.orientation.w = 1;
+    control.orientation.x = 1;
+    control.orientation.y = 0;
+    control.orientation.z = 0;
+    control.name = "rotate_x";
+    control.interaction_mode = visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS;
+    im.controls.push_back(control);
+
+    control.orientation.w = 1;
+    control.orientation.x = 0;
+    control.orientation.y = 1;
+    control.orientation.z = 0;
+    control.name = "rotate_z";
+    control.interaction_mode = visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS;
+    im.controls.push_back(control);
+
+    control.orientation.w = 1;
+    control.orientation.x = 0;
+    control.orientation.y = 0;
+    control.orientation.z = 1;
+    control.name = "rotate_y";
+    control.interaction_mode = visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS;
+    im.controls.push_back(control);
+  }
 }
 
 static inline std::string getMarkerName(
@@ -700,6 +783,10 @@ void RobotInteraction::computeMarkerPose(
     control_to_eef_tf.orientation.z = 0.0;
     control_to_eef_tf.orientation.w = 1.0;
   }
+  // if (handler->getEndEffectorFixedOrientation()) {
+  //   ROS_INFO("Fixing orientation");
+  //   tf_root_to_control.setRotation(tf::Quaternion(0,0,0,1));
+  // }
 
   tf::poseTFToMsg(tf_root_to_control, pose);
 }
